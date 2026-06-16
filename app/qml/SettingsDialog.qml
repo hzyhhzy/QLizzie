@@ -930,26 +930,28 @@ Basic.Dialog {
                                     border.width: defaultEngineCombo.activeFocus ? 2 : 1
                                 }
 
-                                delegate: Basic.ItemDelegate {
-                                    id: defaultEngineDelegate
-                                    width: defaultEngineCombo.width
-                                    height: 36
-                                    highlighted: defaultEngineCombo.highlightedIndex === index
+                                delegate: Component {
+                                    ItemDelegate {
+                                        id: defaultEngineDelegate
+                                        width: defaultEngineCombo.width
+                                        height: 36
+                                        highlighted: defaultEngineCombo.highlightedIndex === index
 
-                                    contentItem: Text {
-                                        text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
-                                        color: "#102532"
-                                        font.pixelSize: 14
-                                        font.bold: defaultEngineDelegate.highlighted
-                                        verticalAlignment: Text.AlignVCenter
-                                        leftPadding: 12
-                                        rightPadding: 12
-                                        elide: Text.ElideRight
-                                    }
+                                        contentItem: Text {
+                                            text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
+                                            color: "#102532"
+                                            font.pixelSize: 14
+                                            font.bold: defaultEngineDelegate.highlighted
+                                            verticalAlignment: Text.AlignVCenter
+                                            leftPadding: 12
+                                            rightPadding: 12
+                                            elide: Text.ElideRight
+                                        }
 
-                                    background: Rectangle {
-                                        color: defaultEngineDelegate.highlighted ? "#d8e9f1" : "#ffffff"
-                                        border.color: defaultEngineDelegate.highlighted ? "#9abaca" : "#eef3f6"
+                                        background: Rectangle {
+                                            color: defaultEngineDelegate.highlighted ? "#d8e9f1" : "#ffffff"
+                                            border.color: defaultEngineDelegate.highlighted ? "#9abaca" : "#eef3f6"
+                                        }
                                     }
                                 }
 

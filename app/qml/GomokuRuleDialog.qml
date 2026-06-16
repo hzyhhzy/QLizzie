@@ -177,22 +177,24 @@ Basic.Dialog {
             border.width: combo.activeFocus ? 2 : 1
         }
 
-        delegate: Basic.ItemDelegate {
-            id: optionDelegate
-            width: combo.width
-            height: 32
-            hoverEnabled: true
-            contentItem: Text {
-                text: modelData.label
-                color: "#17212a"
-                font.pixelSize: gomokuRuleDialog.app.compactLayout ? 12 : 13
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 10
-                elide: Text.ElideRight
-            }
-            background: Rectangle {
-                color: optionDelegate.highlighted ? "#d8e9f1"
-                                                   : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
+        delegate: Component {
+            ItemDelegate {
+                id: optionDelegate
+                width: combo.width
+                height: 32
+                hoverEnabled: true
+                contentItem: Text {
+                    text: modelData.label
+                    color: "#17212a"
+                    font.pixelSize: gomokuRuleDialog.app.compactLayout ? 12 : 13
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 10
+                    elide: Text.ElideRight
+                }
+                background: Rectangle {
+                    color: optionDelegate.highlighted ? "#d8e9f1"
+                                                    : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
+                }
             }
         }
     }

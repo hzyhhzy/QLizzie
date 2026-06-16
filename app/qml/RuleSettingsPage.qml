@@ -269,25 +269,27 @@ ColumnLayout {
             border.width: control.activeFocus ? 2 : 1
         }
 
-        delegate: Basic.ItemDelegate {
-            id: optionDelegate
-            width: control.width
-            height: control.app.compactLayout ? 30 : 34
-            highlighted: control.highlightedIndex === index
-            hoverEnabled: true
+        delegate: Component {
+            ItemDelegate {
+                id: optionDelegate
+                width: control.width
+                height: control.app.compactLayout ? 30 : 34
+                highlighted: control.highlightedIndex === index
+                hoverEnabled: true
 
-            contentItem: Text {
-                text: modelData.label
-                color: "#14242e"
-                font.pixelSize: control.app.compactLayout ? 12 : 13
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 10
-                elide: Text.ElideRight
-            }
+                contentItem: Text {
+                    text: modelData.label
+                    color: "#14242e"
+                    font.pixelSize: control.app.compactLayout ? 12 : 13
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 10
+                    elide: Text.ElideRight
+                }
 
-            background: Rectangle {
-                color: optionDelegate.highlighted ? "#d8e9f1"
-                                                  : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
+                background: Rectangle {
+                    color: optionDelegate.highlighted ? "#d8e9f1"
+                                                    : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
+                }
             }
         }
     }

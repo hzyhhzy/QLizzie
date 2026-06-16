@@ -106,22 +106,24 @@ Basic.Dialog {
                     border.width: languageCombo.activeFocus ? 2 : 1
                 }
 
-                delegate: Basic.ItemDelegate {
-                    width: languageCombo.width
-                    height: 42
-                    highlighted: languageCombo.highlightedIndex === index
+                delegate: Component {
+                    ItemDelegate {
+                        width: languageCombo.width
+                        height: 42
+                        highlighted: languageCombo.highlightedIndex === index
 
-                    contentItem: Text {
-                        text: modelData.label
-                        color: "#14242e"
-                        font.pixelSize: 15
-                        font.bold: languageCombo.currentIndex === index
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 12
-                    }
+                        contentItem: Text {
+                            text: modelData.label
+                            color: "#14242e"
+                            font.pixelSize: 15
+                            font.bold: languageCombo.currentIndex === index
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 12
+                        }
 
-                    background: Rectangle {
-                        color: highlighted ? "#dfeaf0" : "#ffffff"
+                        background: Rectangle {
+                            color: highlighted ? "#dfeaf0" : "#ffffff"
+                        }
                     }
                 }
 

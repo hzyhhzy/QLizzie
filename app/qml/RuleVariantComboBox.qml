@@ -36,34 +36,36 @@ Basic.ComboBox {
         hoveredTip = ""
     }
 
-    delegate: Basic.ItemDelegate {
-        id: optionDelegate
+    delegate: Component {
+        ItemDelegate {
+            id: optionDelegate
 
-        width: control.width
-        height: control.app.compactLayout ? 30 : 34
-        hoverEnabled: true
+            width: control.width
+            height: control.app.compactLayout ? 30 : 34
+            hoverEnabled: true
 
-        contentItem: Text {
-            text: modelData.label
-            color: "#17212a"
-            font.pixelSize: control.textPixelSize
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
+            contentItem: Text {
+                text: modelData.label
+                color: "#17212a"
+                font.pixelSize: control.textPixelSize
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+
+            background: Rectangle {
+                color: optionDelegate.highlighted ? "#d8e9f1"
+                                                : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
+            }
+
+            onHoveredChanged: {
+                if (hovered)
+                    control.showTip(modelData.tip, optionDelegate)
+                else if (control.hoveredTip === modelData.tip)
+                    control.hideTip()
+            }
+
+            onClicked: control.hideTip()
         }
-
-        background: Rectangle {
-            color: optionDelegate.highlighted ? "#d8e9f1"
-                                              : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
-        }
-
-        onHoveredChanged: {
-            if (hovered)
-                control.showTip(modelData.tip, optionDelegate)
-            else if (control.hoveredTip === modelData.tip)
-                control.hideTip()
-        }
-
-        onClicked: control.hideTip()
     }
 
     contentItem: Text {
