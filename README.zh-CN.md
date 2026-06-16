@@ -53,6 +53,33 @@ cmake --build build/qlizzie --config Release
 build/qlizzie/app/Release/qlizzie.exe
 ```
 
+### Linux（Ubuntu/Debian）
+
+安装所需的 Qt 6.4+ 开发包：
+
+```bash
+sudo apt install \
+    cmake \
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-declarative-dev \
+    qml6-module-qtquick \
+    qml6-module-qtquick-window \
+    qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts \
+    qml6-module-qtquick-dialogs \
+    qml6-module-qtquick-templates \
+    qml6-module-qtqml-workerscript
+```
+
+然后构建并运行：
+
+```bash
+cmake -S . -B build/qlizzie
+cmake --build build/qlizzie --config Release -j4
+./build/qlizzie/app/qlizzie
+```
+
 ## 引擎
 
 QLizzie 通过 GTP 协议和 AI 引擎通信。引擎预设可以保存名称、命令行、规则类型、默认棋盘大小、贴目和 Hex 坐标兼容设置。

@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
 
-    engine.loadFromModule("QLizzie", "Main");
+    engine.load(QUrl(QStringLiteral("qrc:/QLizzie/qml/Main.qml")));
 
     return app.exec();
 }

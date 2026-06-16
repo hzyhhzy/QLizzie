@@ -36,7 +36,7 @@ The project references LizzieYZY for feature direction and visual behavior, but 
 
 Requirements:
 
-- Qt 6
+- Qt 6.4+
 - CMake
 - A C++17-capable compiler, such as MSVC on Windows
 
@@ -51,6 +51,33 @@ The executable is generated under the selected build directory, for example:
 
 ```text
 build/qlizzie/app/Release/qlizzie.exe
+```
+
+### Linux (Ubuntu/Debian)
+
+Install the required Qt 6 development packages:
+
+```bash
+sudo apt install \
+    cmake \
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-declarative-dev \
+    qml6-module-qtquick \
+    qml6-module-qtquick-window \
+    qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts \
+    qml6-module-qtquick-dialogs \
+    qml6-module-qtquick-templates \
+    qml6-module-qtqml-workerscript
+```
+
+Then build and run:
+
+```bash
+cmake -S . -B build/qlizzie
+cmake --build build/qlizzie --config Release -j4
+./build/qlizzie/app/qlizzie
 ```
 
 ## Engine

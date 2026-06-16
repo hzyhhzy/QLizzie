@@ -1098,24 +1098,26 @@ Basic.Dialog {
             border.width: combo.activeFocus ? 2 : 1
         }
 
-        delegate: Basic.ItemDelegate {
-            width: combo.width
-            height: 36
-            highlighted: combo.highlightedIndex === index
+        delegate: Component {
+            ItemDelegate {
+                width: combo.width
+                height: 36
+                highlighted: combo.highlightedIndex === index
 
-            contentItem: Text {
-                text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
-                color: "#102532"
-                font.pixelSize: 14
-                font.bold: highlighted
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 12
-                elide: Text.ElideRight
-            }
+                contentItem: Text {
+                    text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
+                    color: "#102532"
+                    font.pixelSize: 14
+                    font.bold: highlighted
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 12
+                    elide: Text.ElideRight
+                }
 
-            background: Rectangle {
-                color: highlighted ? "#d8e9f1" : "#ffffff"
-                border.color: highlighted ? "#9abaca" : "#eef3f6"
+                background: Rectangle {
+                    color: highlighted ? "#d8e9f1" : "#ffffff"
+                    border.color: highlighted ? "#9abaca" : "#eef3f6"
+                }
             }
         }
     }
