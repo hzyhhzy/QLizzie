@@ -31,7 +31,16 @@ qt_add_qml_module(qlizzie
     QML_FILES
         qml/AboutDialog.qml
         qml/AnalysisStatus.js
+        qml/AppButton.qml
+        qml/AppCheckBox.qml
+        qml/AppComboBox.qml
+        qml/AppDialog.qml
+        qml/AppDialogFooter.qml
+        qml/AppPopup.qml
+        qml/AppRadioChoice.qml
         qml/AppScrollBar.qml
+        qml/AppTextArea.qml
+        qml/AppTextField.qml
         qml/AnalysisToolbar.qml
         qml/BoardSizeDialog.qml
         qml/BoardSizeStepper.qml

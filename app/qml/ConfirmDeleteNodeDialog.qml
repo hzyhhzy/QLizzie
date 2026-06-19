@@ -3,18 +3,14 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: confirmDeleteNodeDialog
-
-    required property var app
 
     modal: true
     title: app.trText("deleteNodeTitle")
     closePolicy: Popup.CloseOnEscape
     padding: 0
     width: Math.min(520, Math.max(360, app.width - 80))
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     function descendantCountForNode(id) {
         var node = app.nodeById(id)
@@ -37,13 +33,6 @@ Basic.Dialog {
     }
 
     onClosed: app.focusBoardInput()
-
-    background: Rectangle {
-        radius: 10
-        color: "#f8fbfd"
-        border.color: "#94aab6"
-        border.width: 1
-    }
 
     contentItem: ColumnLayout {
         spacing: 14
@@ -147,32 +136,14 @@ Basic.Dialog {
                     onClicked: confirmDeleteNodeDialog.close()
                 }
 
-                Basic.Button {
+                AppButton {
                     id: deleteButton
                     text: app.trText("deleteNodeConfirm")
+                    danger: true
                     Layout.preferredWidth: 116
-                    Layout.preferredHeight: 34
-                    padding: 0
                     onClicked: {
                         app.deleteCurrentNode(true)
                         confirmDeleteNodeDialog.close()
-                    }
-
-                    contentItem: Text {
-                        text: deleteButton.text
-                        color: "#ffffff"
-                        font.pixelSize: 13
-                        font.bold: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    background: Rectangle {
-                        radius: 6
-                        color: deleteButton.pressed ? "#a02a1f"
-                             : deleteButton.hovered ? "#d14635" : "#c7352a"
-                        border.color: "#a02a1f"
-                        border.width: 1
                     }
                 }
             }

@@ -3,19 +3,16 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: warningDialog
 
-    required property var app
     property string messageText: ""
 
     modal: true
+    tone: "warning"
     title: app.trText("engineRuleMismatchTitle")
     closePolicy: Popup.CloseOnEscape
-    padding: 18
     width: Math.min(520, app.width - 80)
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     function openForPreset(preset) {
         title = app.trText("engineRuleMismatchTitle")
@@ -37,38 +34,6 @@ Basic.Dialog {
                       + "\n"
                       + app.trText("expectedGameType") + ": GM[" + expectedGameId + "]"
         open()
-    }
-
-    background: Rectangle {
-        radius: 10
-        color: "#fff8ed"
-        border.color: "#c99452"
-    }
-
-    header: Rectangle {
-        height: 50
-        radius: 10
-        color: "#f5e4cc"
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
-        Label {
-            anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            text: warningDialog.title
-            color: "#3d2a12"
-            font.pixelSize: 17
-            font.bold: true
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
     }
 
     contentItem: ColumnLayout {

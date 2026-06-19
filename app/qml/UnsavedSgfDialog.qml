@@ -3,60 +3,13 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: unsavedSgfDialog
-
-    required property var app
 
     modal: true
     title: app.trText("unsavedGameTitle")
     closePolicy: Popup.CloseOnEscape
-    padding: 18
     width: Math.max(380, Math.min(460, app.width - 80))
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
-
-    background: Rectangle {
-        radius: 10
-        color: "#f8fbfd"
-        border.color: "#8ea5b1"
-        border.width: 1
-    }
-
-    header: Rectangle {
-        height: 52
-        color: "#e6eff4"
-        radius: 10
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: "#c5d4dc"
-        }
-
-        Label {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            text: unsavedSgfDialog.title
-            color: "#14242e"
-            font.pixelSize: 17
-            font.bold: true
-            elide: Text.ElideRight
-        }
-    }
 
     contentItem: Rectangle {
         implicitWidth: 424
@@ -78,57 +31,31 @@ Basic.Dialog {
         }
     }
 
-    footer: Rectangle {
-        implicitHeight: 68
-        color: "#f8fbfd"
-        radius: 10
+    footer: AppDialogFooter {
+        Item { Layout.fillWidth: true }
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: 1
-            color: "#d7e1e7"
+        SavePromptButton {
+            text: app.trText("save")
+            primary: true
+            onClicked: {
+                unsavedSgfDialog.close()
+                app.openSaveSgfDialog(true)
+            }
         }
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: parent.radius
-            color: parent.color
+        SavePromptButton {
+            text: app.trText("dontSave")
+            onClicked: {
+                unsavedSgfDialog.close()
+                app.closeWithoutSaving()
+            }
         }
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 18
-            spacing: 10
-
-            Item { Layout.fillWidth: true }
-
-            SavePromptButton {
-                text: app.trText("save")
-                primary: true
-                onClicked: {
-                    unsavedSgfDialog.close()
-                    app.openSaveSgfDialog(true)
-                }
-            }
-
-            SavePromptButton {
-                text: app.trText("dontSave")
-                onClicked: {
-                    unsavedSgfDialog.close()
-                    app.closeWithoutSaving()
-                }
-            }
-
-            SavePromptButton {
-                text: app.trText("cancel")
-                onClicked: {
-                    unsavedSgfDialog.close()
-                    app.focusBoardInput()
-                }
+        SavePromptButton {
+            text: app.trText("cancel")
+            onClicked: {
+                unsavedSgfDialog.close()
+                app.focusBoardInput()
             }
         }
     }
