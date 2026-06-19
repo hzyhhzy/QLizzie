@@ -139,8 +139,11 @@ ApplicationWindow {
     readonly property int gameRuleHexGoTriangle: 8
     readonly property int gameRuleAtaxx: 9
     readonly property int gameRuleBreakthrough: 10
+    readonly property int gameRuleTorusGo: 11
+    readonly property int gameRuleMoreOption: -1000000
     property int gameRuleMode: gameRuleGo
     property var ruleVisibilityMap: ({})
+    property var commonRuleOrder: []
     readonly property int gomokuRuleFreestyle: 0
     readonly property int gomokuRuleStandard: 1
     readonly property int gomokuRuleRenju: 2
@@ -173,6 +176,9 @@ ApplicationWindow {
 
     property real komi: 6.5
     readonly property real maxKomiMagnitude: 99999
+    readonly property int komiUsageNone: 0
+    readonly property int komiUsageKomi: 1
+    readonly property int komiUsageBlackAggression: 2
     readonly property int playModeAnalysis: 0
     readonly property int playModeAiBlack: 1
     readonly property int playModeAiWhite: 2
@@ -199,9 +205,13 @@ ApplicationWindow {
     property int coordinateDisplayMode: coordinateDisplayGoNoI
     readonly property int boardPresentationIntersections: 0
     readonly property int boardPresentationCells: 1
+    readonly property int boardPresentationTorusEdge: 2
+    readonly property int boardPresentationTorusHalf: 3
+    readonly property int boardPresentationTorusFull: 4
     property int boardPresentationMode: boardPresentationIntersections
     property int goBoardPresentationMode: boardPresentationIntersections
     property int gomokuBoardPresentationMode: boardPresentationIntersections
+    property int torusGoBoardPresentationMode: boardPresentationTorusEdge
     readonly property int hexBoardStyleTriangle: 0
     readonly property int hexBoardStyleCells: 1
     property int hexBoardStyle: hexBoardStyleTriangle
@@ -266,6 +276,8 @@ ApplicationWindow {
     property int analysisRevision: 0
     property int analysisIntervalCentiseconds: 10
     property int maxAnalysisSeconds: 0
+    property bool analysisWideRootNoiseEnabled: false
+    property real analysisWideRootNoise: 0.05
     readonly property int maxLargeIntegerSetting: 1073741824
     property int candidateDisplayCount: 10
     property real candidateMinVisitRatio: 0.001
@@ -435,112 +447,113 @@ ApplicationWindow {
             title: root.trText("menuSettings")
             font.pixelSize: root.compactLayout ? 14 : 16
 
-            Action {
+            MenuItem {
                 text: root.trText("settingsDialogTitle")
+                font.pixelSize: root.compactLayout ? 14 : 16
                 onTriggered: settingsDialog.openPage(0)
             }
 
             Menu {
-                id: ruleSettingsMenu
+                id: ruleSelectionMenu
                 title: root.trText("ruleSelectionMenu")
-
-                function closeMenuChain() {
-                    if (typeof ruleSettingsMenu.dismiss === "function")
-                        ruleSettingsMenu.dismiss()
-                    if (typeof settingsMenu.dismiss === "function")
-                        settingsMenu.dismiss()
-                    ruleSettingsMenu.close()
-                    settingsMenu.close()
-                }
-
-                function chooseRuleMode(mode) {
-                    closeMenuChain()
-                    Qt.callLater(function() {
-                        root.requestRuleModeChange(mode)
-                        root.queueFocusBoardInput()
-                    })
-                }
-
-                MenuItem {
-                    id: ruleSettingsPageMenuItem
-
-                    width: Math.max(300, ruleSettingsMenu.width)
-                    leftPadding: 44
-                    rightPadding: 16
-                    text: root.trText("settingsPageRules") + "..."
-                    onTriggered: settingsDialog.openPage(1)
-
-                    contentItem: Text {
-                        text: ruleSettingsPageMenuItem.text
-                        color: ruleSettingsPageMenuItem.enabled ? "#17212a" : "#8a969d"
-                        font.pixelSize: root.compactLayout ? 14 : 16
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-                }
-
-                MenuSeparator {}
+                width: root.compactLayout ? 260 : 320
+                font.pixelSize: root.compactLayout ? 14 : 16
 
                 Instantiator {
-                    model: root.visibleGameRuleOptions()
+                    model: root.commonGameRuleOptions()
 
                     delegate: MenuItem {
-                        id: ruleMenuItem
+                        id: commonRuleMenuItem
 
-                        width: Math.max(300, ruleSettingsMenu.width)
-                        leftPadding: 44
-                        rightPadding: 16
+                        readonly property bool selected: root.gameRuleMode === modelData.value
+
+                        width: ruleSelectionMenu.width
                         text: modelData.label
-                        checkable: true
-                        checked: root.gameRuleMode === modelData.value
+                        checkable: false
                         enabled: root.ruleModeAllowedForPackage(modelData.value)
-                        onTriggered: {
-                            ruleSettingsMenu.chooseRuleMode(modelData.value)
-                        }
-
-                        contentItem: Text {
-                            text: ruleMenuItem.text
-                            color: ruleMenuItem.enabled ? "#17212a" : "#8a969d"
-                            font.pixelSize: root.compactLayout ? 14 : 16
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                        }
+                        font.pixelSize: root.compactLayout ? 14 : 16
+                        leftPadding: 0
+                        rightPadding: 0
+                        onTriggered: root.chooseRuleModeFromMenu(modelData.value)
 
                         indicator: Item {
                             x: 10
                             y: 0
-                            width: 24
-                            height: ruleMenuItem.height
+                            width: 26
+                            height: commonRuleMenuItem.height
 
                             Text {
                                 anchors.centerIn: parent
-                                visible: ruleMenuItem.checked
+                                visible: commonRuleMenuItem.selected
                                 text: "\u2713"
                                 color: "#17212a"
                                 font.pixelSize: root.compactLayout ? 15 : 17
                                 font.bold: true
                             }
                         }
+
+                        contentItem: Item {
+                            implicitWidth: ruleSelectionMenu.width
+                            implicitHeight: commonRuleMenuItem.implicitContentHeight
+
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 52
+                                anchors.right: parent.right
+                                anchors.rightMargin: 18
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: commonRuleMenuItem.text
+                                color: commonRuleMenuItem.enabled ? "#17212a" : "#8a969d"
+                                font.pixelSize: root.compactLayout ? 14 : 16
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                        }
                     }
 
                     onObjectAdded: function(index, object) {
-                        ruleSettingsMenu.insertItem(index + 2, object)
+                        ruleSelectionMenu.insertItem(index, object)
                     }
+
                     onObjectRemoved: function(index, object) {
-                        ruleSettingsMenu.removeItem(object)
+                        ruleSelectionMenu.removeItem(object)
                     }
+                }
+
+                MenuSeparator { visible: root.commonGameRuleOptions().length > 0 }
+
+                MenuItem {
+                    width: ruleSelectionMenu.width
+                    text: root.trText("moreRules")
+                    font.pixelSize: root.compactLayout ? 14 : 16
+                    onTriggered: root.openRuleSelectionPopup()
                 }
             }
 
-            Action {
+            MenuItem {
                 text: root.trText("engineListTitle")
+                font.pixelSize: root.compactLayout ? 14 : 16
                 onTriggered: engineListDialog.openManage()
             }
 
             Menu {
                 title: root.trText("menuLanguage")
-                Action { text: root.trText("languageChinese"); onTriggered: root.language = "zh" }
-                Action { text: root.trText("languageEnglish"); onTriggered: root.language = "en" }
+                width: root.compactLayout ? 180 : 220
+                font.pixelSize: root.compactLayout ? 14 : 16
+
+                MenuItem {
+                    text: root.trText("languageChinese")
+                    width: parent ? parent.width : 220
+                    font.pixelSize: root.compactLayout ? 14 : 16
+                    onTriggered: root.language = "zh"
+                }
+
+                MenuItem {
+                    text: root.trText("languageEnglish")
+                    width: parent ? parent.width : 220
+                    font.pixelSize: root.compactLayout ? 14 : 16
+                    onTriggered: root.language = "en"
+                }
             }
         }
 
@@ -734,6 +747,675 @@ ApplicationWindow {
     RuleChangeSaveDialog { id: ruleChangeSaveDialog; app: root }
     BoardSizeDialog { id: boardSizeDialog; app: root }
 
+    Basic.Popup {
+        id: ruleSelectionPopup
+
+        property var collapsedGroups: ({})
+        readonly property int treeDepthStep: root.compactLayout ? 20 : 24
+        readonly property int treeNodeCenter: root.compactLayout ? 22 : 26
+        readonly property int treeTextGap: root.compactLayout ? 22 : 26
+
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(root.width - 80, root.compactLayout ? 420 : 520)
+        height: Math.min(root.height - 100, root.compactLayout ? 430 : 520)
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        padding: 0
+
+        function setGroupCollapsed(groupId, collapsed) {
+            var next = {}
+            for (var key in collapsedGroups)
+                next[key] = collapsedGroups[key]
+            if (collapsed)
+                next[groupId] = true
+            else
+                delete next[groupId]
+            collapsedGroups = next
+        }
+
+        function chooseRule(mode) {
+            close()
+            root.chooseRuleModeFromMenu(mode)
+        }
+
+        background: Rectangle {
+            radius: 9
+            color: "#f8fbfd"
+            border.color: "#9fb3bf"
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 50
+                color: "#e6eff4"
+                radius: 9
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.radius
+                    color: parent.color
+                }
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    text: root.trText("ruleSelectionMenu")
+                    color: "#14242e"
+                    font.pixelSize: root.compactLayout ? 17 : 19
+                    font.bold: true
+                }
+            }
+
+            Flickable {
+                id: ruleSelectionFlick
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: width
+                contentHeight: ruleSelectionColumn.implicitHeight + 20
+                boundsBehavior: Flickable.StopAtBounds
+
+                ScrollBar.vertical: AppScrollBar {
+                    policy: ruleSelectionFlick.contentHeight > ruleSelectionFlick.height
+                            ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                }
+
+                ColumnLayout {
+                    id: ruleSelectionColumn
+                    x: 10
+                    y: 10
+                    width: ruleSelectionFlick.width - 28
+                    spacing: 4
+
+                    Repeater {
+                        model: root.ruleTreeRows(ruleSelectionPopup.collapsedGroups)
+
+                        delegate: Rectangle {
+                            readonly property bool rowVisible: true
+
+                            Layout.fillWidth: true
+                            implicitHeight: rowVisible ? (root.compactLayout ? 34 : 38) : 0
+                            radius: 5
+                            color: modelData.type === "leaf" && modelData.value === root.gameRuleMode ? "#dcecf3"
+                                  : ruleMouse.containsMouse ? "#eef6fa"
+                                  : modelData.type === "group" ? "#f2f7fa" : "#ffffff"
+                            border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
+                            border.width: 1
+
+                            Item {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+
+                                Repeater {
+                                    model: Math.max(0, modelData.depth)
+
+                                    Rectangle {
+                                        x: ruleSelectionPopup.treeNodeCenter
+                                           + index * ruleSelectionPopup.treeDepthStep
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: 1
+                                        color: "#cbd9e1"
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: modelData.depth > 0
+                                    x: ruleSelectionPopup.treeNodeCenter
+                                       + (modelData.depth - 1) * ruleSelectionPopup.treeDepthStep
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: ruleSelectionPopup.treeDepthStep
+                                    height: 1
+                                    color: "#cbd9e1"
+                                }
+
+                                Text {
+                                    id: ruleSelectionTreeMark
+                                    visible: modelData.type === "group"
+                                    x: ruleSelectionPopup.treeNodeCenter
+                                       + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
+                                       - width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.collapsed ? "\u25b6" : "\u25be"
+                                    color: "#38505c"
+                                    font.pixelSize: root.compactLayout ? 17 : 19
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Text {
+                                    id: ruleSelectionLeafMark
+                                    visible: modelData.type === "leaf"
+                                    x: ruleSelectionPopup.treeNodeCenter
+                                       + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
+                                       - width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.value === root.gameRuleMode ? "\u2713" : ""
+                                    color: "#1678bd"
+                                    font.pixelSize: root.compactLayout ? 16 : 18
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: ruleSelectionPopup.treeNodeCenter
+                                                        + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
+                                                        + ruleSelectionPopup.treeTextGap
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label
+                                    color: modelData.type === "leaf" && !root.ruleModeAllowedForPackage(modelData.value)
+                                           ? "#8a969d" : "#14242e"
+                                    font.pixelSize: modelData.type === "group"
+                                                    ? (root.compactLayout ? 14 : 16)
+                                                    : (root.compactLayout ? 13 : 15)
+                                    font.bold: modelData.type === "group"
+                                               || (modelData.type === "leaf" && modelData.value === root.gameRuleMode)
+                                    elide: Text.ElideRight
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: ruleMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: modelData.type === "group"
+                                         || root.ruleModeAllowedForPackage(modelData.value)
+                                onClicked: {
+                                    if (modelData.type === "group")
+                                        ruleSelectionPopup.setGroupCollapsed(modelData.groupId, !modelData.collapsed)
+                                    else
+                                        ruleSelectionPopup.chooseRule(modelData.value)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 54
+                color: "#eef4f7"
+                border.color: "#d3e0e7"
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 10
+
+                    SavePromptButton {
+                        text: root.trText("setCommonGameRules") + "..."
+                        onClicked: {
+                            ruleSelectionPopup.close()
+                            root.openCommonGameRulesPopup()
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    SavePromptButton {
+                        text: root.trText("cancel")
+                        onClicked: ruleSelectionPopup.close()
+                    }
+                }
+            }
+        }
+    }
+
+    Basic.Popup {
+        id: commonGameRulesPopup
+
+        property var collapsedGroups: ({})
+        readonly property int leftRuleColumnWidth: root.compactLayout ? 260 : 330
+        readonly property int treeDepthStep: root.compactLayout ? 20 : 24
+        readonly property int treeNodeCenter: root.compactLayout ? 28 : 34
+        readonly property int treeCheckOffset: root.compactLayout ? 34 : 38
+        readonly property int treeNameOffset: root.compactLayout ? 66 : 76
+        readonly property int commonCheckSize: root.compactLayout ? 18 : 20
+
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(root.width - 80, root.compactLayout ? 640 : 860)
+        height: Math.min(root.height - 100, root.compactLayout ? 500 : 640)
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        padding: 0
+
+        function setGroupCollapsed(groupId, collapsed) {
+            var next = {}
+            for (var key in collapsedGroups)
+                next[key] = collapsedGroups[key]
+            if (collapsed)
+                next[groupId] = true
+            else
+                delete next[groupId]
+            collapsedGroups = next
+        }
+
+        background: Rectangle {
+            radius: 9
+            color: "#f8fbfd"
+            border.color: "#9fb3bf"
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 50
+                color: "#e6eff4"
+                radius: 9
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.radius
+                    color: parent.color
+                }
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    text: root.trText("commonGameRulesTitle")
+                    color: "#14242e"
+                    font.pixelSize: root.compactLayout ? 17 : 19
+                    font.bold: true
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: 12
+                spacing: 10
+
+                Rectangle {
+                    id: allCommonRulePanel
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 6
+                    color: "#ffffff"
+                    border.color: "#c7d4dc"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 6
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 28
+                            spacing: 8
+
+                            Item {
+                                Layout.preferredWidth: commonGameRulesPopup.leftRuleColumnWidth
+                                Layout.preferredHeight: 28
+
+                                Text {
+                                    x: commonGameRulesPopup.treeNodeCenter
+                                       + commonGameRulesPopup.treeCheckOffset - width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.trText("commonRule")
+                                    color: "#52636d"
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+
+                                Text {
+                                    x: commonGameRulesPopup.treeNodeCenter
+                                       + commonGameRulesPopup.treeNameOffset
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.trText("ruleName")
+                                    color: "#52636d"
+                                    font.pixelSize: 12
+                                }
+                            }
+
+                            Text {
+                                text: root.trText("ruleDescription")
+                                color: "#52636d"
+                                font.pixelSize: 12
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Flickable {
+                            id: commonRuleFlick
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            contentWidth: width
+                            contentHeight: commonRuleColumn.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            ScrollBar.vertical: AppScrollBar {
+                                policy: commonRuleFlick.contentHeight > commonRuleFlick.height
+                                        ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                            }
+
+                            ColumnLayout {
+                                id: commonRuleColumn
+                                width: commonRuleFlick.width - 18
+                                spacing: 4
+
+                                Repeater {
+                                    model: root.ruleTreeRows(commonGameRulesPopup.collapsedGroups)
+
+                                    delegate: Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: Math.max(root.compactLayout ? 36 : 40,
+                                                                 commonRuleRow.implicitHeight + 10)
+                                        radius: 5
+                                        color: modelData.type === "group" ? "#f2f7fa"
+                                              : modelData.value === root.gameRuleMode ? "#edf7fb" : "#ffffff"
+                                        border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
+                                        border.width: 1
+
+                                        RowLayout {
+                                            id: commonRuleRow
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 12
+                                            spacing: 8
+
+                                            Item {
+                                                id: commonRuleLeftCell
+                                                Layout.preferredWidth: commonGameRulesPopup.leftRuleColumnWidth
+                                                Layout.fillHeight: true
+
+                                                Repeater {
+                                                    model: Math.max(0, modelData.depth)
+
+                                                    Rectangle {
+                                                        x: commonGameRulesPopup.treeNodeCenter
+                                                           + commonGameRulesPopup.treeCheckOffset
+                                                           + index * commonGameRulesPopup.treeDepthStep
+                                                        anchors.top: parent.top
+                                                        anchors.bottom: parent.bottom
+                                                        width: 1
+                                                        color: "#cbd9e1"
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: modelData.depth > 0
+                                                    x: commonGameRulesPopup.treeNodeCenter
+                                                       + commonGameRulesPopup.treeCheckOffset
+                                                       + (modelData.depth - 1) * commonGameRulesPopup.treeDepthStep
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: commonGameRulesPopup.treeDepthStep
+                                                    height: 1
+                                                    color: "#cbd9e1"
+                                                }
+
+                                                Rectangle {
+                                                    id: commonExpandButton
+                                                    visible: modelData.type === "group"
+                                                    x: commonGameRulesPopup.treeNodeCenter
+                                                       + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
+                                                       - width / 2
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: root.compactLayout ? 28 : 32
+                                                    height: width
+                                                    radius: 4
+                                                    color: commonExpandMouse.containsMouse ? "#e2edf3" : "transparent"
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: modelData.collapsed ? "\u25b6" : "\u25be"
+                                                        color: "#38505c"
+                                                        font.pixelSize: root.compactLayout ? 16 : 18
+                                                        font.bold: true
+                                                    }
+
+                                                    MouseArea {
+                                                        id: commonExpandMouse
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        onClicked: commonGameRulesPopup.setGroupCollapsed(modelData.groupId, !modelData.collapsed)
+                                                    }
+                                                }
+
+                                                Item {
+                                                    id: commonRuleCheckBox
+                                                    x: commonGameRulesPopup.treeNodeCenter
+                                                       + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
+                                                       + commonGameRulesPopup.treeCheckOffset
+                                                       - width / 2
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: commonGameRulesPopup.commonCheckSize
+                                                    height: commonGameRulesPopup.commonCheckSize
+
+                                                    readonly property int state: modelData.type === "group"
+                                                                                 ? root.ruleGroupVisibilityCheckState(modelData.modes)
+                                                                                 : (root.ruleModeVisible(modelData.value) ? Qt.Checked : Qt.Unchecked)
+                                                    readonly property bool checkEnabled: modelData.type === "group"
+                                                                                         ? root.ruleGroupHasMutableVisibility(modelData.modes)
+                                                                                         : true
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: 4
+                                                        color: !commonRuleCheckBox.checkEnabled ? "#f0f3f5"
+                                                              : commonRuleCheckBox.state === Qt.Checked
+                                                                || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#0f6fbf"
+                                                              : commonRuleCheckMouse.containsMouse ? "#eef7fa" : "#ffffff"
+                                                        border.color: commonRuleCheckBox.state === Qt.Checked
+                                                                    || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#0f6fbf"
+                                                                    : commonRuleCheckMouse.containsMouse ? "#5c8da6" : "#7f8b92"
+                                                        border.width: 1
+                                                    }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: commonRuleCheckBox.state === Qt.PartiallyChecked ? "\u2212"
+                                                              : commonRuleCheckBox.state === Qt.Checked ? "\u2713" : ""
+                                                        color: commonRuleCheckBox.state === Qt.Checked
+                                                               || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#ffffff" : "#17212a"
+                                                        font.pixelSize: root.compactLayout ? 13 : 15
+                                                        font.bold: true
+                                                    }
+
+                                                    MouseArea {
+                                                        id: commonRuleCheckMouse
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        enabled: commonRuleCheckBox.checkEnabled
+                                                        onClicked: {
+                                                            var nextChecked = commonRuleCheckBox.state !== Qt.Checked
+                                                            if (modelData.type === "group")
+                                                                root.setRuleModesVisible(modelData.modes, nextChecked)
+                                                            else
+                                                                root.setRuleModeVisible(modelData.value, nextChecked)
+                                                        }
+                                                    }
+                                                }
+
+                                                Text {
+                                                    anchors.left: parent.left
+                                                    anchors.leftMargin: commonGameRulesPopup.treeNodeCenter
+                                                                        + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
+                                                                        + commonGameRulesPopup.treeNameOffset
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: modelData.label
+                                                    color: modelData.type === "group" ? "#24313a" : "#17212a"
+                                                    font.pixelSize: modelData.type === "group"
+                                                                    ? (root.compactLayout ? 13 : 14)
+                                                                    : (root.compactLayout ? 12 : 13)
+                                                    font.bold: modelData.type === "group" || modelData.value === root.gameRuleMode
+                                                    elide: Text.ElideRight
+                                                    verticalAlignment: Text.AlignVCenter
+                                                }
+                                            }
+
+                                            Text {
+                                                text: modelData.type === "group" ? "" : modelData.tip
+                                                color: "#61727c"
+                                                font.pixelSize: root.compactLayout ? 12 : 13
+                                                wrapMode: Text.WordWrap
+                                                verticalAlignment: Text.AlignVCenter
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    id: currentCommonRulePanel
+                    Layout.preferredWidth: root.compactLayout ? 200 : 250
+                    Layout.fillHeight: true
+                    radius: 6
+                    color: "#ffffff"
+                    border.color: "#c7d4dc"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 8
+
+                        Text {
+                            text: root.trText("currentCommonGameRules")
+                            color: "#17212a"
+                            font.pixelSize: root.compactLayout ? 14 : 15
+                            font.bold: true
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: "#d5e2e8"
+                        }
+
+                        Flickable {
+                            id: currentCommonRuleFlick
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            contentWidth: width
+                            contentHeight: currentCommonRuleColumn.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            ScrollBar.vertical: AppScrollBar {
+                                policy: currentCommonRuleFlick.contentHeight > currentCommonRuleFlick.height
+                                        ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                            }
+
+                            ColumnLayout {
+                                id: currentCommonRuleColumn
+                                width: currentCommonRuleFlick.width - 18
+                                spacing: 5
+
+                                Repeater {
+                                    model: root.commonGameRuleOptions()
+
+                                    delegate: Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 38
+                                        radius: 5
+                                        color: modelData.value === root.gameRuleMode ? "#edf7fb" : "#f8fbfd"
+                                        border.color: "#d8e3e9"
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 8
+                                            anchors.rightMargin: 6
+                                            spacing: 6
+
+                                            Text {
+                                                text: String(index + 1)
+                                                color: "#61727c"
+                                                font.pixelSize: 12
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                                Layout.preferredWidth: 22
+                                            }
+
+                                            Text {
+                                                text: modelData.label
+                                                color: "#17212a"
+                                                font.pixelSize: root.compactLayout ? 12 : 13
+                                                font.bold: modelData.value === root.gameRuleMode
+                                                elide: Text.ElideRight
+                                                verticalAlignment: Text.AlignVCenter
+                                                Layout.fillWidth: true
+                                            }
+
+                                            SavePromptButton {
+                                                text: "\u2191"
+                                                enabled: index > 0
+                                                implicitWidth: 28
+                                                implicitHeight: 26
+                                                onClicked: root.moveCommonRule(modelData.value, -1)
+                                            }
+
+                                            SavePromptButton {
+                                                text: "\u2193"
+                                                enabled: index < root.commonGameRuleOptions().length - 1
+                                                implicitWidth: 28
+                                                implicitHeight: 26
+                                                onClicked: root.moveCommonRule(modelData.value, 1)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 54
+                color: "#eef4f7"
+                border.color: "#d3e0e7"
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Item { Layout.fillWidth: true }
+
+                    SavePromptButton {
+                        text: root.trText("close")
+                        onClicked: commonGameRulesPopup.close()
+                    }
+                }
+            }
+        }
+    }
+
     EngineCommunicationWindow {
         id: engineCommunicationWindow
         app: root
@@ -860,6 +1542,48 @@ ApplicationWindow {
 
     function ruleUsesMoveSource() {
         return RuleSupport.ruleUsesMoveSource(root, gameRuleMode)
+    }
+
+    function infoPanelShowsGoCaptures() {
+        return ruleUsesGoCapture()
+    }
+
+    function infoPanelShowsStoneCounts() {
+        return gameRuleMode === gameRuleReversi || gameRuleMode === gameRuleAtaxx
+    }
+
+    function infoPanelSideText(player) {
+        if (infoPanelShowsGoCaptures())
+            return trText("captured") + ": " + (player === 1 ? blackCaptures : whiteCaptures)
+        if (infoPanelShowsStoneCounts())
+            return String(stoneCountForPlayer(player))
+        return ""
+    }
+
+    function infoPanelSideTextVisible() {
+        return infoPanelShowsGoCaptures() || infoPanelShowsStoneCounts()
+    }
+
+    function infoPanelCenterBottomText() {
+        if (infoPanelShowsGoCaptures() || infoPanelShowsStoneCounts())
+            return Number(effectiveKomi()).toFixed(1)
+        if (gameRuleMode === gameRuleGomoku)
+            return gomokuRuleLabel(gomokuRuleMode)
+        return ""
+    }
+
+    function infoPanelCenterBottomVisible() {
+        return infoPanelCenterBottomText().length > 0
+    }
+
+    function stoneCountForPlayer(player) {
+        boardRevision
+        var count = 0
+        for (var i = 0; i < stoneItems.length; ++i) {
+            if (stoneItems[i].player === player)
+                ++count
+        }
+        return count
     }
 
     function currentMoveSourceNode() {
@@ -1510,6 +2234,15 @@ ApplicationWindow {
         return nextReason !== ""
     }
 
+    function gameOverDialogText() {
+        var reason = gameOverReason.length > 0 ? gameOverReason : trText("gameOverTitle")
+        if (gameWinner === 1)
+            return trText("blackWins") + "\n" + reason
+        if (gameWinner === 2)
+            return trText("whiteWins") + "\n" + reason
+        return reason
+    }
+
     function undoMove() {
         var node = currentNode()
         if (node && node.parent >= 0)
@@ -1763,6 +2496,10 @@ ApplicationWindow {
         return RuleSupport.gameRuleText(root)
     }
 
+    function gameRuleTextForMode(mode) {
+        return RuleSupport.gameRuleTextForMode(root, mode)
+    }
+
     function gameRuleOptions() {
         return RuleSupport.gameRuleOptions(root)
     }
@@ -1773,6 +2510,22 @@ ApplicationWindow {
 
     function visibleGameRuleOptions() {
         return RuleSupport.visibleGameRuleOptions(root)
+    }
+
+    function commonGameRuleOptions() {
+        return RuleSupport.commonGameRuleOptions(root)
+    }
+
+    function commonGameRuleOptionsWithCurrentAndMore() {
+        return RuleSupport.commonGameRuleOptionsWithCurrentAndMore(root)
+    }
+
+    function commonGameRuleOptionsWithModeAndMore(mode) {
+        return RuleSupport.commonGameRuleOptionsWithModeAndMore(root, mode)
+    }
+
+    function ruleTreeRows(collapsedGroups) {
+        return RuleSupport.ruleTreeRows(root, collapsedGroups || {})
     }
 
     function gameRuleCurrentIndex() {
@@ -1795,8 +2548,28 @@ ApplicationWindow {
         return RuleSupport.ruleModeVisible(root, mode)
     }
 
+    function ruleGroupVisible(modes) {
+        return RuleSupport.ruleGroupVisible(root, modes)
+    }
+
     function setRuleModeVisible(mode, visible) {
         RuleSupport.setRuleModeVisible(root, mode, visible)
+    }
+
+    function setRuleModesVisible(modes, visible) {
+        RuleSupport.setRuleModesVisible(root, modes, visible)
+    }
+
+    function moveCommonRule(mode, delta) {
+        RuleSupport.moveCommonRule(root, mode, delta)
+    }
+
+    function ruleGroupVisibilityCheckState(modes) {
+        return RuleSupport.ruleGroupVisibilityCheckState(root, modes)
+    }
+
+    function ruleGroupHasMutableVisibility(modes) {
+        return RuleSupport.ruleGroupHasMutableVisibility(root, modes)
     }
 
     function goRuleOptions() {
@@ -1870,8 +2643,60 @@ ApplicationWindow {
         return RuleSupport.ruleVariantComboVisible(root)
     }
 
+    function toolbarRuleSettingsVisible() {
+        return RuleSupport.toolbarRuleSettingsVisible(root)
+    }
+
+    function toolbarBoardPresentationVisible() {
+        return RuleSupport.toolbarBoardPresentationVisible(root)
+    }
+
+    function toolbarHexBoardStyleVisible() {
+        return RuleSupport.toolbarHexBoardStyleVisible(root)
+    }
+
+    function toolbarHexBoardRotationVisible() {
+        return RuleSupport.toolbarHexBoardRotationVisible(root)
+    }
+
+    function toolbarPresentationControlsVisible() {
+        return RuleSupport.toolbarPresentationControlsVisible(root)
+    }
+
     function komiControlsVisible() {
         return RuleSupport.komiControlsVisible(root)
+    }
+
+    function komiUsageForRule(mode) {
+        return RuleSupport.komiUsageForRule(root, mode)
+    }
+
+    function currentKomiUsage() {
+        return RuleSupport.currentKomiUsage(root)
+    }
+
+    function komiLabelText() {
+        return currentKomiUsage() === komiUsageBlackAggression ? trText("blackAggression") : trText("komi")
+    }
+
+    function komiMinimumForRule(mode) {
+        return komiUsageForRule(mode) === komiUsageBlackAggression ? -10 : -maxKomiMagnitude
+    }
+
+    function komiMaximumForRule(mode) {
+        return komiUsageForRule(mode) === komiUsageBlackAggression ? 10 : maxKomiMagnitude
+    }
+
+    function komiMinimum() {
+        return komiMinimumForRule(gameRuleMode)
+    }
+
+    function komiMaximum() {
+        return komiMaximumForRule(gameRuleMode)
+    }
+
+    function analysisWideRootNoiseControlsVisible() {
+        return true
     }
 
     function engineCommandEditable() {
@@ -1968,6 +2793,30 @@ ApplicationWindow {
 
     function requestRuleModeChange(mode) {
         RuleSupport.requestRuleModeChange(root, mode, ruleChangeSaveDialog)
+    }
+
+    function openRuleSelectionPopup() {
+        Qt.callLater(function() {
+            ruleSelectionPopup.open()
+        })
+    }
+
+    function openCommonGameRulesPopup() {
+        Qt.callLater(function() {
+            commonGameRulesPopup.open()
+        })
+    }
+
+    function chooseRuleModeFromMenu(mode) {
+        if (typeof settingsMenu !== "undefined") {
+            if (typeof settingsMenu.dismiss === "function")
+                settingsMenu.dismiss()
+            settingsMenu.close()
+        }
+        Qt.callLater(function() {
+            requestRuleModeChange(mode)
+            queueFocusBoardInput()
+        })
     }
 
     function applyRuleModeChange(mode) {
@@ -2097,7 +2946,7 @@ ApplicationWindow {
         next[index] = EnginePresets.normalizePreset(root, preset, index)
         setEnginePresetList(next)
         if (activeEngineId === next[index].id) {
-            komi = clampKomiValue(next[index].komi)
+            applyEnginePresetKomi(next[index], false)
             legacyHexEngineCoordinates = next[index].legacyHexEngineCoordinates
             if (engineController && engineController.command !== next[index].command)
                 engineController.command = next[index].command
@@ -2181,6 +3030,16 @@ ApplicationWindow {
         return true
     }
 
+    function applyEnginePresetKomi(preset, usePresetRule) {
+        if (!preset)
+            return
+        var mode = usePresetRule ? preset.ruleMode : gameRuleMode
+        if (komiUsageForRule(mode) === komiUsageKomi)
+            komi = clampKomiValueForRule(preset.komi, mode, defaultKomiForRule(mode))
+        else
+            komi = 0.0
+    }
+
     function applyEnginePresetBoardDefaults(preset) {
         if (!preset)
             return
@@ -2201,19 +3060,22 @@ ApplicationWindow {
             gomokuRuleFirstPassWin = gomokuRules.firstPassWin
         }
         normalizeGomokuRuleForCurrentMode()
-        if (preset.ruleMode === gameRuleGomoku)
+        if (preset.ruleMode === gameRuleGomoku) {
             gomokuBoardPresentationMode = preset.boardPresentationMode
-        else
+            boardPresentationMode = gomokuBoardPresentationMode
+        } else if (preset.ruleMode === gameRuleTorusGo) {
+            boardPresentationMode = torusGoBoardPresentationMode
+        } else {
             goBoardPresentationMode = boardPresentationIntersections
-        boardPresentationMode = preset.ruleMode === gameRuleGomoku
-                                ? gomokuBoardPresentationMode : goBoardPresentationMode
+            boardPresentationMode = goBoardPresentationMode
+        }
         var adjusted = RuleSupport.adjustedBoardDimensionsForRule(root, preset.ruleMode,
                                                                   preset.boardSizeX, preset.boardSizeY)
         boardSizeX = adjusted.x
         boardSizeY = adjusted.y
         if (preset.ruleMode === gameRuleHex)
             coordinateDisplayMode = coordinateDisplayHex
-        komi = clampKomiValue(preset.komi)
+        applyEnginePresetKomi(preset, true)
         legacyHexEngineCoordinates = preset.legacyHexEngineCoordinates
         clearHover(true)
         resetGameTree()
@@ -2231,7 +3093,7 @@ ApplicationWindow {
         if (emptyBoard)
             applyEnginePresetBoardDefaults(preset)
         else {
-            komi = clampKomiValue(preset.komi)
+            applyEnginePresetKomi(preset, false)
             legacyHexEngineCoordinates = preset.legacyHexEngineCoordinates
         }
 
@@ -2325,6 +3187,8 @@ ApplicationWindow {
     function engineRuleCommands() {
         if (gameRuleMode === gameRuleGo)
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.goRulesObject(root)) ]
+        if (gameRuleMode === gameRuleTorusGo)
+            return [ "kata-set-rules " + JSON.stringify(RuleSupport.torusGoRulesObject(root)) ]
         if (gameRuleMode === gameRuleGomoku)
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.gomokuRulesObject(root)) ]
         return []
@@ -2399,17 +3263,35 @@ ApplicationWindow {
     function engineBoardSignature() {
         var ruleDetail = gameRuleMode === gameRuleGomoku ? JSON.stringify(RuleSupport.gomokuRulesObject(root))
                        : gameRuleMode === gameRuleGo ? JSON.stringify(RuleSupport.goRulesObject(root))
+                       : gameRuleMode === gameRuleTorusGo ? JSON.stringify(RuleSupport.torusGoRulesObject(root))
                        : gameRuleMode === gameRuleHex ? "hex" : "go"
         return [boardSizeX, boardSizeY, gameRuleMode, ruleDetail,
                 legacyHexEngineCoordinateMode() ? "legacyHex" : "normal"].join(":")
     }
 
     function engineKomiCommand() {
+        if (!komiControlsVisible())
+            return ""
         return "komi " + Number(effectiveKomi()).toFixed(1)
     }
 
+    function engineAnalysisWideRootNoiseCommand() {
+        return "kata-set-param analysisWideRootNoise " + formatAnalysisWideRootNoise(effectiveAnalysisWideRootNoise())
+    }
+
+    function engineAnalysisParameterCommands() {
+        var commands = []
+        var komiCommand = engineKomiCommand()
+        if (komiCommand.length > 0)
+            commands.push(komiCommand)
+        commands.push(engineAnalysisWideRootNoiseCommand())
+        return commands
+    }
+
     function engineKomiSignature() {
-        return Number(effectiveKomi()).toFixed(1)
+        var usage = currentKomiUsage()
+        var komiPart = usage === komiUsageNone ? "none" : (usage + ":" + Number(effectiveKomi()).toFixed(1))
+        return komiPart + ":wrn:" + formatAnalysisWideRootNoise(effectiveAnalysisWideRootNoise())
     }
 
     function engineSyncCommands() {
@@ -2418,7 +3300,7 @@ ApplicationWindow {
 
         if (engineNeedsFullSync || engineSyncedBoardSignature !== engineBoardSignature()) {
             commands = commands.concat(engineBoardSizeCommands())
-            commands.push(engineKomiCommand())
+            commands = commands.concat(engineAnalysisParameterCommands())
             var fullRuleCommands = engineRuleCommands()
             for (var ruleCommandIndex = 0; ruleCommandIndex < fullRuleCommands.length; ++ruleCommandIndex)
                 commands.push(fullRuleCommands[ruleCommandIndex])
@@ -2435,7 +3317,7 @@ ApplicationWindow {
         }
 
         if (engineSyncedKomiSignature !== engineKomiSignature()) {
-            commands.push(engineKomiCommand())
+            commands = commands.concat(engineAnalysisParameterCommands())
             engineSyncedKomiSignature = engineKomiSignature()
         }
         var pathIds = []
@@ -2990,14 +3872,47 @@ ApplicationWindow {
     }
 
     function effectiveKomi() {
-        return komi
+        if (!komiControlsVisible())
+            return 0.0
+        return clampKomiValue(komi)
+    }
+
+    function defaultKomiForRule(mode) {
+        return komiUsageForRule(mode) === komiUsageKomi ? 6.5 : 0.0
+    }
+
+    function clampKomiSettingValue(value) {
+        var number = Number(value)
+        if (isNaN(number))
+            return 6.5
+        return clamp(number, -maxKomiMagnitude, maxKomiMagnitude)
+    }
+
+    function clampKomiValueForRule(value, mode, fallback) {
+        var number = Number(value)
+        if (isNaN(number))
+            number = fallback === undefined ? defaultKomiForRule(mode) : Number(fallback)
+        if (isNaN(number))
+            number = 0
+        if (komiUsageForRule(mode) === komiUsageNone)
+            return 0.0
+        return clamp(number, komiMinimumForRule(mode), komiMaximumForRule(mode))
     }
 
     function clampKomiValue(value) {
-        var number = Number(value)
-        if (isNaN(number))
-            return komi
-        return clamp(number, -maxKomiMagnitude, maxKomiMagnitude)
+        return clampKomiValueForRule(value, gameRuleMode, komi)
+    }
+
+    function adjustKomiForRuleChange(previousUsage) {
+        var usage = currentKomiUsage()
+        if (usage === komiUsageNone || usage === komiUsageBlackAggression) {
+            komi = 0.0
+            return
+        }
+        if (previousUsage !== komiUsageKomi)
+            komi = defaultKomiForRule(gameRuleMode)
+        else
+            komi = clampKomiValue(komi)
     }
 
     function setKomiValue(value) {
@@ -3007,12 +3922,53 @@ ApplicationWindow {
         if (Math.abs(komi - nextKomi) < 0.0001)
             return
         komi = nextKomi
-        resetEngineSyncState()
         scheduleAutoAnalysis()
     }
 
     function adjustKomi(delta) {
         setKomiValue(komi + delta)
+    }
+
+    function clampAnalysisWideRootNoise(value) {
+        var number = Number(value)
+        if (isNaN(number))
+            return analysisWideRootNoise
+        return clamp(number, 0, 2)
+    }
+
+    function effectiveAnalysisWideRootNoise() {
+        return analysisWideRootNoiseEnabled ? clampAnalysisWideRootNoise(analysisWideRootNoise) : 0
+    }
+
+    function formatAnalysisWideRootNoise(value) {
+        var number = clampAnalysisWideRootNoise(value)
+        return Number(number.toFixed(3)).toString()
+    }
+
+    function setAnalysisWideRootNoise(value) {
+        var previousEffectiveValue = effectiveAnalysisWideRootNoise()
+        var nextValue = Math.round(clampAnalysisWideRootNoise(value) * 1000) / 1000
+        if (isNaN(nextValue))
+            return
+        if (Math.abs(analysisWideRootNoise - nextValue) < 0.0001)
+            return
+        analysisWideRootNoise = nextValue
+        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001)
+            scheduleAutoAnalysis()
+        if (persistentSettingsLoaded)
+            savePersistentSettings()
+    }
+
+    function setAnalysisWideRootNoiseEnabled(enabled) {
+        var nextEnabled = !!enabled
+        if (analysisWideRootNoiseEnabled === nextEnabled)
+            return
+        var previousEffectiveValue = effectiveAnalysisWideRootNoise()
+        analysisWideRootNoiseEnabled = nextEnabled
+        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001)
+            scheduleAutoAnalysis()
+        if (persistentSettingsLoaded)
+            savePersistentSettings()
     }
 
     function buildGomokuWinLineItems(map) {

@@ -12,7 +12,7 @@ Basic.ComboBox {
     property real tipX: 0
     property real tipY: 0
 
-    model: app.visibleGameRuleOptions()
+    model: app.commonGameRuleOptionsWithCurrentAndMore()
     textRole: "label"
     currentIndex: app.visibleGameRuleCurrentIndex()
     leftPadding: 10
@@ -42,7 +42,8 @@ Basic.ComboBox {
         width: control.width
         height: control.app.compactLayout ? 30 : 34
         hoverEnabled: true
-        enabled: control.app.ruleModeAllowedForPackage(modelData.value)
+        enabled: modelData.value === control.app.gameRuleMoreOption
+                 || control.app.ruleModeAllowedForPackage(modelData.value)
 
         contentItem: Text {
             text: modelData.label

@@ -20,6 +20,9 @@ Basic.Dialog {
     property real listTooltipY: 0
     property var editorGoRules: ({})
     property var editorGomokuRules: ({})
+    property int editorRuleMode: app.gameRuleGo
+    property var engineRuleCollapsedGroups: ({})
+    property var editorRuleOptionsModel: []
     property var pendingUnsavedAction: null
     readonly property bool readOnlyMode: startupMode || pickerMode
     readonly property real legacyHexColumnWidth: readOnlyMode ? 0 : 82
@@ -79,9 +82,43 @@ Basic.Dialog {
     }
 
     function currentEditorRuleMode() {
-        var options = app.gameRuleOptions()
-        var option = options[ruleCombo.currentIndex]
-        return option ? option.value : app.gameRuleGo
+        return editorRuleMode
+    }
+
+    function refreshEditorRuleOptions() {
+        editorRuleOptionsModel = app.commonGameRuleOptionsWithModeAndMore(editorRuleMode)
+    }
+
+    function editorRuleCurrentIndex() {
+        var options = editorRuleOptionsModel
+        for (var i = 0; i < options.length; ++i) {
+            if (options[i].value === editorRuleMode)
+                return i
+        }
+        return 0
+    }
+
+    function setEditorRuleMode(mode) {
+        if (!app.validRuleMode(mode))
+            return
+        editorRuleMode = mode
+        refreshEditorRuleOptions()
+        ruleCombo.currentIndex = editorRuleCurrentIndex()
+    }
+
+    function openEditorRuleSelectionPopup() {
+        engineRuleSelectionPopup.open()
+    }
+
+    function setEngineRuleGroupCollapsed(groupId, collapsed) {
+        var next = {}
+        for (var key in engineRuleCollapsedGroups)
+            next[key] = engineRuleCollapsedGroups[key]
+        if (collapsed)
+            next[groupId] = true
+        else
+            delete next[groupId]
+        engineRuleCollapsedGroups = next
     }
 
     function editorRuleVariantText() {
@@ -261,15 +298,9 @@ Basic.Dialog {
         komiSpin.value = hasPreset ? Math.round(Number(preset.komi) * 2) : 13
         legacyHexCheck.checked = hasPreset && preset.legacyHexEngineCoordinates === true
 
-        var ruleOptions = app.gameRuleOptions()
-        var ruleIndex = 0
-        for (var i = 0; hasPreset && i < ruleOptions.length; ++i) {
-            if (ruleOptions[i].value === preset.ruleMode) {
-                ruleIndex = i
-                break
-            }
-        }
-        ruleCombo.currentIndex = ruleIndex
+        editorRuleMode = hasPreset ? preset.ruleMode : app.gameRuleGo
+        refreshEditorRuleOptions()
+        ruleCombo.currentIndex = editorRuleCurrentIndex()
         editorGoRules = EnginePresets.normalizeGoRules(app, hasPreset ? preset.goRules : null)
         editorGomokuRules = EnginePresets.normalizeGomokuRules(
                     app, hasPreset ? preset.gomokuRules : null,
@@ -572,10 +603,22 @@ Basic.Dialog {
                     FieldLabel { text: app.trText("mainRule") }
                     StyledComboBox {
                         id: ruleCombo
-                        model: app.gameRuleOptions()
+                        model: engineListDialog.editorRuleOptionsModel
+                        textRole: "label"
                         enabled: engineListDialog.selectedPreset() !== null
-                        Layout.preferredWidth: 250
-                        Layout.minimumWidth: 220
+                        Layout.preferredWidth: 340
+                        Layout.minimumWidth: 280
+                        onActivated: function(index) {
+                            var option = engineListDialog.editorRuleOptionsModel[index]
+                            if (!option)
+                                return
+                            if (option.value === app.gameRuleMoreOption) {
+                                currentIndex = engineListDialog.editorRuleCurrentIndex()
+                                engineListDialog.openEditorRuleSelectionPopup()
+                            } else {
+                                engineListDialog.setEditorRuleMode(option.value)
+                            }
+                        }
                     }
 
                     FieldLabel {
@@ -1055,6 +1098,206 @@ Basic.Dialog {
         app: engineListDialog.app
     }
 
+    Basic.Popup {
+        id: engineRuleSelectionPopup
+
+        readonly property int treeDepthStep: app.compactLayout ? 20 : 24
+        readonly property int treeNodeCenter: app.compactLayout ? 22 : 26
+        readonly property int treeTextGap: app.compactLayout ? 22 : 26
+
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(620, engineListDialog.width - 70)
+        height: Math.min(520, engineListDialog.height - 90)
+        x: Math.round((engineListDialog.width - width) / 2)
+        y: Math.round((engineListDialog.height - height) / 2)
+        padding: 0
+
+        background: Rectangle {
+            radius: 8
+            color: "#f8fbfd"
+            border.color: "#9fb3bf"
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                color: "#e6eff4"
+                radius: 8
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.radius
+                    color: parent.color
+                }
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    text: app.trText("ruleSelectionMenu")
+                    color: "#14242e"
+                    font.pixelSize: app.compactLayout ? 16 : 18
+                    font.bold: true
+                }
+            }
+
+            Flickable {
+                id: engineRuleSelectionFlick
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: width
+                contentHeight: engineRuleSelectionColumn.implicitHeight + 20
+                boundsBehavior: Flickable.StopAtBounds
+
+                ScrollBar.vertical: AppScrollBar {
+                    policy: engineRuleSelectionFlick.contentHeight > engineRuleSelectionFlick.height
+                            ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                }
+
+                ColumnLayout {
+                    id: engineRuleSelectionColumn
+                    x: 10
+                    y: 10
+                    width: engineRuleSelectionFlick.width - 28
+                    spacing: 4
+
+                    Repeater {
+                        model: app.ruleTreeRows(engineListDialog.engineRuleCollapsedGroups)
+
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: app.compactLayout ? 34 : 38
+                            radius: 5
+                            color: modelData.type === "leaf" && modelData.value === engineListDialog.editorRuleMode ? "#dcecf3"
+                                  : engineRuleMouse.containsMouse ? "#eef6fa"
+                                  : modelData.type === "group" ? "#f2f7fa" : "#ffffff"
+                            border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
+                            border.width: 1
+
+                            Item {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+
+                                Repeater {
+                                    model: Math.max(0, modelData.depth)
+
+                                    Rectangle {
+                                        x: engineRuleSelectionPopup.treeNodeCenter
+                                           + index * engineRuleSelectionPopup.treeDepthStep
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: 1
+                                        color: "#cbd9e1"
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: modelData.depth > 0
+                                    x: engineRuleSelectionPopup.treeNodeCenter
+                                       + (modelData.depth - 1) * engineRuleSelectionPopup.treeDepthStep
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: engineRuleSelectionPopup.treeDepthStep
+                                    height: 1
+                                    color: "#cbd9e1"
+                                }
+
+                                Text {
+                                    visible: modelData.type === "group"
+                                    x: engineRuleSelectionPopup.treeNodeCenter
+                                       + Math.max(0, modelData.depth) * engineRuleSelectionPopup.treeDepthStep
+                                       - width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.collapsed ? "\u25b6" : "\u25be"
+                                    color: "#38505c"
+                                    font.pixelSize: app.compactLayout ? 17 : 19
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    visible: modelData.type === "leaf"
+                                    x: engineRuleSelectionPopup.treeNodeCenter
+                                       + Math.max(0, modelData.depth) * engineRuleSelectionPopup.treeDepthStep
+                                       - width / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.value === engineListDialog.editorRuleMode ? "\u2713" : ""
+                                    color: "#1678bd"
+                                    font.pixelSize: app.compactLayout ? 16 : 18
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: engineRuleSelectionPopup.treeNodeCenter
+                                                        + Math.max(0, modelData.depth) * engineRuleSelectionPopup.treeDepthStep
+                                                        + engineRuleSelectionPopup.treeTextGap
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label
+                                    color: modelData.type === "leaf" && !app.ruleModeAllowedForPackage(modelData.value)
+                                           ? "#8a969d" : "#14242e"
+                                    font.pixelSize: modelData.type === "group"
+                                                    ? (app.compactLayout ? 14 : 16)
+                                                    : (app.compactLayout ? 13 : 15)
+                                    font.bold: modelData.type === "group"
+                                               || (modelData.type === "leaf"
+                                                   && modelData.value === engineListDialog.editorRuleMode)
+                                    elide: Text.ElideRight
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: engineRuleMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: modelData.type === "group"
+                                         || app.ruleModeAllowedForPackage(modelData.value)
+                                onClicked: {
+                                    if (modelData.type === "group") {
+                                        engineListDialog.setEngineRuleGroupCollapsed(modelData.groupId, !modelData.collapsed)
+                                    } else {
+                                        engineListDialog.setEditorRuleMode(modelData.value)
+                                        engineRuleSelectionPopup.close()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 54
+                color: "#eef4f7"
+                border.color: "#d3e0e7"
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Item { Layout.fillWidth: true }
+
+                    SavePromptButton {
+                        text: app.trText("cancel")
+                        onClicked: engineRuleSelectionPopup.close()
+                    }
+                }
+            }
+        }
+    }
+
     component FieldLabel: Label {
         Layout.preferredWidth: 86
         color: "#52636d"
@@ -1104,7 +1347,9 @@ Basic.Dialog {
             highlighted: combo.highlightedIndex === index
 
             contentItem: Text {
-                text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
+                text: modelData && modelData[combo.textRole] !== undefined
+                      ? modelData[combo.textRole]
+                      : (modelData && modelData.label !== undefined ? modelData.label : String(modelData))
                 color: "#102532"
                 font.pixelSize: 14
                 font.bold: highlighted

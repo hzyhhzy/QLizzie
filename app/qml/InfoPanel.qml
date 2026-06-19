@@ -102,7 +102,8 @@ Rectangle {
                 spacing: 12
 
                 ColumnLayout {
-                    Layout.preferredWidth: 86
+                    Layout.preferredWidth: app.gameRuleMode === app.gameRuleGomoku
+                                           ? (app.compactLayout ? 58 : 70) : 86
                     Layout.fillHeight: true
                     spacing: 5
 
@@ -122,16 +123,19 @@ Rectangle {
                     }
 
                     Label {
-                        text: app.trText("captured") + ": " + app.blackCaptures
+                        visible: app.infoPanelSideTextVisible()
+                        text: app.infoPanelSideText(1)
                         color: "#edf2f4"
                         font.pixelSize: app.compactLayout ? 13 : 15
+                        font.bold: app.infoPanelShowsStoneCounts()
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
                 }
 
                 ColumnLayout {
-                    Layout.preferredWidth: 58
+                    Layout.preferredWidth: app.gameRuleMode === app.gameRuleGomoku
+                                           ? (app.compactLayout ? 80 : 100) : 58
                     Layout.fillHeight: true
                     spacing: 3
 
@@ -155,16 +159,22 @@ Rectangle {
                     }
 
                     Label {
-                        text: Number(app.effectiveKomi()).toFixed(1)
+                        visible: app.infoPanelCenterBottomVisible()
+                        text: app.infoPanelCenterBottomText()
                         color: "#f1f5f7"
-                        font.pixelSize: app.compactLayout ? 18 : 22
+                        font.pixelSize: app.gameRuleMode === app.gameRuleGomoku
+                                        ? (app.compactLayout ? 11 : 13)
+                                        : (app.compactLayout ? 18 : 22)
+                        font.bold: app.gameRuleMode === app.gameRuleGomoku
                         horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
                 }
 
                 ColumnLayout {
-                    Layout.preferredWidth: 86
+                    Layout.preferredWidth: app.gameRuleMode === app.gameRuleGomoku
+                                           ? (app.compactLayout ? 58 : 70) : 86
                     Layout.fillHeight: true
                     spacing: 5
 
@@ -184,9 +194,11 @@ Rectangle {
                     }
 
                     Label {
-                        text: app.trText("captured") + ": " + app.whiteCaptures
+                        visible: app.infoPanelSideTextVisible()
+                        text: app.infoPanelSideText(2)
                         color: "#edf2f4"
                         font.pixelSize: app.compactLayout ? 13 : 15
+                        font.bold: app.infoPanelShowsStoneCounts()
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }

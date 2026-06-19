@@ -91,6 +91,8 @@ function sgfGameInfo(ruleMode) {
         return { "gameId": 1, "ruleName": "QLizzie-HexGo-Hexagon" }
     if (ruleMode === 8)
         return { "gameId": 1, "ruleName": "QLizzie-HexGo-Triangle" }
+    if (ruleMode === 11)
+        return { "gameId": 1, "ruleName": "QLizzie-TorusGo" }
     if (ruleMode === 4)
         return { "gameId": 2, "ruleName": "QLizzie-Reversi" }
     if (ruleMode === 9)

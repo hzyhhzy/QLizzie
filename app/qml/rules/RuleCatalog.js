@@ -1,6 +1,25 @@
 .pragma library
 
 function boardPresentationOptions(app, ruleMode) {
+    if (ruleMode === app.gameRuleTorusGo) {
+        return [
+            {
+                "label": app.trText("boardPresentationTorusEdge"),
+                "value": app.boardPresentationTorusEdge,
+                "tip": app.trText("boardPresentationTorusEdgeTip")
+            },
+            {
+                "label": app.trText("boardPresentationTorusHalf"),
+                "value": app.boardPresentationTorusHalf,
+                "tip": app.trText("boardPresentationTorusHalfTip")
+            },
+            {
+                "label": app.trText("boardPresentationTorusFull"),
+                "value": app.boardPresentationTorusFull,
+                "tip": app.trText("boardPresentationTorusFullTip")
+            }
+        ]
+    }
     if (ruleMode === app.gameRuleGomoku) {
         return [
             {
@@ -56,6 +75,8 @@ function boardPresentationText(app, mode) {
 function rememberedBoardPresentationMode(app, ruleMode) {
     if (ruleMode === app.gameRuleGomoku)
         return app.gomokuBoardPresentationMode
+    if (ruleMode === app.gameRuleTorusGo)
+        return app.torusGoBoardPresentationMode
     return app.boardPresentationIntersections
 }
 

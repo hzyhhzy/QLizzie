@@ -12,6 +12,18 @@ ColumnLayout {
     spacing: 14
     readonly property bool inlineBoardPresentationControls: app.boardPresentationOptions().length > 1
     readonly property bool inlineKomiControls: !inlineBoardPresentationControls && app.komiControlsVisible()
+    property var collapsedRuleGroups: ({})
+
+    function setRuleGroupCollapsed(groupId, collapsed) {
+        var next = {}
+        for (var key in collapsedRuleGroups)
+            next[key] = collapsedRuleGroups[key]
+        if (collapsed)
+            next[groupId] = true
+        else
+            delete next[groupId]
+        collapsedRuleGroups = next
+    }
 
     function previewStone(x, y, player, moveNumber) {
         return {
@@ -96,6 +108,21 @@ ColumnLayout {
                     previewStone(2, 1, 1, 7)
                 ],
                 "lastMoveNumber": 7,
+                "path": []
+            }
+        }
+        if (app.gameRuleMode === app.gameRuleTorusGo) {
+            return {
+                "boardSizeX": 5,
+                "boardSizeY": 5,
+                "stones": [
+                    previewStone(0, 0, 1, 1),
+                    previewStone(4, 0, 2, 2),
+                    previewStone(1, 4, 1, 3),
+                    previewStone(4, 3, 2, 4),
+                    previewStone(2, 2, 1, 5)
+                ],
+                "lastMoveNumber": 5,
                 "path": []
             }
         }
@@ -389,7 +416,7 @@ ColumnLayout {
                 }
 
                 Label {
-                    text: app.trText("komi")
+                    text: app.komiLabelText()
                     visible: ruleSettingsPage.inlineKomiControls
                     color: "#24313a"
                     Layout.preferredWidth: 70
@@ -397,8 +424,8 @@ ColumnLayout {
 
                 SpinBox {
                     visible: ruleSettingsPage.inlineKomiControls
-                    from: -Math.round(app.maxKomiMagnitude * 2)
-                    to: Math.round(app.maxKomiMagnitude * 2)
+                    from: Math.round(app.komiMinimum() * 2)
+                    to: Math.round(app.komiMaximum() * 2)
                     value: Math.round(app.effectiveKomi() * 2)
                     editable: true
                     Layout.preferredWidth: 116
@@ -553,14 +580,14 @@ ColumnLayout {
                 visible: app.komiControlsVisible() && !ruleSettingsPage.inlineKomiControls
 
                 Label {
-                    text: app.trText("komi")
+                    text: app.komiLabelText()
                     color: "#24313a"
                     Layout.preferredWidth: 110
                 }
 
                 SpinBox {
-                    from: -Math.round(app.maxKomiMagnitude * 2)
-                    to: Math.round(app.maxKomiMagnitude * 2)
+                    from: Math.round(app.komiMinimum() * 2)
+                    to: Math.round(app.komiMaximum() * 2)
                     value: Math.round(app.effectiveKomi() * 2)
                     editable: true
                     Layout.preferredWidth: 116
@@ -576,114 +603,41 @@ ColumnLayout {
 
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: ruleVisibilityContent.implicitHeight + 28
+        implicitHeight: commonRulesContent.implicitHeight + 28
         radius: 7
         color: "#f8fbfd"
         border.color: "#c7d4dc"
 
         ColumnLayout {
-            id: ruleVisibilityContent
+            id: commonRulesContent
             anchors.fill: parent
             anchors.margins: 14
             spacing: 10
 
             Label {
-                text: app.trText("ruleVisibility")
+                text: app.trText("commonGameRulesTitle")
                 color: "#17212a"
                 font.pixelSize: 16
                 font.bold: true
                 Layout.fillWidth: true
             }
 
-            Rectangle {
+            RowLayout {
                 Layout.fillWidth: true
-                implicitHeight: ruleVisibilityColumn.implicitHeight + 12
-                radius: 6
-                color: "#ffffff"
-                border.color: "#c7d4dc"
+                spacing: 12
 
-                ColumnLayout {
-                    id: ruleVisibilityColumn
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    anchors.topMargin: 6
-                    spacing: 4
+                SavePromptButton {
+                    text: app.trText("setCommonGameRules")
+                    implicitWidth: 154
+                    onClicked: app.openCommonGameRulesPopup()
+                }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Label {
-                            text: app.trText("ruleName")
-                            color: "#52636d"
-                            font.pixelSize: 12
-                            Layout.preferredWidth: 150
-                        }
-
-                        Label {
-                            text: app.trText("ruleDescription")
-                            color: "#52636d"
-                            font.pixelSize: 12
-                            Layout.fillWidth: true
-                        }
-
-                        Label {
-                            text: app.trText("ruleVisible")
-                            color: "#52636d"
-                            font.pixelSize: 12
-                            horizontalAlignment: Text.AlignHCenter
-                            Layout.preferredWidth: 72
-                        }
-                    }
-
-                    Repeater {
-                        model: app.gameRuleOptions()
-
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: ruleRow.implicitHeight + 8
-                            color: modelData.value === app.gameRuleMode ? "#edf7fb" : "#ffffff"
-                            border.color: "#d9e4ea"
-                            radius: 3
-
-                            RowLayout {
-                                id: ruleRow
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                spacing: 8
-
-                                Label {
-                                    text: modelData.label
-                                    color: "#17212a"
-                                    font.pixelSize: 13
-                                    font.bold: modelData.value === app.gameRuleMode
-                                    elide: Text.ElideRight
-                                    Layout.preferredWidth: 150
-                                }
-
-                                Label {
-                                    text: modelData.tip
-                                    color: "#61727c"
-                                    font.pixelSize: 12
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
-
-                                CheckBox {
-                                    checked: app.ruleModeVisible(modelData.value)
-                                    enabled: modelData.value !== app.gameRuleMode
-                                    Layout.preferredWidth: 72
-                                    onClicked: app.setRuleModeVisible(modelData.value, checked)
-                                }
-                            }
-                        }
-                    }
+                Label {
+                    text: app.trText("commonGameRulesTip")
+                    color: "#61727c"
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
             }
         }

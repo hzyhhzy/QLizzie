@@ -18,6 +18,7 @@ function normalizePersistentSettings(app) {
     app.boardSizeX = adjustedRuleSize.x
     app.boardSizeY = adjustedRuleSize.y
     app.ruleVisibilityMap = normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)
+    app.commonRuleOrder = normalizeCommonRuleOrder(app, app.commonRuleOrder)
     app.gomokuRuleMode = app.normalizedGomokuRuleMode(app.gomokuRuleMode)
     app.gomokuRuleMaxMoves = Math.round(app.clamp(Number(app.gomokuRuleMaxMoves), 0, app.maxLargeIntegerSetting))
     app.gomokuRuleVcn = app.normalizedGomokuVcnRule(app.gomokuRuleVcn)
@@ -37,10 +38,14 @@ function normalizePersistentSettings(app) {
     app.goBoardPresentationMode = app.boardPresentationIntersections
     app.gomokuBoardPresentationMode = RuleCatalog.normalizeBoardPresentationMode(
                 app, app.gameRuleGomoku, Math.round(Number(app.gomokuBoardPresentationMode)))
+    app.torusGoBoardPresentationMode = RuleCatalog.normalizeBoardPresentationMode(
+                app, app.gameRuleTorusGo, Math.round(Number(app.torusGoBoardPresentationMode)))
     app.boardPresentationMode = RuleCatalog.normalizeBoardPresentationMode(
                 app, app.gameRuleMode, Math.round(Number(app.boardPresentationMode)))
     if (app.gameRuleMode === app.gameRuleGomoku)
         app.gomokuBoardPresentationMode = app.boardPresentationMode
+    else if (app.gameRuleMode === app.gameRuleTorusGo)
+        app.torusGoBoardPresentationMode = app.boardPresentationMode
     else
         app.boardPresentationMode = RuleCatalog.rememberedBoardPresentationMode(app, app.gameRuleMode)
     var hexStyle = Number(app.hexBoardStyle)
@@ -93,8 +98,11 @@ function normalizePersistentSettings(app) {
     app.candidateLabelTextColor = normalizeColorHex(app.candidateLabelTextColor, "#000000")
     app.backgroundColor = normalizeColorHex(app.backgroundColor, app.defaultBackgroundColor)
     app.boardWoodColor = normalizeColorHex(app.boardWoodColor, app.defaultBoardWoodColor)
+    app.komi = app.clampKomiValue(app.komi)
     app.analysisIntervalCentiseconds = Math.round(app.clamp(Number(app.analysisIntervalCentiseconds), 0, app.maxLargeIntegerSetting))
     app.maxAnalysisSeconds = Math.round(app.clamp(Number(app.maxAnalysisSeconds), 0, app.maxLargeIntegerSetting))
+    app.analysisWideRootNoiseEnabled = !!app.analysisWideRootNoiseEnabled
+    app.analysisWideRootNoise = app.clampAnalysisWideRootNoise(app.analysisWideRootNoise)
     app.stoneScale = app.clamp(app.stoneScale, app.minStoneScale, 1.0)
     app.gridOpacity = app.clamp(app.gridOpacity, 0.25, 1)
     app.gridLineWidth = app.clamp(Number(app.gridLineWidth), 0.5, 4)
@@ -131,6 +139,16 @@ function parseJsonObject(text, fallback) {
     return fallback
 }
 
+function parseJsonArray(text, fallback) {
+    try {
+        var parsed = JSON.parse(String(text))
+        if (Array.isArray(parsed))
+            return parsed
+    } catch (error) {
+    }
+    return fallback
+}
+
 function defaultRuleModeVisible(app, mode) {
     return mode === app.gameRuleGo
            || mode === app.gameRuleGomoku
@@ -143,6 +161,10 @@ function defaultRuleVisibilityMap(app) {
     for (var i = 0; i < options.length; ++i)
         next[String(options[i].value)] = defaultRuleModeVisible(app, options[i].value)
     return next
+}
+
+function defaultCommonRuleOrder(app) {
+    return [app.gameRuleGo, app.gameRuleGomoku, app.gameRuleHex]
 }
 
 function normalizeRuleVisibilityMap(app, source) {
@@ -158,6 +180,33 @@ function normalizeRuleVisibilityMap(app, source) {
         for (var existingKey in map) {
             if (typeof map[existingKey] === "boolean")
                 next[existingKey] = map[existingKey]
+        }
+    }
+    return next
+}
+
+function normalizeCommonRuleOrder(app, source) {
+    var order = Array.isArray(source) ? source : defaultCommonRuleOrder(app)
+    var map = normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)
+    var options = app && app.gameRuleOptions ? app.gameRuleOptions() : []
+    var valid = {}
+    for (var i = 0; i < options.length; ++i)
+        valid[String(options[i].value)] = true
+    var used = {}
+    var next = []
+    for (var j = 0; j < order.length; ++j) {
+        var mode = Number(order[j])
+        var key = String(mode)
+        if (valid[key] && map[key] === true && !used[key]) {
+            next.push(mode)
+            used[key] = true
+        }
+    }
+    for (var k = 0; k < options.length; ++k) {
+        var optionKey = String(options[k].value)
+        if (map[optionKey] === true && !used[optionKey]) {
+            next.push(options[k].value)
+            used[optionKey] = true
         }
     }
     return next
@@ -185,6 +234,8 @@ function loadPersistentSettings(app, settings) {
     app.gameRuleMode = Number(settingValue(settings, "gameRuleMode", app.gameRuleMode))
     app.ruleVisibilityMap = normalizeRuleVisibilityMap(app,
                 parseJsonObject(settingValue(settings, "ruleVisibilityJson", "{}"), app.ruleVisibilityMap))
+    app.commonRuleOrder = normalizeCommonRuleOrder(app,
+                parseJsonArray(settingValue(settings, "commonRuleOrderJson", "[]"), app.commonRuleOrder))
     app.gomokuRuleMode = Number(settingValue(settings, "gomokuRuleMode", app.gomokuRuleMode))
     app.gomokuRuleMaxMoves = Number(settingValue(settings, "gomokuRuleMaxMoves", app.gomokuRuleMaxMoves))
     app.gomokuRuleVcn = String(settingValue(settings, "gomokuRuleVcn", app.gomokuRuleVcn))
@@ -201,6 +252,7 @@ function loadPersistentSettings(app, settings) {
     app.coordinateDisplayMode = Number(settingValue(settings, "coordinateDisplayMode", app.coordinateDisplayMode))
     app.boardPresentationMode = Number(settingValue(settings, "boardPresentationMode", app.boardPresentationMode))
     app.gomokuBoardPresentationMode = Number(settingValue(settings, "gomokuBoardPresentationMode", app.gomokuBoardPresentationMode))
+    app.torusGoBoardPresentationMode = Number(settingValue(settings, "torusGoBoardPresentationMode", app.torusGoBoardPresentationMode))
     app.hexBoardStyle = Number(settingValue(settings, "hexBoardStyle", app.hexBoardStyle))
     app.hexBoardRotation = Number(settingValue(settings, "hexBoardRotation", app.hexBoardRotation))
     app.packageMode = Number(settingValue(settings, "packageMode", app.packageMode))
@@ -212,6 +264,8 @@ function loadPersistentSettings(app, settings) {
     app.legacyHexEngineCoordinates = settingBool(settings, "legacyHexEngineCoordinates", app.legacyHexEngineCoordinates)
     app.analysisIntervalCentiseconds = Number(settingValue(settings, "analysisIntervalCentiseconds", app.analysisIntervalCentiseconds))
     app.maxAnalysisSeconds = Number(settingValue(settings, "maxAnalysisSeconds", app.maxAnalysisSeconds))
+    app.analysisWideRootNoiseEnabled = settingBool(settings, "analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
+    app.analysisWideRootNoise = app.clampAnalysisWideRootNoise(settingValue(settings, "analysisWideRootNoise", app.analysisWideRootNoise))
     app.candidateDisplayCount = Number(settingValue(settings, "candidateDisplayCount", app.candidateDisplayCount))
     app.candidateMinVisitRatio = Number(settingValue(settings, "candidateMinVisitRatio", app.candidateMinVisitRatio))
     app.candidateShowFilteredMarkers = settingBool(settings, "candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)
@@ -265,6 +319,7 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("boardSizeY", app.boardSizeY)
     settings.setValue("gameRuleMode", app.gameRuleMode)
     settings.setValue("ruleVisibilityJson", JSON.stringify(normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)))
+    settings.setValue("commonRuleOrderJson", JSON.stringify(normalizeCommonRuleOrder(app, app.commonRuleOrder)))
     settings.setValue("gomokuRuleMode", app.gomokuRuleMode)
     settings.setValue("gomokuRuleMaxMoves", app.gomokuRuleMaxMoves)
     settings.setValue("gomokuRuleVcn", app.gomokuRuleVcn)
@@ -281,6 +336,7 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("coordinateDisplayMode", app.coordinateDisplayMode)
     settings.setValue("boardPresentationMode", app.boardPresentationMode)
     settings.setValue("gomokuBoardPresentationMode", app.gomokuBoardPresentationMode)
+    settings.setValue("torusGoBoardPresentationMode", app.torusGoBoardPresentationMode)
     settings.setValue("hexBoardStyle", app.hexBoardStyle)
     settings.setValue("hexBoardRotation", app.hexBoardRotation)
     settings.setValue("packageMode", app.packageMode)
@@ -292,6 +348,8 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("legacyHexEngineCoordinates", app.legacyHexEngineCoordinates)
     settings.setValue("analysisIntervalCentiseconds", app.analysisIntervalCentiseconds)
     settings.setValue("maxAnalysisSeconds", app.maxAnalysisSeconds)
+    settings.setValue("analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
+    settings.setValue("analysisWideRootNoise", app.analysisWideRootNoise)
     settings.setValue("candidateDisplayCount", app.candidateDisplayCount)
     settings.setValue("candidateMinVisitRatio", app.candidateMinVisitRatio)
     settings.setValue("candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)

@@ -11,6 +11,7 @@ var RULE_HEX_GO_HEXAGON = 7
 var RULE_HEX_GO_TRIANGLE = 8
 var RULE_ATAXX = 9
 var RULE_BREAKTHROUGH = 10
+var RULE_TORUS_GO = 11
 
 var GOMOKU_RULE_FREESTYLE = 0
 var GOMOKU_RULE_STANDARD = 1
@@ -68,7 +69,7 @@ function isHexGoRule(ruleMode) {
 }
 
 function isGoCaptureRule(ruleMode) {
-    return ruleMode === RULE_GO || isHexGoRule(ruleMode)
+    return ruleMode === RULE_GO || ruleMode === RULE_TORUS_GO || isHexGoRule(ruleMode)
 }
 
 function isHexGridRule(ruleMode) {
@@ -95,6 +96,36 @@ function pointInRuleBoard(dims, x, y, ruleMode) {
 
 function neighborOffsetsForRule(ruleMode) {
     return isHexGridRule(ruleMode) ? HEX_NEIGHBOR_OFFSETS : NEIGHBOR_OFFSETS
+}
+
+function wrappedCoordinate(value, size) {
+    if (size <= 0)
+        return value
+    var result = value % size
+    return result < 0 ? result + size : result
+}
+
+function neighborPointsForRule(dims, x, y, ruleMode) {
+    var offsets = neighborOffsetsForRule(ruleMode)
+    var points = []
+    var seen = ({})
+    for (var i = 0; i < offsets.length; ++i) {
+        var offset = offsets[i]
+        var nx = x + offset.dx
+        var ny = y + offset.dy
+        if (ruleMode === RULE_TORUS_GO) {
+            nx = wrappedCoordinate(nx, dims.x)
+            ny = wrappedCoordinate(ny, dims.y)
+        }
+        if (!pointInRuleBoard(dims, nx, ny, ruleMode))
+            continue
+        var key = keyFor(nx, ny)
+        if (seen[key])
+            continue
+        seen[key] = true
+        points.push({ "x": nx, "y": ny, "key": key })
+    }
+    return points
 }
 
 function stoneMapDataAt(map, x, y) {
@@ -139,7 +170,6 @@ function collectGroupInMap(map, dims, x, y, visited, ruleMode) {
     if (!start)
         return []
 
-    var offsets = neighborOffsetsForRule(ruleMode)
     var group = []
     var stack = [start]
     var player = start.player
@@ -150,14 +180,10 @@ function collectGroupInMap(map, dims, x, y, visited, ruleMode) {
 
         visited[stone.key] = true
         group.push(stone)
-        for (var i = 0; i < offsets.length; ++i) {
-            var offset = offsets[i]
-            var nx = stone.x + offset.dx
-            var ny = stone.y + offset.dy
-            if (!pointInRuleBoard(dims, nx, ny, ruleMode))
-                continue
-
-            var neighbor = stoneMapDataAt(map, nx, ny)
+        var neighbors = neighborPointsForRule(dims, stone.x, stone.y, ruleMode)
+        for (var i = 0; i < neighbors.length; ++i) {
+            var neighborPoint = neighbors[i]
+            var neighbor = stoneMapDataAt(map, neighborPoint.x, neighborPoint.y)
             if (neighbor && neighbor.player === player && !visited[neighbor.key])
                 stack.push(neighbor)
         }
@@ -166,14 +192,12 @@ function collectGroupInMap(map, dims, x, y, visited, ruleMode) {
 }
 
 function groupHasLibertyInMap(map, dims, group, ruleMode) {
-    var offsets = neighborOffsetsForRule(ruleMode)
     for (var i = 0; i < group.length; ++i) {
         var stone = group[i]
-        for (var n = 0; n < offsets.length; ++n) {
-            var offset = offsets[n]
-            var nx = stone.x + offset.dx
-            var ny = stone.y + offset.dy
-            if (pointInRuleBoard(dims, nx, ny, ruleMode) && stoneMapPlayerAt(map, nx, ny) === 0)
+        var neighbors = neighborPointsForRule(dims, stone.x, stone.y, ruleMode)
+        for (var n = 0; n < neighbors.length; ++n) {
+            var neighbor = neighbors[n]
+            if (stoneMapPlayerAt(map, neighbor.x, neighbor.y) === 0)
                 return true
         }
     }
@@ -181,19 +205,17 @@ function groupHasLibertyInMap(map, dims, group, ruleMode) {
 }
 
 function groupLibertyCountInMap(map, dims, group, ruleMode) {
-    var offsets = neighborOffsetsForRule(ruleMode)
     var liberties = ({})
     var count = 0
     for (var i = 0; i < group.length; ++i) {
         var stone = group[i]
-        for (var n = 0; n < offsets.length; ++n) {
-            var offset = offsets[n]
-            var nx = stone.x + offset.dx
-            var ny = stone.y + offset.dy
-            if (!pointInRuleBoard(dims, nx, ny, ruleMode) || stoneMapPlayerAt(map, nx, ny) !== 0)
+        var neighbors = neighborPointsForRule(dims, stone.x, stone.y, ruleMode)
+        for (var n = 0; n < neighbors.length; ++n) {
+            var neighbor = neighbors[n]
+            if (stoneMapPlayerAt(map, neighbor.x, neighbor.y) !== 0)
                 continue
 
-            var libertyKey = keyFor(nx, ny)
+            var libertyKey = neighbor.key
             if (!liberties[libertyKey]) {
                 liberties[libertyKey] = true
                 count += 1
@@ -230,16 +252,14 @@ function simulateGoMoveOnMap(map, dims, stoneItem, collectKoInfo, ruleMode) {
     var capturedStones = []
     var opponent = stoneItem.player === 1 ? 2 : 1
     var checked = ({})
-    var offsets = neighborOffsetsForRule(ruleMode)
-    for (var i = 0; i < offsets.length; ++i) {
-        var offset = offsets[i]
-        var nx = stoneItem.x + offset.dx
-        var ny = stoneItem.y + offset.dy
-        var neighbor = pointInRuleBoard(dims, nx, ny, ruleMode) ? stoneMapDataAt(map, nx, ny) : null
+    var neighbors = neighborPointsForRule(dims, stoneItem.x, stoneItem.y, ruleMode)
+    for (var i = 0; i < neighbors.length; ++i) {
+        var neighborPoint = neighbors[i]
+        var neighbor = stoneMapDataAt(map, neighborPoint.x, neighborPoint.y)
         if (!neighbor || neighbor.player !== opponent || checked[neighbor.key])
             continue
 
-        var group = collectGroupInMap(map, dims, nx, ny, ({}), ruleMode)
+        var group = collectGroupInMap(map, dims, neighborPoint.x, neighborPoint.y, ({}), ruleMode)
         for (var g = 0; g < group.length; ++g)
             checked[group[g].key] = true
         if (!groupHasLibertyInMap(map, dims, group, ruleMode)) {

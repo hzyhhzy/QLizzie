@@ -198,7 +198,7 @@ function normalizePreset(app, preset, index) {
     var adjusted = app.adjustedBoardDimensionsForRule(copy.ruleMode, copy.boardSizeX, copy.boardSizeY)
     copy.boardSizeX = adjusted.x
     copy.boardSizeY = adjusted.y
-    copy.komi = app.clampKomiValue(numeric(copy.komi, copy.ruleMode === app.gameRuleGo ? 6.5 : 0.0))
+    copy.komi = app.clampKomiSettingValue(numeric(copy.komi, copy.ruleMode === app.gameRuleGo ? 6.5 : 0.0))
     copy.legacyHexEngineCoordinates = copy.legacyHexEngineCoordinates === true
     copy.boardPresentationMode = Math.round(app.clamp(numeric(copy.boardPresentationMode, 0),
                                                        app.boardPresentationIntersections,
@@ -288,6 +288,8 @@ function ruleText(app, preset) {
         return app.trText("gameRuleHexGoHexagon")
     if (preset.ruleMode === app.gameRuleHexGoTriangle)
         return app.trText("gameRuleHexGoTriangle")
+    if (preset.ruleMode === app.gameRuleTorusGo)
+        return app.trText("gameRuleTorusGo")
     if (preset.ruleMode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
     if (preset.ruleMode === app.gameRuleBreakthrough)

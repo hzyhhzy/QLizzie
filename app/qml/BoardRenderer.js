@@ -4,6 +4,13 @@
 var HEX_ROW_HEIGHT = 0.8660254037844386
 var HEX_CELL_RADIUS_RATIO = 0.5773502691896258
 
+function wrappedCoordinate(value, size) {
+    if (size <= 0)
+        return value
+    var result = value % size
+    return result < 0 ? result + size : result
+}
+
 function stateFromApp(app, overrides) {
     var state = {
         "boardSizeX": app.boardSizeX,
@@ -15,6 +22,7 @@ function stateFromApp(app, overrides) {
         "gameRuleHexGoParallelogram": app.gameRuleHexGoParallelogram,
         "gameRuleHexGoHexagon": app.gameRuleHexGoHexagon,
         "gameRuleHexGoTriangle": app.gameRuleHexGoTriangle,
+        "gameRuleTorusGo": app.gameRuleTorusGo,
         "gameRuleReversi": app.gameRuleReversi,
         "gameRuleAtaxx": app.gameRuleAtaxx,
         "gameRuleBreakthrough": app.gameRuleBreakthrough,
@@ -23,6 +31,9 @@ function stateFromApp(app, overrides) {
         "hexCellStyleActive": app.ruleUsesHexCellStyle(),
         "boardPresentationMode": app.boardPresentationMode,
         "boardPresentationCells": app.boardPresentationCells,
+        "boardPresentationTorusEdge": app.boardPresentationTorusEdge,
+        "boardPresentationTorusHalf": app.boardPresentationTorusHalf,
+        "boardPresentationTorusFull": app.boardPresentationTorusFull,
         "hexBoardStyle": app.hexBoardStyle,
         "hexBoardStyleCells": app.hexBoardStyleCells,
         "hexBoardRotation": app.hexBoardRotation,
@@ -51,6 +62,30 @@ function stateFromApp(app, overrides) {
 
 function hexBoard(state) {
     return state.hexGridBoard === true || state.gameRuleMode === state.gameRuleHex
+}
+
+function torusGoBoard(state) {
+    return state.gameRuleMode === state.gameRuleTorusGo
+}
+
+function torusPaddingX(state) {
+    if (!torusGoBoard(state))
+        return 0
+    if (state.boardPresentationMode === state.boardPresentationTorusHalf)
+        return Math.ceil(Math.max(1, state.boardSizeX) / 2)
+    if (state.boardPresentationMode === state.boardPresentationTorusFull)
+        return Math.max(1, state.boardSizeX)
+    return 0
+}
+
+function torusPaddingY(state) {
+    if (!torusGoBoard(state))
+        return 0
+    if (state.boardPresentationMode === state.boardPresentationTorusHalf)
+        return Math.ceil(Math.max(1, state.boardSizeY) / 2)
+    if (state.boardPresentationMode === state.boardPresentationTorusFull)
+        return Math.max(1, state.boardSizeY)
+    return 0
 }
 
 function squareCellBoard(state) {
@@ -237,6 +272,8 @@ function yCoordinateText(state, y) {
 function gridUnitWidth(state, transformOverride) {
     if (hexBoard(state))
         return Math.max(1, (transformOverride || hexDisplayTransform(state)).width)
+    if (torusGoBoard(state))
+        return Math.max(1, state.boardSizeX + torusPaddingX(state) * 2)
     return squareCellBoard(state) ? Math.max(1, state.boardSizeX)
                                   : Math.max(1, state.boardSizeX - 1)
 }
@@ -244,6 +281,8 @@ function gridUnitWidth(state, transformOverride) {
 function gridUnitHeight(state, transformOverride) {
     if (hexBoard(state))
         return Math.max(1, (transformOverride || hexDisplayTransform(state)).height)
+    if (torusGoBoard(state))
+        return Math.max(1, state.boardSizeY + torusPaddingY(state) * 2)
     return squareCellBoard(state) ? Math.max(1, state.boardSizeY)
                                   : Math.max(1, state.boardSizeY - 1)
 }
@@ -367,9 +406,18 @@ function boardPointLocal(state, geometry, x, y) {
             "x": geometry.boardLeft + (x + 0.5) * geometry.cellSize,
             "y": geometry.boardTop + (y + 0.5) * geometry.cellSize
         }
+    if (torusGoBoard(state))
+        return torusDisplayPointLocal(state, geometry, x, y)
     return {
         "x": geometry.boardLeft + x * geometry.cellSize,
         "y": geometry.boardTop + y * geometry.cellSize
+    }
+}
+
+function torusDisplayPointLocal(state, geometry, virtualX, virtualY) {
+    return {
+        "x": geometry.boardLeft + (virtualX + torusPaddingX(state) + 0.5) * geometry.cellSize,
+        "y": geometry.boardTop + (virtualY + torusPaddingY(state) + 0.5) * geometry.cellSize
     }
 }
 
@@ -707,6 +755,10 @@ function drawHexCellColoredEdges(ctx, state, geometry) {
 
 function drawStone(ctx, state, geometry, x, y, player, radius) {
     var point = geometry.point(x, y)
+    drawStoneAtPoint(ctx, state, geometry, point, player, radius)
+}
+
+function drawStoneAtPoint(ctx, state, geometry, point, player, radius) {
     if (hexCellStyle(state)) {
         ctx.save()
         hexCellPath(ctx, state, point.x, point.y, geometry.cellSize / Math.sqrt(3))
@@ -747,6 +799,60 @@ function drawBoardBackground(ctx, state, geometry, width, height) {
     ctx.fillStyle = hexCellStyle(state) ? "#f2cc62" : state.boardWoodColor
     ctx.fillRect(0, 0, width, height)
     ctx.restore()
+}
+
+function drawTorusBoundary(ctx, state, geometry) {
+    var padX = torusPaddingX(state)
+    var padY = torusPaddingY(state)
+    if (padX <= 0 && padY <= 0)
+        return
+
+    var cell = geometry.cellSize
+    var left = geometry.boardLeft + padX * cell
+    var top = geometry.boardTop + padY * cell
+    var width = state.boardSizeX * cell
+    var height = state.boardSizeY * cell
+    ctx.save()
+    ctx.strokeStyle = "#e3342f"
+    ctx.globalAlpha = 0.95
+    ctx.lineWidth = Math.max(1, cell * 0.035)
+    ctx.strokeRect(left, top, width, height)
+    ctx.restore()
+}
+
+function drawTorusGrid(ctx, state, geometry) {
+    var cell = geometry.cellSize
+    var padX = torusPaddingX(state)
+    var padY = torusPaddingY(state)
+    var startX = -padX
+    var endX = state.boardSizeX - 1 + padX
+    var startY = -padY
+    var endY = state.boardSizeY - 1 + padY
+    var leftPoint = torusDisplayPointLocal(state, geometry, startX, 0)
+    var rightPoint = torusDisplayPointLocal(state, geometry, endX, 0)
+    var topPoint = torusDisplayPointLocal(state, geometry, 0, startY)
+    var bottomPoint = torusDisplayPointLocal(state, geometry, 0, endY)
+    var lineExtend = padX <= 0 && padY <= 0 ? cell * 0.5 : 0
+    var horizontalLeft = leftPoint.x - lineExtend
+    var horizontalRight = rightPoint.x + lineExtend
+    var verticalTop = topPoint.y - lineExtend
+    var verticalBottom = bottomPoint.y + lineExtend
+
+    for (var y = startY; y <= endY; ++y) {
+        var p = torusDisplayPointLocal(state, geometry, 0, y)
+        ctx.beginPath()
+        ctx.moveTo(horizontalLeft, p.y)
+        ctx.lineTo(horizontalRight, p.y)
+        ctx.stroke()
+    }
+    for (var x = startX; x <= endX; ++x) {
+        var px = torusDisplayPointLocal(state, geometry, x, 0)
+        ctx.beginPath()
+        ctx.moveTo(px.x, verticalTop)
+        ctx.lineTo(px.x, verticalBottom)
+        ctx.stroke()
+    }
+    drawTorusBoundary(ctx, state, geometry)
 }
 
 function drawGrid(ctx, state, geometry) {
@@ -829,6 +935,8 @@ function drawGrid(ctx, state, geometry) {
                                 offsetPoint(whiteRight2, whiteRightNormal, triangleEdgeOffset),
                                 "#ffffff", cell)
         }
+    } else if (torusGoBoard(state)) {
+        drawTorusGrid(ctx, state, geometry)
     } else {
         var xLineCount = squareCellBoard(state) ? state.boardSizeX + 1 : state.boardSizeX
         var yLineCount = squareCellBoard(state) ? state.boardSizeY + 1 : state.boardSizeY
@@ -851,7 +959,7 @@ function drawGrid(ctx, state, geometry) {
 }
 
 function drawStarPoints(ctx, state, geometry) {
-    if (state.gameRuleMode !== state.gameRuleGo)
+    if (state.gameRuleMode !== state.gameRuleGo && state.gameRuleMode !== state.gameRuleTorusGo)
         return
     var cell = geometry.cellSize
     var xs = starPoints(state.boardSizeX)
@@ -952,6 +1060,36 @@ function drawBoardBase(ctx, state, geometry) {
     drawCoordinates(ctx, state, geometry)
 }
 
+function drawTorusRepeatedStones(ctx, state, geometry, stones, radius) {
+    if (!torusGoBoard(state))
+        return
+    var padX = torusPaddingX(state)
+    var padY = torusPaddingY(state)
+    if (padX <= 0 && padY <= 0)
+        return
+
+    var minX = -padX
+    var maxX = state.boardSizeX - 1 + padX
+    var minY = -padY
+    var maxY = state.boardSizeY - 1 + padY
+    for (var i = 0; i < stones.length; ++i) {
+        var stone = stones[i]
+        var minShiftX = Math.ceil((minX - stone.x) / Math.max(1, state.boardSizeX))
+        var maxShiftX = Math.floor((maxX - stone.x) / Math.max(1, state.boardSizeX))
+        var minShiftY = Math.ceil((minY - stone.y) / Math.max(1, state.boardSizeY))
+        var maxShiftY = Math.floor((maxY - stone.y) / Math.max(1, state.boardSizeY))
+        for (var shiftY = minShiftY; shiftY <= maxShiftY; ++shiftY) {
+            var y = stone.y + shiftY * state.boardSizeY
+            for (var shiftX = minShiftX; shiftX <= maxShiftX; ++shiftX) {
+                var x = stone.x + shiftX * state.boardSizeX
+                if (x >= 0 && x < state.boardSizeX && y >= 0 && y < state.boardSizeY)
+                    continue
+                drawStoneAtPoint(ctx, state, geometry, torusDisplayPointLocal(state, geometry, x, y), stone.player, radius)
+            }
+        }
+    }
+}
+
 function drawBoard(ctx, state, geometry, options) {
     var opts = options || ({})
     if (opts.fillBackground === true)
@@ -959,6 +1097,7 @@ function drawBoard(ctx, state, geometry, options) {
     drawBoardBase(ctx, state, geometry)
     var stones = opts.stones || []
     var radius = Math.max(8, geometry.cellSize * state.stoneScale * 0.5)
+    drawTorusRepeatedStones(ctx, state, geometry, stones, radius)
     for (var i = 0; i < stones.length; ++i)
         drawStone(ctx, state, geometry, stones[i].x, stones[i].y, stones[i].player, radius)
 }

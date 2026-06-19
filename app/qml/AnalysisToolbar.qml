@@ -20,9 +20,12 @@ Rectangle {
         anchors.rightMargin: app.compactLayout ? 8 : 12
         spacing: app.compactLayout ? 7 : 11
 
-        RuleSettingsButton {}
+        RuleSettingsButton {
+            visible: app.toolbarRuleSettingsVisible()
+        }
 
         Rectangle {
+            visible: app.toolbarRuleSettingsVisible()
             Layout.preferredWidth: 1
             Layout.fillHeight: true
             Layout.topMargin: 7
@@ -31,7 +34,7 @@ Rectangle {
         }
 
         Label {
-            visible: app.boardPresentationOptions().length > 1
+            visible: app.toolbarBoardPresentationVisible()
             text: app.trText("boardPresentation")
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 13 : 15
@@ -40,7 +43,7 @@ Rectangle {
 
         ToolbarPresentationCombo {
             app: toolbar.app
-            visible: app.boardPresentationOptions().length > 1
+            visible: app.toolbarBoardPresentationVisible()
             options: app.boardPresentationOptions()
             currentIndex: app.boardPresentationCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 134 : 178
@@ -52,7 +55,7 @@ Rectangle {
         }
 
         Label {
-            visible: app.hexBoardStyleOptions().length > 1
+            visible: app.toolbarHexBoardStyleVisible()
             text: app.trText("hexBoardStyle")
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 13 : 15
@@ -61,7 +64,7 @@ Rectangle {
 
         ToolbarPresentationCombo {
             app: toolbar.app
-            visible: app.hexBoardStyleOptions().length > 1
+            visible: app.toolbarHexBoardStyleVisible()
             options: app.hexBoardStyleOptions()
             currentIndex: app.hexBoardStyleCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 116 : 150
@@ -73,7 +76,7 @@ Rectangle {
         }
 
         Label {
-            visible: app.hexBoardRotationOptions().length > 1
+            visible: app.toolbarHexBoardRotationVisible()
             text: app.trText("hexBoardRotation")
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 13 : 15
@@ -82,7 +85,7 @@ Rectangle {
 
         ToolbarPresentationCombo {
             app: toolbar.app
-            visible: app.hexBoardRotationOptions().length > 1
+            visible: app.toolbarHexBoardRotationVisible()
             options: app.hexBoardRotationOptions()
             currentIndex: app.hexBoardRotationCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 132 : 178
@@ -94,10 +97,7 @@ Rectangle {
         }
 
         Rectangle {
-            visible: app.komiControlsVisible()
-                     || app.boardPresentationOptions().length > 1
-                     || app.hexBoardStyleOptions().length > 1
-                     || app.hexBoardRotationOptions().length > 1
+            visible: app.toolbarPresentationControlsVisible()
             Layout.preferredWidth: 1
             Layout.fillHeight: true
             Layout.topMargin: 7
@@ -107,8 +107,8 @@ Rectangle {
 
         Label {
             visible: app.komiControlsVisible()
-            text: app.trText("komi")
-            color: app.ruleUsesGoCapture() ? "#26333b" : "#7f8b92"
+            text: app.komiLabelText()
+            color: "#26333b"
             font.pixelSize: app.compactLayout ? 13 : 15
             verticalAlignment: Text.AlignVCenter
         }
@@ -116,12 +116,11 @@ Rectangle {
         Basic.TextField {
             id: komiField
             visible: app.komiControlsVisible()
-            enabled: app.ruleUsesGoCapture()
             text: Number(app.effectiveKomi()).toFixed(1)
             selectByMouse: true
             validator: DoubleValidator {
-                bottom: -app.maxKomiMagnitude
-                top: app.maxKomiMagnitude
+                bottom: app.komiMinimum()
+                top: app.komiMaximum()
                 decimals: 2
                 notation: DoubleValidator.StandardNotation
             }
@@ -131,7 +130,7 @@ Rectangle {
             rightPadding: 3
             topPadding: 0
             bottomPadding: 1
-            color: enabled ? "#17252d" : "#7f8b92"
+            color: "#17252d"
             selectedTextColor: "#ffffff"
             selectionColor: "#2e8eb0"
             font.pixelSize: app.compactLayout ? 15 : 17
@@ -140,7 +139,7 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
             background: Rectangle {
                 radius: 4
-                color: komiField.enabled ? (komiField.activeFocus ? "#ffffff" : "#f9fbfc") : "#e2e8eb"
+                color: komiField.activeFocus ? "#ffffff" : "#f9fbfc"
                 border.color: komiField.activeFocus ? "#2e8eb0" : "#9fb0b8"
                 border.width: komiField.activeFocus ? 2 : 1
             }
@@ -185,19 +184,122 @@ Rectangle {
 
             StepButton {
                 text: "^"
-                enabled: app.ruleUsesGoCapture()
                 onClicked: app.adjustKomi(0.5)
             }
 
             StepButton {
                 text: "v"
-                enabled: app.ruleUsesGoCapture()
                 onClicked: app.adjustKomi(-0.5)
             }
         }
 
+        Basic.CheckBox {
+            id: wideRootNoiseEnabledBox
+            visible: app.analysisWideRootNoiseControlsVisible()
+            checked: app.analysisWideRootNoiseEnabled
+            ToolTip.visible: hovered
+            ToolTip.text: app.trText("wideRootNoiseTip")
+            Layout.preferredWidth: app.compactLayout ? 18 : 20
+            Layout.preferredHeight: app.compactLayout ? 28 : 32
+            leftPadding: 0
+            rightPadding: 0
+            topPadding: 0
+            bottomPadding: 0
+            onToggled: app.setAnalysisWideRootNoiseEnabled(checked)
+
+            indicator: Rectangle {
+                x: Math.round((wideRootNoiseEnabledBox.width - width) / 2)
+                y: Math.round((wideRootNoiseEnabledBox.height - height) / 2)
+                width: app.compactLayout ? 14 : 16
+                height: width
+                radius: 2
+                color: wideRootNoiseEnabledBox.checked ? "#1678bd" : "#ffffff"
+                border.color: wideRootNoiseEnabledBox.checked ? "#1678bd"
+                              : wideRootNoiseEnabledBox.hovered ? "#6f8794" : "#9fb0b8"
+                border.width: 1
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: wideRootNoiseEnabledBox.checked
+                    text: "\u2713"
+                    color: "#ffffff"
+                    font.pixelSize: app.compactLayout ? 11 : 12
+                    font.bold: true
+                }
+            }
+
+            contentItem: Item {}
+        }
+
+        Label {
+            visible: app.analysisWideRootNoiseControlsVisible()
+            text: app.trText("wideRootNoise") + ":"
+            color: "#26333b"
+            font.pixelSize: app.compactLayout ? 13 : 15
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        Basic.TextField {
+            id: wideRootNoiseField
+            visible: app.analysisWideRootNoiseControlsVisible()
+            text: app.formatAnalysisWideRootNoise(app.analysisWideRootNoise)
+            selectByMouse: true
+            validator: DoubleValidator {
+                bottom: 0
+                top: 2
+                decimals: 3
+                notation: DoubleValidator.StandardNotation
+            }
+            ToolTip.visible: hovered
+            ToolTip.text: app.trText("wideRootNoiseTip")
+            Layout.preferredWidth: app.compactLayout ? 54 : 62
+            implicitHeight: app.compactLayout ? 28 : 32
+            leftPadding: 3
+            rightPadding: 3
+            topPadding: 0
+            bottomPadding: 1
+            color: "#17252d"
+            selectedTextColor: "#ffffff"
+            selectionColor: "#2e8eb0"
+            font.pixelSize: app.compactLayout ? 15 : 17
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            background: Rectangle {
+                radius: 4
+                color: wideRootNoiseField.activeFocus ? "#ffffff" : "#f9fbfc"
+                border.color: wideRootNoiseField.activeFocus ? "#2e8eb0" : "#9fb0b8"
+                border.width: wideRootNoiseField.activeFocus ? 2 : 1
+            }
+
+            function applyValue() {
+                var nextValue = Number(text)
+                if (!isNaN(nextValue))
+                    app.setAnalysisWideRootNoise(nextValue)
+                text = app.formatAnalysisWideRootNoise(app.analysisWideRootNoise)
+            }
+
+            onEditingFinished: applyValue()
+            Keys.onReturnPressed: {
+                applyValue()
+                app.focusBoardInput()
+            }
+            Keys.onEnterPressed: {
+                applyValue()
+                app.focusBoardInput()
+            }
+
+            Connections {
+                target: app
+                function onAnalysisWideRootNoiseChanged() {
+                    if (!wideRootNoiseField.activeFocus)
+                        wideRootNoiseField.text = app.formatAnalysisWideRootNoise(app.analysisWideRootNoise)
+                }
+            }
+        }
+
         Rectangle {
-            visible: app.komiControlsVisible()
+            visible: app.komiControlsVisible() || app.analysisWideRootNoiseControlsVisible()
             Layout.preferredWidth: 1
             Layout.fillHeight: true
             Layout.topMargin: 7

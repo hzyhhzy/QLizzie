@@ -19,6 +19,7 @@ Item {
     readonly property real hexCellCoordinateExtraRatio: hexCellStyle ? 0.35 : 0
     readonly property real stoneRadiusRatio: app.stoneScale * 0.5
     readonly property bool hexBoard: app.ruleUsesHexGrid()
+    readonly property bool torusGoBoard: app.gameRuleMode === app.gameRuleTorusGo
     readonly property bool squareCellBoard: app.ruleUsesSquareCells()
     readonly property bool hexCellStyle: app.ruleUsesHexCellStyle()
     readonly property bool hexTransposed: app.hexBoardRotation === app.hexRotationTranspose
@@ -63,10 +64,12 @@ Item {
     readonly property real availableHeight: Math.max(1, height - boardOuterMargin * 2)
     readonly property real gridUnitWidth: hexBoard
                                            ? BoardRenderer.gridUnitWidth(rendererState(), hexDisplayTransform)
+                                           : torusGoBoard ? BoardRenderer.gridUnitWidth(rendererState(), null)
                                            : squareCellBoard ? Math.max(1, app.boardSizeX)
                                                              : Math.max(1, app.boardSizeX - 1)
     readonly property real gridUnitHeight: hexBoard
                                             ? BoardRenderer.gridUnitHeight(rendererState(), hexDisplayTransform)
+                                            : torusGoBoard ? BoardRenderer.gridUnitHeight(rendererState(), null)
                                             : squareCellBoard ? Math.max(1, app.boardSizeY)
                                                               : Math.max(1, app.boardSizeY - 1)
     readonly property real cellSize: Math.max(0.1, Math.min(
@@ -108,6 +111,10 @@ Item {
         if (squareCellBoard)
             return Qt.point(boardLeft + (x + 0.5) * cellSize,
                             boardTop + (y + 0.5) * cellSize)
+        if (torusGoBoard) {
+            var torusPoint = BoardRenderer.torusDisplayPointLocal(rendererState(), rendererGeometry(), x, y)
+            return Qt.point(torusPoint.x, torusPoint.y)
+        }
         return Qt.point(boardLeft + x * cellSize, boardTop + y * cellSize)
     }
 
@@ -135,6 +142,11 @@ Item {
             var board = boardCoordForHexDisplay(displayX, displayY)
             x = board.x
             y = board.y
+        } else if (torusGoBoard) {
+            x = Math.round((mouseX - boardLeft) / cellSize
+                           - BoardRenderer.torusPaddingX(rendererState()) - 0.5)
+            y = Math.round((mouseY - boardTop) / cellSize
+                           - BoardRenderer.torusPaddingY(rendererState()) - 0.5)
         } else {
             y = Math.round((mouseY - boardTop) / cellSize)
             x = Math.round((mouseX - boardLeft) / cellSize)
@@ -263,6 +275,9 @@ Item {
 
             var stoneRadius = Math.max(8, cell * app.stoneScale * 0.5)
             var candidateRadius = stoneRadius
+
+            BoardRenderer.drawTorusRepeatedStones(ctx, renderState, renderGeometry,
+                                                  app.stoneItems, stoneRadius)
 
             for (var f = 0; f < app.gomokuForbiddenPointItems.length; ++f) {
                 var forbidden = app.gomokuForbiddenPointItems[f]

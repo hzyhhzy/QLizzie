@@ -75,6 +75,16 @@ function goRulesObject(app) {
     }
 }
 
+function torusGoRulesObject(app) {
+    return {
+        "koRule": "SIMPLE",
+        "scoringRule": "AREA",
+        "taxRule": "NONE",
+        "multiStoneSuicideLegal": false,
+        "hasButton": false
+    }
+}
+
 function gomokuRulesObject(app) {
     var firstPassWin = app.gomokuRuleFirstPassWin === true
     return {
@@ -107,46 +117,118 @@ function ruleVariantText(app) {
     return app.trText("noRuleVariantShort")
 }
 
-function gameRuleText(app) {
-    if (app.gameRuleMode === app.gameRuleGo)
+function ruleOption(app, labelKey, value, tipKey, groupKeys) {
+    var label = app.trText(labelKey)
+    var path = []
+    for (var i = 0; groupKeys && i < groupKeys.length; ++i)
+        path.push(app.trText(groupKeys[i]))
+    return {
+        "label": label,
+        "value": value,
+        "tip": app.trText(tipKey),
+        "path": path,
+        "fullLabel": path.length > 0 ? path.join(" - ") + " - " + label : label
+    }
+}
+
+function ruleGroup(labelKey, children) {
+    return {
+        "type": "group",
+        "labelKey": labelKey,
+        "children": children || []
+    }
+}
+
+function ruleLeaf(option) {
+    return {
+        "type": "leaf",
+        "option": option
+    }
+}
+
+function gameRuleTree(app) {
+    return [
+        ruleLeaf(ruleOption(app, "gameRuleGo", app.gameRuleGo, "gameRuleGoTip", [])),
+        ruleLeaf(ruleOption(app, "gameRuleGomoku", app.gameRuleGomoku, "gameRuleGomokuTip", [])),
+        ruleGroup("ruleGroupGoVariants", [
+            ruleLeaf(ruleOption(app, "gameRuleTorusGo", app.gameRuleTorusGo,
+                                "gameRuleTorusGoTip", ["ruleGroupGoVariants"])),
+            ruleGroup("ruleGroupHexGo", [
+                ruleLeaf(ruleOption(app, "gameRuleHexGoParallelogram", app.gameRuleHexGoParallelogram,
+                                    "gameRuleHexGoParallelogramTip", ["ruleGroupGoVariants", "ruleGroupHexGo"])),
+                ruleLeaf(ruleOption(app, "gameRuleHexGoHexagon", app.gameRuleHexGoHexagon,
+                                    "gameRuleHexGoHexagonTip", ["ruleGroupGoVariants", "ruleGroupHexGo"])),
+                ruleLeaf(ruleOption(app, "gameRuleHexGoTriangle", app.gameRuleHexGoTriangle,
+                                    "gameRuleHexGoTriangleTip", ["ruleGroupGoVariants", "ruleGroupHexGo"]))
+            ])
+        ]),
+        ruleGroup("ruleGroupGomokuVariants", [
+            ruleLeaf(ruleOption(app, "gameRuleConnect6", app.gameRuleConnect6,
+                                "gameRuleConnect6Tip", ["ruleGroupGomokuVariants"]))
+        ]),
+        ruleGroup("ruleGroupCommonNewGames", [
+            ruleLeaf(ruleOption(app, "gameRuleHex", app.gameRuleHex,
+                                "gameRuleHexTip", ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOption(app, "gameRuleReversi", app.gameRuleReversi,
+                                "gameRuleReversiTip", ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOption(app, "gameRuleAtaxx", app.gameRuleAtaxx,
+                                "gameRuleAtaxxTip", ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOption(app, "gameRuleBreakthrough", app.gameRuleBreakthrough,
+                                "gameRuleBreakthroughTip", ["ruleGroupCommonNewGames"]))
+        ]),
+        ruleGroup("ruleGroupOther", [
+            ruleLeaf(ruleOption(app, "gameRuleSquareFree", app.gameRuleSquareFree,
+                                "gameRuleSquareFreeTip", ["ruleGroupOther"]))
+        ])
+    ]
+}
+
+function collectRuleOptions(nodes, options) {
+    for (var i = 0; nodes && i < nodes.length; ++i) {
+        var node = nodes[i]
+        if (node.type === "leaf")
+            options.push(node.option)
+        else
+            collectRuleOptions(node.children, options)
+    }
+}
+
+function gameRuleTextForMode(app, mode) {
+    if (mode === app.gameRuleGo)
         return app.trText("gameRuleGo")
-    if (app.gameRuleMode === app.gameRuleGomoku)
+    if (mode === app.gameRuleGomoku)
         return app.trText("gameRuleGomoku")
-    if (app.gameRuleMode === app.gameRuleHex)
+    if (mode === app.gameRuleHex)
         return app.trText("gameRuleHex")
-    if (app.gameRuleMode === app.gameRuleSquareFree)
+    if (mode === app.gameRuleSquareFree)
         return app.trText("gameRuleSquareFree")
-    if (app.gameRuleMode === app.gameRuleReversi)
+    if (mode === app.gameRuleReversi)
         return app.trText("gameRuleReversi")
-    if (app.gameRuleMode === app.gameRuleConnect6)
+    if (mode === app.gameRuleConnect6)
         return app.trText("gameRuleConnect6")
-    if (app.gameRuleMode === app.gameRuleHexGoParallelogram)
+    if (mode === app.gameRuleHexGoParallelogram)
         return app.trText("gameRuleHexGoParallelogram")
-    if (app.gameRuleMode === app.gameRuleHexGoHexagon)
+    if (mode === app.gameRuleHexGoHexagon)
         return app.trText("gameRuleHexGoHexagon")
-    if (app.gameRuleMode === app.gameRuleHexGoTriangle)
+    if (mode === app.gameRuleHexGoTriangle)
         return app.trText("gameRuleHexGoTriangle")
-    if (app.gameRuleMode === app.gameRuleAtaxx)
+    if (mode === app.gameRuleTorusGo)
+        return app.trText("gameRuleTorusGo")
+    if (mode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
-    if (app.gameRuleMode === app.gameRuleBreakthrough)
+    if (mode === app.gameRuleBreakthrough)
         return app.trText("gameRuleBreakthrough")
     return app.trText("gameRuleGomoku")
 }
 
+function gameRuleText(app) {
+    return gameRuleTextForMode(app, app.gameRuleMode)
+}
+
 function gameRuleOptions(app) {
-    return [
-        { "label": app.trText("gameRuleGo"), "value": app.gameRuleGo, "tip": app.trText("gameRuleGoTip") },
-        { "label": app.trText("gameRuleGomoku"), "value": app.gameRuleGomoku, "tip": app.trText("gameRuleGomokuTip") },
-        { "label": app.trText("gameRuleHex"), "value": app.gameRuleHex, "tip": app.trText("gameRuleHexTip") },
-        { "label": app.trText("gameRuleSquareFree"), "value": app.gameRuleSquareFree, "tip": app.trText("gameRuleSquareFreeTip") },
-        { "label": app.trText("gameRuleReversi"), "value": app.gameRuleReversi, "tip": app.trText("gameRuleReversiTip") },
-        { "label": app.trText("gameRuleConnect6"), "value": app.gameRuleConnect6, "tip": app.trText("gameRuleConnect6Tip") },
-        { "label": app.trText("gameRuleHexGoParallelogram"), "value": app.gameRuleHexGoParallelogram, "tip": app.trText("gameRuleHexGoParallelogramTip") },
-        { "label": app.trText("gameRuleHexGoHexagon"), "value": app.gameRuleHexGoHexagon, "tip": app.trText("gameRuleHexGoHexagonTip") },
-        { "label": app.trText("gameRuleHexGoTriangle"), "value": app.gameRuleHexGoTriangle, "tip": app.trText("gameRuleHexGoTriangleTip") },
-        { "label": app.trText("gameRuleAtaxx"), "value": app.gameRuleAtaxx, "tip": app.trText("gameRuleAtaxxTip") },
-        { "label": app.trText("gameRuleBreakthrough"), "value": app.gameRuleBreakthrough, "tip": app.trText("gameRuleBreakthroughTip") }
-    ]
+    var options = []
+    collectRuleOptions(gameRuleTree(app), options)
+    return options
 }
 
 function validRuleMode(app, mode) {
@@ -167,6 +249,7 @@ function ruleUsesHexGrid(app, mode) {
 
 function ruleUsesGoCapture(app, mode) {
     return mode === app.gameRuleGo
+           || mode === app.gameRuleTorusGo
            || mode === app.gameRuleHexGoParallelogram
            || mode === app.gameRuleHexGoHexagon
            || mode === app.gameRuleHexGoTriangle
@@ -207,6 +290,10 @@ function ruleVisibilityKey(app, mode) {
     return String(mode)
 }
 
+function defaultCommonRuleOrder(app) {
+    return [app.gameRuleGo, app.gameRuleGomoku, app.gameRuleHex]
+}
+
 function defaultRuleModeVisible(app, mode) {
     return mode === app.gameRuleGo
            || mode === app.gameRuleGomoku
@@ -225,33 +312,234 @@ function normalizedRuleVisibilityMap(app, source) {
     return next
 }
 
+function ruleOptionForMode(app, mode) {
+    var options = gameRuleOptions(app)
+    for (var i = 0; i < options.length; ++i) {
+        if (options[i].value === mode)
+            return options[i]
+    }
+    return null
+}
+
+function normalizedCommonRuleOrder(app, source) {
+    var order = Array.isArray(source) ? source : []
+    var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
+    var used = {}
+    var next = []
+    for (var i = 0; i < order.length; ++i) {
+        var mode = Number(order[i])
+        var key = ruleVisibilityKey(app, mode)
+        if (!used[key] && map[key] === true && ruleOptionForMode(app, mode)) {
+            next.push(mode)
+            used[key] = true
+        }
+    }
+    var options = gameRuleOptions(app)
+    for (var j = 0; j < options.length; ++j) {
+        var option = options[j]
+        var optionKey = ruleVisibilityKey(app, option.value)
+        if (!used[optionKey] && map[optionKey] === true) {
+            next.push(option.value)
+            used[optionKey] = true
+        }
+    }
+    return next
+}
+
+function syncCommonRuleOrder(app) {
+    app.commonRuleOrder = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+}
+
 function ruleModeVisible(app, mode) {
-    if (mode === app.gameRuleMode)
-        return true
     var key = ruleVisibilityKey(app, mode)
     var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
     return map[key] !== false
+}
+
+function ruleGroupVisible(app, modes) {
+    for (var i = 0; modes && i < modes.length; ++i) {
+        if (ruleModeVisible(app, modes[i]))
+            return true
+    }
+    return false
 }
 
 function setRuleModeVisible(app, mode, visible) {
     var key = ruleVisibilityKey(app, mode)
     var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
     map[key] = visible === true
-    if (mode === app.gameRuleMode)
-        map[key] = true
     app.ruleVisibilityMap = map
+    if (visible === true) {
+        var order = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+        var found = false
+        for (var i = 0; i < order.length; ++i) {
+            if (order[i] === mode) {
+                found = true
+                break
+            }
+        }
+        if (!found)
+            order.push(mode)
+        app.commonRuleOrder = normalizedCommonRuleOrder(app, order)
+    } else {
+        app.commonRuleOrder = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+    }
+    if (app.persistentSettingsLoaded)
+        app.savePersistentSettings()
+}
+
+function ruleNodeModes(node, modes) {
+    var result = modes || []
+    if (!node)
+        return result
+    if (node.type === "leaf") {
+        result.push(node.option.value)
+    } else {
+        for (var i = 0; node.children && i < node.children.length; ++i)
+            ruleNodeModes(node.children[i], result)
+    }
+    return result
+}
+
+function setRuleModesVisible(app, modes, visible) {
+    var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
+    for (var i = 0; modes && i < modes.length; ++i) {
+        var mode = modes[i]
+        var key = ruleVisibilityKey(app, mode)
+        map[key] = visible === true
+    }
+    app.ruleVisibilityMap = map
+    app.commonRuleOrder = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+    if (app.persistentSettingsLoaded)
+        app.savePersistentSettings()
+}
+
+function ruleGroupVisibilityCheckState(app, modes) {
+    var total = 0
+    var visible = 0
+    for (var i = 0; modes && i < modes.length; ++i) {
+        ++total
+        if (ruleModeVisible(app, modes[i]))
+            ++visible
+    }
+    if (total <= 0 || visible <= 0)
+        return 0
+    if (visible >= total)
+        return 2
+    return 1
+}
+
+function ruleGroupHasMutableVisibility(app, modes) {
+    return !!modes && modes.length > 0
+}
+
+function commonGameRuleOptions(app) {
+    var order = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+    var visible = []
+    for (var i = 0; i < order.length; ++i) {
+        var option = ruleOptionForMode(app, order[i])
+        if (option)
+            visible.push(option)
+    }
+    return visible
+}
+
+function moveCommonRule(app, mode, delta) {
+    var order = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+    var from = -1
+    for (var i = 0; i < order.length; ++i) {
+        if (order[i] === mode) {
+            from = i
+            break
+        }
+    }
+    if (from < 0)
+        return
+    var to = Math.max(0, Math.min(order.length - 1, from + delta))
+    if (to === from)
+        return
+    var item = order.splice(from, 1)[0]
+    order.splice(to, 0, item)
+    app.commonRuleOrder = order
     if (app.persistentSettingsLoaded)
         app.savePersistentSettings()
 }
 
 function visibleGameRuleOptions(app) {
-    var options = gameRuleOptions(app)
-    var visible = []
+    return commonGameRuleOptions(app)
+}
+
+function commonGameRuleOptionsWithModeAndMore(app, mode) {
+    var options = commonGameRuleOptions(app)
+    var hasCurrent = false
     for (var i = 0; i < options.length; ++i) {
-        if (ruleModeVisible(app, options[i].value))
-            visible.push(options[i])
+        if (options[i].value === mode) {
+            hasCurrent = true
+            break
+        }
     }
-    return visible.length > 0 ? visible : options
+    if (!hasCurrent) {
+        var allOptions = gameRuleOptions(app)
+        for (var j = 0; j < allOptions.length; ++j) {
+            if (allOptions[j].value === mode) {
+                options = [allOptions[j]].concat(options)
+                break
+            }
+        }
+    }
+    options = options.slice()
+    options.push({
+                     "label": app.trText("moreRules"),
+                     "value": app.gameRuleMoreOption,
+                     "tip": app.trText("moreRulesTip"),
+                     "path": [],
+                     "fullLabel": app.trText("moreRules")
+                 })
+    return options
+}
+
+function commonGameRuleOptionsWithCurrentAndMore(app) {
+    return commonGameRuleOptionsWithModeAndMore(app, app.gameRuleMode)
+}
+
+function appendRuleTreeRows(app, nodes, depth, rows, collapsedGroups, parentId) {
+    for (var i = 0; nodes && i < nodes.length; ++i) {
+        var node = nodes[i]
+        if (node.type === "leaf") {
+            var option = node.option
+            rows.push({
+                          "type": "leaf",
+                          "depth": depth,
+                          "label": option.label,
+                          "fullLabel": option.fullLabel,
+                          "tip": option.tip,
+                          "value": option.value
+                      })
+        } else {
+            var groupId = parentId && parentId.length > 0 ? parentId + "/" + node.labelKey : node.labelKey
+            var collapsed = collapsedGroups && collapsedGroups[groupId] === true
+            var modes = ruleNodeModes(node, [])
+            rows.push({
+                          "type": "group",
+                          "depth": depth,
+                          "label": app.trText(node.labelKey),
+                          "fullLabel": app.trText(node.labelKey),
+                          "tip": "",
+                          "value": -1,
+                          "groupId": groupId,
+                          "collapsed": collapsed,
+                          "modes": modes
+                      })
+            if (!collapsed)
+                appendRuleTreeRows(app, node.children, depth + 1, rows, collapsedGroups, groupId)
+        }
+    }
+}
+
+function ruleTreeRows(app, collapsedGroups) {
+    var rows = []
+    appendRuleTreeRows(app, gameRuleTree(app), 0, rows, collapsedGroups || {}, "")
+    return rows
 }
 
 function gameRuleCurrentIndex(app) {
@@ -271,7 +559,7 @@ function setGameRuleFromIndex(app, index) {
 }
 
 function visibleGameRuleCurrentIndex(app) {
-    var options = visibleGameRuleOptions(app)
+    var options = commonGameRuleOptionsWithCurrentAndMore(app)
     for (var i = 0; i < options.length; ++i) {
         if (options[i].value === app.gameRuleMode)
             return i
@@ -280,9 +568,13 @@ function visibleGameRuleCurrentIndex(app) {
 }
 
 function setVisibleGameRuleFromIndex(app, index) {
-    var options = visibleGameRuleOptions(app)
+    var options = commonGameRuleOptionsWithCurrentAndMore(app)
     if (index < 0 || index >= options.length)
         return
+    if (options[index].value === app.gameRuleMoreOption) {
+        app.openRuleSelectionPopup()
+        return
+    }
     app.requestRuleModeChange(options[index].value)
 }
 
@@ -346,8 +638,54 @@ function ruleVariantComboVisible(app) {
     return true
 }
 
+function toolbarRuleSettingsVisible(app) {
+    return app.gameRuleMode === app.gameRuleGo
+           || app.gameRuleMode === app.gameRuleGomoku
+}
+
+function toolbarBoardPresentationVisible(app) {
+    return app.gameRuleMode === app.gameRuleTorusGo
+}
+
+function toolbarHexBoardStyleVisible(app) {
+    return app.gameRuleMode === app.gameRuleHex
+}
+
+function toolbarHexBoardRotationVisible(app) {
+    return app.gameRuleMode === app.gameRuleHex
+           || app.gameRuleMode === app.gameRuleHexGoParallelogram
+           || app.gameRuleMode === app.gameRuleHexGoTriangle
+}
+
+function toolbarPresentationControlsVisible(app) {
+    return toolbarBoardPresentationVisible(app)
+           || toolbarHexBoardStyleVisible(app)
+           || toolbarHexBoardRotationVisible(app)
+}
+
+function komiUsageForRule(app, mode) {
+    if (mode === app.gameRuleGo
+            || mode === app.gameRuleTorusGo
+            || mode === app.gameRuleSquareFree
+            || mode === app.gameRuleReversi
+            || mode === app.gameRuleHexGoParallelogram
+            || mode === app.gameRuleHexGoHexagon
+            || mode === app.gameRuleHexGoTriangle
+            || mode === app.gameRuleAtaxx)
+        return app.komiUsageKomi
+    if (mode === app.gameRuleGomoku
+            || mode === app.gameRuleHex
+            || mode === app.gameRuleConnect6)
+        return app.komiUsageBlackAggression
+    return app.komiUsageNone
+}
+
+function currentKomiUsage(app) {
+    return komiUsageForRule(app, app.gameRuleMode)
+}
+
 function komiControlsVisible(app) {
-    return ruleUsesGoCapture(app, app.gameRuleMode) && app.packageMode !== app.packageModeSix
+    return currentKomiUsage(app) !== app.komiUsageNone
 }
 
 function boardPresentationOptions(app) {
@@ -367,6 +705,8 @@ function setBoardPresentationFromIndex(app, index) {
         app.gomokuBoardPresentationMode = next
     else if (app.gameRuleMode === app.gameRuleGo)
         app.goBoardPresentationMode = next
+    else if (app.gameRuleMode === app.gameRuleTorusGo)
+        app.torusGoBoardPresentationMode = next
     if (app.boardPresentationMode !== next) {
         app.boardPresentationMode = next
         app.boardRevision += 1
@@ -429,7 +769,7 @@ function boardSizePresets(app) {
     if (app.packageMode === app.packageModeSix)
         return [15, 19]
 
-    if (app.gameRuleMode === app.gameRuleGo)
+    if (app.gameRuleMode === app.gameRuleGo || app.gameRuleMode === app.gameRuleTorusGo)
         return [9, 13, 19]
     if (app.gameRuleMode === app.gameRuleGomoku)
         return [12, 15, 19]
@@ -527,7 +867,9 @@ function applyRuleModeChange(app, mode) {
         return
     if (!ruleModeAllowedForPackage(app, mode))
         return
+    var previousKomiUsage = currentKomiUsage(app)
     app.gameRuleMode = mode
+    app.adjustKomiForRuleChange(previousKomiUsage)
     var adjusted = adjustedBoardDimensionsForRule(app, mode, app.boardSizeX, app.boardSizeY)
     app.boardSizeX = adjusted.x
     app.boardSizeY = adjusted.y
@@ -539,6 +881,8 @@ function applyRuleModeChange(app, mode) {
         app.goBoardPresentationMode = app.boardPresentationMode
     else if (mode === app.gameRuleGomoku)
         app.gomokuBoardPresentationMode = app.boardPresentationMode
+    else if (mode === app.gameRuleTorusGo)
+        app.torusGoBoardPresentationMode = app.boardPresentationMode
     normalizeGomokuRuleForCurrentMode(app)
     app.clearHover(true)
     app.resetGameTree()

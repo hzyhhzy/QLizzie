@@ -15,6 +15,7 @@ Window {
 
     title: app.trText("engineCommunicationLog")
     flags: Qt.Window
+    transientParent: null
     color: "#f7fafc"
     minimumWidth: 520
     minimumHeight: 320
@@ -141,6 +142,11 @@ Window {
 
         function onShowEngineCommunicationStderrChanged() {
             engineCommunicationDialog.queueScrollLogToEnd()
+        }
+
+        function onActiveChanged() {
+            if (app.active && engineCommunicationDialog.visible && !engineCommunicationDialog.active)
+                engineCommunicationDialog.lower()
         }
     }
 
