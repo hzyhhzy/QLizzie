@@ -370,93 +370,49 @@ Window {
         }
     }
 
-    Basic.Dialog {
+    AppDialog {
         id: skipTutorialDialog
 
         parent: tutorialRoot
+        app: tutorialRoot
         modal: true
-        title: app.trText("skipTutorialTitle")
+        title: tutorialDialog.app.trText("skipTutorialTitle")
         closePolicy: Popup.NoAutoClose
-        padding: 18
-        width: Math.min(440, tutorialRoot.width - 80)
-        x: Math.round((tutorialRoot.width - width) / 2)
-        y: Math.round((tutorialRoot.height - height) / 2)
+        width: Math.min(560, tutorialRoot.width - 80)
 
-        background: Rectangle {
-            radius: 10
-            color: "#fffaf0"
-            border.color: "#d6a23a"
-            border.width: 1
-        }
-
-        header: Rectangle {
-            height: 48
-            color: "#fff0c8"
-            radius: 10
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: parent.radius
-                color: parent.color
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: "#dfbd73"
-            }
+        contentItem: Rectangle {
+            implicitWidth: 524
+            implicitHeight: 64
+            color: "transparent"
 
             Label {
+                id: skipTutorialMessage
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                text: skipTutorialDialog.title
-                color: "#3e2b05"
-                font.pixelSize: 16
-                font.bold: true
+                text: tutorialDialog.app.trText("skipTutorialMessage")
+                color: "#24313a"
+                font.pixelSize: 15
+                lineHeight: 1.12
+                wrapMode: Text.WordWrap
+                maximumLineCount: 3
             }
         }
 
-        contentItem: ColumnLayout {
-            implicitWidth: 404
-            spacing: 18
+        footer: AppDialogFooter {
+            Item { Layout.fillWidth: true }
 
-            TextEdit {
-                Layout.fillWidth: true
-                text: app.trText("skipTutorialMessage")
-                readOnly: true
-                selectByMouse: true
-                cursorVisible: false
-                color: "#352609"
-                selectionColor: "#2a91c9"
-                selectedTextColor: "#ffffff"
-                font.pixelSize: 14
-                wrapMode: TextEdit.WordWrap
+            SavePromptButton {
+                text: tutorialDialog.app.trText("continueTutorial")
+                onClicked: skipTutorialDialog.close()
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-
-                Item { Layout.fillWidth: true }
-
-                SavePromptButton {
-                    text: app.trText("continueTutorial")
-                    onClicked: skipTutorialDialog.close()
-                }
-
-                SavePromptButton {
-                    text: app.trText("skipTutorial")
-                    primary: true
-                    onClicked: {
-                        skipTutorialDialog.close()
-                        tutorialDialog.finishTutorial()
-                    }
+            SavePromptButton {
+                text: tutorialDialog.app.trText("skipTutorial")
+                primary: true
+                onClicked: {
+                    skipTutorialDialog.close()
+                    tutorialDialog.finishTutorial()
                 }
             }
         }

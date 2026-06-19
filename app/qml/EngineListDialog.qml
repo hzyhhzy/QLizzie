@@ -4,10 +4,9 @@ import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 import "EnginePresets.js" as EnginePresets
 
-Basic.Dialog {
+AppDialog {
     id: engineListDialog
 
-    required property var app
     required property var controller
     property bool startupMode: false
     property bool pickerMode: false
@@ -32,11 +31,10 @@ Basic.Dialog {
     title: readOnlyMode ? app.trText("loadEngineTitle") : app.trText("engineSettingsTitle")
     closePolicy: Popup.NoAutoClose
     padding: 8
+    headerHeight: 48
     width: Math.min(1180, app.width - 36)
     height: readOnlyMode ? Math.min(430, app.height - 80)
                          : Math.min(820, app.height - 36)
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     function ensureSelection() {
         if (!app.enginePresets || app.enginePresets.length <= 0) {
@@ -101,9 +99,12 @@ Basic.Dialog {
     function setEditorRuleMode(mode) {
         if (!app.validRuleMode(mode))
             return
+        var previousMode = editorRuleMode
         editorRuleMode = mode
         refreshEditorRuleOptions()
         ruleCombo.currentIndex = editorRuleCurrentIndex()
+        if (!syncingEditor && previousMode !== mode)
+            komiSpin.value = Math.round(EnginePresets.defaultKomiForRule(app, mode) * 2)
     }
 
     function openEditorRuleSelectionPopup() {
@@ -336,6 +337,12 @@ Basic.Dialog {
         syncEditor()
     }
 
+    function setSelectedAsDefault() {
+        var preset = selectedPreset()
+        if (preset)
+            app.setDefaultEnginePreset(preset.id)
+    }
+
     function loadSelected() {
         requestLoadSelected()
     }
@@ -355,7 +362,9 @@ Basic.Dialog {
     }
 
     function deleteSelected() {
-        confirmUnsavedOrRun(function() { engineListDialog.deleteSelectedNow() })
+        if (selectedIndex < 0)
+            return
+        confirmUnsavedOrRun(function() { confirmDeleteEngineDialog.open() })
     }
 
     function moveSelectedNow(delta) {
@@ -442,28 +451,6 @@ Basic.Dialog {
         app.focusBoardInput()
     }
 
-    background: Rectangle {
-        color: "#f6fafc"
-        border.color: "#8ea5b1"
-    }
-
-    header: Rectangle {
-        height: 42
-        color: "#e4eef4"
-
-        Label {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            text: engineListDialog.title
-            color: "#102532"
-            font.pixelSize: 18
-            font.bold: true
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-    }
-
     contentItem: ColumnLayout {
         id: dialogContent
 
@@ -484,11 +471,13 @@ Basic.Dialog {
         Rectangle {
             visible: !engineListDialog.readOnlyMode
             Layout.fillWidth: true
-            Layout.preferredHeight: 440
+            Layout.preferredHeight: 470
             color: "#f6fafc"
+            clip: true
 
             ColumnLayout {
                 anchors.fill: parent
+                anchors.margins: 10
                 spacing: 8
 
                 Label {
@@ -506,6 +495,7 @@ Basic.Dialog {
                     Basic.TextField {
                         id: nameEdit
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         selectByMouse: true
                         enabled: engineListDialog.selectedPreset() !== null
                     }
@@ -526,6 +516,7 @@ Basic.Dialog {
                         id: commandEdit
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumWidth: 0
                         enabled: engineListDialog.selectedPreset() !== null
                         selectByMouse: true
                         wrapMode: TextEdit.WrapAnywhere
@@ -545,6 +536,7 @@ Basic.Dialog {
                     Basic.TextField {
                         id: initialCommandEdit
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         enabled: engineListDialog.selectedPreset() !== null
                         placeholderText: app.trText("engineInitialCommandsPlaceholder")
                         selectByMouse: true
@@ -555,45 +547,67 @@ Basic.Dialog {
                     Layout.fillWidth: true
                     spacing: 10
 
-                    Label { text: app.trText("engineWidthShort"); color: "#52636d" }
-                    SpinBox {
+                    Label { text: app.trText("engineWidthShort"); color: "#52636d"; font.bold: true }
+                    AppSpinBox {
                         id: widthSpin
                         from: app.minBoardSize
                         to: app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
+                        font.bold: true
                         Layout.preferredWidth: 70
                     }
 
-                    Label { text: app.trText("engineHeightShort"); color: "#52636d" }
-                    SpinBox {
+                    Label { text: app.trText("engineHeightShort"); color: "#52636d"; font.bold: true }
+                    AppSpinBox {
                         id: heightSpin
                         from: app.minBoardSize
                         to: app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
+                        font.bold: true
                         Layout.preferredWidth: 70
                     }
 
-                    Label { text: app.trText("komi"); color: "#52636d" }
-                    SpinBox {
+                    Label { text: app.trText("komi"); color: "#52636d"; font.bold: true }
+                    AppSpinBox {
                         id: komiSpin
                         from: -Math.round(app.maxKomiMagnitude * 2)
                         to: Math.round(app.maxKomiMagnitude * 2)
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
+                        font.bold: true
                         Layout.preferredWidth: 116
                         textFromValue: function(value) { return (value / 2).toFixed(1) }
                         valueFromText: function(text) { return Math.round(Number(text) * 2) }
                     }
 
-                    CheckBox {
+                    AppCheckBox {
                         id: legacyHexCheck
                         enabled: engineListDialog.selectedPreset() !== null
                         text: app.trText("legacyHexEngineCoordinatesShort")
                     }
 
                     Item { Layout.fillWidth: true }
+
+                    CompactButton {
+                        text: app.trText("newEngine")
+                        onClicked: engineListDialog.createPreset()
+                    }
+
+                    CompactButton {
+                        text: app.trText("delete")
+                        danger: true
+                        enabled: engineListDialog.selectedPreset() !== null
+                        onClicked: engineListDialog.deleteSelected()
+                    }
+
+                    CompactButton {
+                        text: app.trText("save")
+                        primary: true
+                        enabled: engineListDialog.selectedPreset() !== null
+                        onClicked: engineListDialog.saveSelected()
+                    }
                 }
 
                 RowLayout {
@@ -608,6 +622,7 @@ Basic.Dialog {
                         enabled: engineListDialog.selectedPreset() !== null
                         Layout.preferredWidth: 340
                         Layout.minimumWidth: 280
+                        Layout.maximumWidth: 420
                         onActivated: function(index) {
                             var option = engineListDialog.editorRuleOptionsModel[index]
                             if (!option)
@@ -625,33 +640,14 @@ Basic.Dialog {
                         Layout.preferredWidth: 72
                         text: app.trText("ruleVariant")
                     }
-                    Basic.Button {
+                    AppButton {
                         id: variantButton
                         enabled: engineListDialog.selectedPreset() !== null
                         Layout.preferredWidth: 300
                         Layout.minimumWidth: 240
-                        implicitHeight: 34
+                        Layout.maximumWidth: 360
                         text: engineListDialog.editorRuleVariantText()
                         onClicked: engineListDialog.openEditorRuleDialog()
-
-                        contentItem: Text {
-                            text: variantButton.text
-                            color: variantButton.enabled ? "#102532" : "#7a8b94"
-                            font.pixelSize: 14
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                        }
-
-                        background: Rectangle {
-                            radius: 5
-                            color: !variantButton.enabled ? "#eef3f6"
-                                  : variantButton.pressed ? "#dcecf3"
-                                  : variantButton.hovered ? "#eef7fa" : "#f8fbfd"
-                            border.color: variantButton.activeFocus ? "#2a91c9" : "#a8bac5"
-                            border.width: variantButton.activeFocus ? 2 : 1
-                        }
                     }
 
                     Item { Layout.fillWidth: true }
@@ -670,9 +666,6 @@ Basic.Dialog {
 
                     Item { Layout.fillWidth: true }
 
-                    CompactButton { text: app.trText("newEngine"); onClicked: engineListDialog.createPreset() }
-                    CompactButton { text: app.trText("delete"); enabled: engineListDialog.selectedPreset() !== null; onClicked: engineListDialog.deleteSelected() }
-                    CompactButton { text: app.trText("save"); enabled: engineListDialog.selectedPreset() !== null; primary: true; onClicked: engineListDialog.saveSelected() }
                 }
 
                 RowLayout {
@@ -688,9 +681,17 @@ Basic.Dialog {
                         id: defaultEngineCombo
                         model: app.engineDefaultOptions()
                         currentIndex: app.engineDefaultCurrentIndex()
-                        Layout.preferredWidth: 280
+                        Layout.preferredWidth: 320
                         Layout.minimumWidth: 220
+                        Layout.maximumWidth: 420
                         onActivated: function(index) { app.setDefaultEnginePresetFromIndex(index) }
+                    }
+
+                    CompactButton {
+                        text: app.trText("engineSetAsDefault")
+                        enabled: engineListDialog.selectedPreset() !== null
+                        Layout.preferredWidth: Math.max(160, implicitWidth + 14)
+                        onClicked: engineListDialog.setSelectedAsDefault()
                     }
 
                     Item { Layout.fillWidth: true }
@@ -705,25 +706,25 @@ Basic.Dialog {
                         color: "#24313a"
                     }
 
-                    RadioButton {
+                    AppRadioChoice {
                         text: app.trText("engineStartupDefault")
                         checked: app.engineStartupMode === app.engineStartupDefault
                         onClicked: app.setEngineStartupMode(app.engineStartupDefault)
                     }
 
-                    RadioButton {
+                    AppRadioChoice {
                         text: app.trText("engineStartupLast")
                         checked: app.engineStartupMode === app.engineStartupLast
                         onClicked: app.setEngineStartupMode(app.engineStartupLast)
                     }
 
-                    RadioButton {
+                    AppRadioChoice {
                         text: app.trText("engineStartupManual")
                         checked: app.engineStartupMode === app.engineStartupManual
                         onClicked: app.setEngineStartupMode(app.engineStartupManual)
                     }
 
-                    RadioButton {
+                    AppRadioChoice {
                         text: app.trText("engineStartupNone")
                         checked: app.engineStartupMode === app.engineStartupNone
                         onClicked: app.setEngineStartupMode(app.engineStartupNone)
@@ -874,49 +875,35 @@ Basic.Dialog {
         }
     }
 
-    footer: Rectangle {
+    footer: AppDialogFooter {
         implicitHeight: 58
-        color: "#f6fafc"
+        contentMargins: 10
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: 1
-            color: "#d7e1e7"
+        Item { Layout.fillWidth: true }
+
+        SavePromptButton {
+            visible: engineListDialog.readOnlyMode
+            text: app.trText("loadSelectedEngine")
+            primary: true
+            enabled: engineListDialog.selectedPreset() !== null
+            Layout.preferredWidth: 144
+            onClicked: engineListDialog.requestLoadSelected()
         }
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 8
+        SavePromptButton {
+            visible: engineListDialog.startupMode
+            text: app.trText("engineNoEngineMode")
+            Layout.preferredWidth: 122
+            onClicked: engineListDialog.chooseNoEngineMode()
+        }
 
-            Item { Layout.fillWidth: true }
-
-            SavePromptButton {
-                visible: engineListDialog.readOnlyMode
-                text: app.trText("loadSelectedEngine")
-                primary: true
-                enabled: engineListDialog.selectedPreset() !== null
-                Layout.preferredWidth: 144
-                onClicked: engineListDialog.requestLoadSelected()
-            }
-
-            SavePromptButton {
-                visible: engineListDialog.startupMode
-                text: app.trText("engineNoEngineMode")
-                Layout.preferredWidth: 122
-                onClicked: engineListDialog.chooseNoEngineMode()
-            }
-
-            SavePromptButton {
-                text: app.trText("close")
-                visible: !engineListDialog.startupMode
-                Layout.preferredWidth: 86
-                onClicked: engineListDialog.readOnlyMode
-                           ? engineListDialog.closeWithoutPrompt()
-                           : engineListDialog.requestClose()
-            }
+        SavePromptButton {
+            text: app.trText("close")
+            visible: !engineListDialog.startupMode
+            Layout.preferredWidth: 86
+            onClicked: engineListDialog.readOnlyMode
+                       ? engineListDialog.closeWithoutPrompt()
+                       : engineListDialog.requestClose()
         }
     }
 
@@ -946,58 +933,16 @@ Basic.Dialog {
         }
     }
 
-    Basic.Dialog {
+    AppDialog {
         id: unsavedEngineDialog
 
+        app: engineListDialog.app
         modal: true
         title: app.trText("unsavedEngineTitle")
         closePolicy: Popup.CloseOnEscape
-        padding: 18
         width: Math.max(380, Math.min(480, engineListDialog.width - 80))
         x: Math.round((engineListDialog.width - width) / 2)
         y: Math.round((engineListDialog.height - height) / 2)
-
-        background: Rectangle {
-            radius: 10
-            color: "#f8fbfd"
-            border.color: "#8ea5b1"
-            border.width: 1
-        }
-
-        header: Rectangle {
-            height: 52
-            color: "#e6eff4"
-            radius: 10
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: parent.radius
-                color: parent.color
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: "#c5d4dc"
-            }
-
-            Label {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                text: unsavedEngineDialog.title
-                color: "#14242e"
-                font.pixelSize: 17
-                font.bold: true
-                elide: Text.ElideRight
-            }
-        }
 
         contentItem: Rectangle {
             implicitWidth: 440
@@ -1019,57 +964,85 @@ Basic.Dialog {
             }
         }
 
-        footer: Rectangle {
-            implicitHeight: 68
-            color: "#f8fbfd"
-            radius: 10
+        footer: AppDialogFooter {
+            tone: confirmDeleteEngineDialog.tone
+            Item { Layout.fillWidth: true }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 1
-                color: "#d7e1e7"
+            SavePromptButton {
+                text: app.trText("save")
+                primary: true
+                onClicked: {
+                    unsavedEngineDialog.close()
+                    engineListDialog.runPendingUnsavedAction(true)
+                }
             }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: parent.radius
-                color: parent.color
+            SavePromptButton {
+                text: app.trText("dontSave")
+                onClicked: {
+                    unsavedEngineDialog.close()
+                    engineListDialog.runPendingUnsavedAction(false)
+                }
             }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 18
-                spacing: 10
-
-                Item { Layout.fillWidth: true }
-
-                SavePromptButton {
-                    text: app.trText("save")
-                    primary: true
-                    onClicked: {
-                        unsavedEngineDialog.close()
-                        engineListDialog.runPendingUnsavedAction(true)
-                    }
+            SavePromptButton {
+                text: app.trText("cancel")
+                onClicked: {
+                    engineListDialog.pendingUnsavedAction = null
+                    unsavedEngineDialog.close()
                 }
+            }
+        }
+    }
 
-                SavePromptButton {
-                    text: app.trText("dontSave")
-                    onClicked: {
-                        unsavedEngineDialog.close()
-                        engineListDialog.runPendingUnsavedAction(false)
-                    }
-                }
+    AppDialog {
+        id: confirmDeleteEngineDialog
 
-                SavePromptButton {
-                    text: app.trText("cancel")
-                    onClicked: {
-                        engineListDialog.pendingUnsavedAction = null
-                        unsavedEngineDialog.close()
-                    }
+        app: engineListDialog.app
+        modal: true
+        tone: "warning"
+        title: app.trText("confirmDeleteEngineTitle")
+        closePolicy: Popup.CloseOnEscape
+        width: Math.max(360, Math.min(460, engineListDialog.width - 80))
+        x: Math.round((engineListDialog.width - width) / 2)
+        y: Math.round((engineListDialog.height - height) / 2)
+
+        contentItem: Rectangle {
+            implicitWidth: 420
+            implicitHeight: Math.max(76, confirmDeleteEngineMessage.implicitHeight + 24)
+            color: "transparent"
+
+            Label {
+                id: confirmDeleteEngineMessage
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 2
+                anchors.rightMargin: 2
+                text: app.trText("confirmDeleteEngineMessage")
+                         .replace("%1", engineListDialog.selectedPreset()
+                                  ? engineListDialog.selectedPreset().name : "")
+                color: "#17212a"
+                wrapMode: Text.WordWrap
+                font.pixelSize: 15
+                lineHeight: 1.12
+            }
+        }
+
+        footer: AppDialogFooter {
+            Item { Layout.fillWidth: true }
+
+            SavePromptButton {
+                text: app.trText("cancel")
+                onClicked: confirmDeleteEngineDialog.close()
+            }
+
+            SavePromptButton {
+                text: app.trText("delete")
+                danger: true
+                onClicked: {
+                    confirmDeleteEngineDialog.close()
+                    engineListDialog.deleteSelectedNow()
                 }
             }
         }
@@ -1098,7 +1071,7 @@ Basic.Dialog {
         app: engineListDialog.app
     }
 
-    Basic.Popup {
+    AppPopup {
         id: engineRuleSelectionPopup
 
         readonly property int treeDepthStep: app.compactLayout ? 20 : 24
@@ -1182,6 +1155,12 @@ Basic.Dialog {
                                   : modelData.type === "group" ? "#f2f7fa" : "#ffffff"
                             border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
                             border.width: 1
+                            ToolTip.visible: engineRuleMouse.containsMouse
+                                             && modelData.type === "leaf"
+                                             && modelData.tip.length > 0
+                            ToolTip.text: modelData.tip
+                            ToolTip.delay: 250
+                            ToolTip.timeout: 8000
 
                             Item {
                                 anchors.fill: parent
@@ -1223,16 +1202,18 @@ Basic.Dialog {
                                     font.bold: true
                                 }
 
-                                Text {
+                                AppCheckMark {
                                     visible: modelData.type === "leaf"
+                                             && modelData.value === engineListDialog.editorRuleMode
+                                    width: app.compactLayout ? 16 : 18
+                                    height: width
                                     x: engineRuleSelectionPopup.treeNodeCenter
                                        + Math.max(0, modelData.depth) * engineRuleSelectionPopup.treeDepthStep
                                        - width / 2
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.value === engineListDialog.editorRuleMode ? "\u2713" : ""
-                                    color: "#1678bd"
-                                    font.pixelSize: app.compactLayout ? 16 : 18
-                                    font.bold: true
+                                    checked: true
+                                    markColor: "#1678bd"
+                                    lineWidth: app.compactLayout ? 2.3 : 2.6
                                 }
 
                                 Text {
@@ -1309,60 +1290,12 @@ Basic.Dialog {
         Layout.preferredHeight: 32
     }
 
-    component StyledComboBox: Basic.ComboBox {
+    component StyledComboBox: AppComboBox {
         id: combo
 
         textRole: "label"
         valueRole: "value"
         implicitHeight: 34
-
-        contentItem: Text {
-            leftPadding: 12
-            rightPadding: 28
-            text: combo.displayText
-            color: combo.enabled ? "#102532" : "#7a8b94"
-            font.pixelSize: 14
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        indicator: Text {
-            x: combo.width - width - 8
-            y: Math.round((combo.height - height) / 2)
-            text: "\u25BE"
-            color: combo.enabled ? "#657883" : "#9aa8af"
-            font.pixelSize: 13
-        }
-
-        background: Rectangle {
-            radius: 3
-            color: combo.enabled ? "#ffffff" : "#eef3f6"
-            border.color: combo.activeFocus ? "#2a91c9" : "#aebdc6"
-            border.width: combo.activeFocus ? 2 : 1
-        }
-
-        delegate: Basic.ItemDelegate {
-            width: combo.width
-            height: 36
-            highlighted: combo.highlightedIndex === index
-
-            contentItem: Text {
-                text: modelData && modelData[combo.textRole] !== undefined
-                      ? modelData[combo.textRole]
-                      : (modelData && modelData.label !== undefined ? modelData.label : String(modelData))
-                color: "#102532"
-                font.pixelSize: 14
-                font.bold: highlighted
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 12
-                elide: Text.ElideRight
-            }
-
-            background: Rectangle {
-                color: highlighted ? "#d8e9f1" : "#ffffff"
-                border.color: highlighted ? "#9abaca" : "#eef3f6"
-            }
-        }
     }
 
     component HeaderCell: Item {

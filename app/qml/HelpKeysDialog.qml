@@ -3,19 +3,14 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: helpDialog
-
-    required property var app
 
     modal: true
     title: app.trText("helpKeysTitle")
     closePolicy: Popup.CloseOnEscape
-    padding: 18
     width: Math.min(640, app.width - 70)
     height: Math.min(620, app.height - 70)
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     property var helpRows: [
         { "keys": "Space", "textKey": "helpKeyPauseEngineDesc" },
@@ -28,48 +23,6 @@ Basic.Dialog {
         { "keys": "Ctrl+S", "textKey": "helpKeySaveSgfDesc" },
         { "keys": "Ctrl+I", "textKey": "helpKeyBoardSizeDesc" }
     ]
-
-    background: Rectangle {
-        radius: 10
-        color: "#f8fbfd"
-        border.color: "#8ea5b1"
-        border.width: 1
-    }
-
-    header: Rectangle {
-        height: 52
-        color: "#e6eff4"
-        radius: 10
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: "#c5d4dc"
-        }
-
-        Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            text: helpDialog.title
-            color: "#14242e"
-            font.pixelSize: 18
-            font.bold: true
-            elide: Text.ElideRight
-        }
-    }
 
     contentItem: ColumnLayout {
         implicitWidth: 600

@@ -459,6 +459,27 @@ ApplicationWindow {
                 width: root.compactLayout ? 260 : 320
                 font.pixelSize: root.compactLayout ? 14 : 16
 
+                MenuItem {
+                    width: ruleSelectionMenu.width
+                    enabled: false
+                    text: root.currentRuleSelectionText()
+                    font.pixelSize: root.compactLayout ? 13 : 15
+                    leftPadding: 0
+                    rightPadding: 0
+
+                    contentItem: Text {
+                        leftPadding: 18
+                        rightPadding: 18
+                        text: root.currentRuleSelectionText()
+                        color: "#7b8a93"
+                        font.pixelSize: root.compactLayout ? 13 : 15
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                }
+
+                MenuSeparator { }
+
                 Instantiator {
                     model: root.commonGameRuleOptions()
 
@@ -482,13 +503,14 @@ ApplicationWindow {
                             width: 26
                             height: commonRuleMenuItem.height
 
-                            Text {
+                            AppCheckMark {
                                 anchors.centerIn: parent
                                 visible: commonRuleMenuItem.selected
-                                text: "\u2713"
-                                color: "#17212a"
-                                font.pixelSize: root.compactLayout ? 15 : 17
-                                font.bold: true
+                                width: root.compactLayout ? 15 : 17
+                                height: width
+                                checked: true
+                                markColor: "#17212a"
+                                lineWidth: root.compactLayout ? 2.1 : 2.4
                             }
                         }
 
@@ -512,7 +534,7 @@ ApplicationWindow {
                     }
 
                     onObjectAdded: function(index, object) {
-                        ruleSelectionMenu.insertItem(index, object)
+                        ruleSelectionMenu.insertItem(index + 2, object)
                     }
 
                     onObjectRemoved: function(index, object) {
@@ -747,7 +769,7 @@ ApplicationWindow {
     RuleChangeSaveDialog { id: ruleChangeSaveDialog; app: root }
     BoardSizeDialog { id: boardSizeDialog; app: root }
 
-    Basic.Popup {
+    AppPopup {
         id: ruleSelectionPopup
 
         property var collapsedGroups: ({})
@@ -763,6 +785,7 @@ ApplicationWindow {
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
         padding: 0
+        onOpened: collapsedGroups = root.allRuleGroupsCollapsed()
 
         function setGroupCollapsed(groupId, collapsed) {
             var next = {}
@@ -815,6 +838,27 @@ ApplicationWindow {
                 }
             }
 
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 36
+                color: "#f2f7fa"
+                border.color: "#d3e0e7"
+                border.width: 1
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    anchors.rightMargin: 18
+                    text: root.currentRuleSelectionText()
+                    color: "#7b8a93"
+                    font.pixelSize: root.compactLayout ? 13 : 15
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
             Flickable {
                 id: ruleSelectionFlick
                 Layout.fillWidth: true
@@ -850,6 +894,12 @@ ApplicationWindow {
                                   : modelData.type === "group" ? "#f2f7fa" : "#ffffff"
                             border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
                             border.width: 1
+                            ToolTip.visible: ruleMouse.containsMouse
+                                             && modelData.type === "leaf"
+                                             && modelData.tip.length > 0
+                            ToolTip.text: modelData.tip
+                            ToolTip.delay: 250
+                            ToolTip.timeout: 8000
 
                             Item {
                                 anchors.fill: parent
@@ -894,19 +944,19 @@ ApplicationWindow {
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
-                                Text {
+                                AppCheckMark {
                                     id: ruleSelectionLeafMark
                                     visible: modelData.type === "leaf"
+                                             && modelData.value === root.gameRuleMode
+                                    width: root.compactLayout ? 16 : 18
+                                    height: width
                                     x: ruleSelectionPopup.treeNodeCenter
                                        + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
                                        - width / 2
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.value === root.gameRuleMode ? "\u2713" : ""
-                                    color: "#1678bd"
-                                    font.pixelSize: root.compactLayout ? 16 : 18
-                                    font.bold: true
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
+                                    checked: true
+                                    markColor: "#1678bd"
+                                    lineWidth: root.compactLayout ? 2.3 : 2.6
                                 }
 
                                 Text {
@@ -978,7 +1028,7 @@ ApplicationWindow {
         }
     }
 
-    Basic.Popup {
+    AppPopup {
         id: commonGameRulesPopup
 
         property var collapsedGroups: ({})
@@ -997,6 +1047,7 @@ ApplicationWindow {
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
         padding: 0
+        onOpened: collapsedGroups = root.allRuleGroupsCollapsed()
 
         function setGroupCollapsed(groupId, collapsed) {
             var next = {}
@@ -1131,6 +1182,16 @@ ApplicationWindow {
                                               : modelData.value === root.gameRuleMode ? "#edf7fb" : "#ffffff"
                                         border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
                                         border.width: 1
+                                        ToolTip.visible: commonRuleRowHover.hovered
+                                                         && modelData.type === "leaf"
+                                                         && modelData.tip.length > 0
+                                        ToolTip.text: modelData.tip
+                                        ToolTip.delay: 250
+                                        ToolTip.timeout: 8000
+
+                                        HoverHandler {
+                                            id: commonRuleRowHover
+                                        }
 
                                         RowLayout {
                                             id: commonRuleRow
@@ -1229,14 +1290,13 @@ ApplicationWindow {
                                                         border.width: 1
                                                     }
 
-                                                    Text {
-                                                        anchors.centerIn: parent
-                                                        text: commonRuleCheckBox.state === Qt.PartiallyChecked ? "\u2212"
-                                                              : commonRuleCheckBox.state === Qt.Checked ? "\u2713" : ""
-                                                        color: commonRuleCheckBox.state === Qt.Checked
-                                                               || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#ffffff" : "#17212a"
-                                                        font.pixelSize: root.compactLayout ? 13 : 15
-                                                        font.bold: true
+                                                    AppCheckMark {
+                                                        anchors.fill: parent
+                                                        anchors.margins: root.compactLayout ? 3 : 4
+                                                        checked: commonRuleCheckBox.state === Qt.Checked
+                                                        partial: commonRuleCheckBox.state === Qt.PartiallyChecked
+                                                        markColor: "#ffffff"
+                                                        lineWidth: partial ? 2.4 : (root.compactLayout ? 2.0 : 2.3)
                                                     }
 
                                                     MouseArea {
@@ -2496,8 +2556,18 @@ ApplicationWindow {
         return RuleSupport.gameRuleText(root)
     }
 
+    function currentRuleSelectionText() {
+        if (language === "zh")
+            return "当前：" + gameRuleText()
+        return "Current: " + gameRuleText()
+    }
+
     function gameRuleTextForMode(mode) {
         return RuleSupport.gameRuleTextForMode(root, mode)
+    }
+
+    function gameRuleTipForMode(mode) {
+        return RuleSupport.ruleModeTipForMode(root, mode)
     }
 
     function gameRuleOptions() {
@@ -2526,6 +2596,10 @@ ApplicationWindow {
 
     function ruleTreeRows(collapsedGroups) {
         return RuleSupport.ruleTreeRows(root, collapsedGroups || {})
+    }
+
+    function allRuleGroupsCollapsed() {
+        return RuleSupport.allRuleGroupsCollapsed(root)
     }
 
     function gameRuleCurrentIndex() {

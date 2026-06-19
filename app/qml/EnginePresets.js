@@ -21,14 +21,15 @@ function defaultPresets(app) {
 }
 
 function fallbackPreset(app, index) {
+    var ruleMode = defaultRuleMode(app)
     return makePreset("engine-" + (index + 1),
                       app.trText("newEngine"),
                       "",
-                      app.gameRuleGo,
+                      ruleMode,
                       -1,
                       19,
                       19,
-                      7.5,
+                      defaultKomiForRule(app, ruleMode),
                       false)
 }
 
@@ -198,7 +199,7 @@ function normalizePreset(app, preset, index) {
     var adjusted = app.adjustedBoardDimensionsForRule(copy.ruleMode, copy.boardSizeX, copy.boardSizeY)
     copy.boardSizeX = adjusted.x
     copy.boardSizeY = adjusted.y
-    copy.komi = app.clampKomiSettingValue(numeric(copy.komi, copy.ruleMode === app.gameRuleGo ? 6.5 : 0.0))
+    copy.komi = app.clampKomiSettingValue(numeric(copy.komi, defaultKomiForRule(app, copy.ruleMode)))
     copy.legacyHexEngineCoordinates = copy.legacyHexEngineCoordinates === true
     copy.boardPresentationMode = Math.round(app.clamp(numeric(copy.boardPresentationMode, 0),
                                                        app.boardPresentationIntersections,
@@ -256,17 +257,37 @@ function findById(presets, id) {
 
 function newPreset(app) {
     var now = Date.now ? Date.now() : Math.floor(Math.random() * 1000000000)
+    var ruleMode = defaultRuleMode(app)
     var preset = makePreset("engine-" + now,
                             app.trText("newEngine"),
                             "",
-                            app.gameRuleGo,
+                            ruleMode,
                             -1,
                             19,
                             19,
-                            7.5,
+                            defaultKomiForRule(app, ruleMode),
                             false)
     preset.boardPresentationMode = app.boardPresentationIntersections
     return normalizePreset(app, preset, 0)
+}
+
+function defaultRuleMode(app) {
+    var options = app.commonGameRuleOptions ? app.commonGameRuleOptions() : []
+    for (var i = 0; options && i < options.length; ++i) {
+        if (options[i] && app.validRuleMode(options[i].value))
+            return options[i].value
+    }
+    return app.gameRuleGo
+}
+
+function defaultKomiForRule(app, mode) {
+    if (mode === app.gameRuleGo
+            || mode === app.gameRuleTorusGo
+            || mode === app.gameRuleHexGoParallelogram
+            || mode === app.gameRuleHexGoHexagon
+            || mode === app.gameRuleHexGoTriangle)
+        return 6.5
+    return 0.0
 }
 
 function ruleText(app, preset) {

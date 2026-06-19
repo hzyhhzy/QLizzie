@@ -13,41 +13,41 @@ Basic.Dialog {
 
     function panelColor() {
         if (tone === "error")
-            return "#fff8f6"
+            return "#fff8f7"
         if (tone === "warning")
-            return "#fff8ed"
+            return "#fffaf2"
         return "#f8fbfd"
     }
 
     function headerColor() {
         if (tone === "error")
-            return "#ffe2de"
+            return "#f4e7e6"
         if (tone === "warning")
-            return "#f5e4cc"
+            return "#f4ead6"
         return "#e6eff4"
     }
 
     function borderColor() {
         if (tone === "error")
-            return "#d0695f"
+            return "#c98b84"
         if (tone === "warning")
-            return "#c99452"
+            return "#c9a46d"
         return "#8ea5b1"
     }
 
     function dividerColor() {
         if (tone === "error")
-            return "#efb3ad"
+            return "#e3c0bc"
         if (tone === "warning")
-            return "#dfc59e"
+            return "#dfc79e"
         return "#c5d4dc"
     }
 
     function titleColor() {
         if (tone === "error")
-            return "#641a14"
+            return "#8a241b"
         if (tone === "warning")
-            return "#3d2a12"
+            return "#5a370f"
         return "#14242e"
     }
 
@@ -63,17 +63,28 @@ Basic.Dialog {
         border.width: 1
     }
 
-    header: Rectangle {
+    header: Item {
         height: appDialog.headerHeight
-        color: appDialog.headerColor()
-        radius: appDialog.dialogRadius
 
         Rectangle {
+            id: headerPanel
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
             anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
+            anchors.leftMargin: 1
+            anchors.rightMargin: 1
+            anchors.topMargin: 1
+            color: appDialog.headerColor()
+            radius: Math.max(0, appDialog.dialogRadius - 1)
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: parent.radius
+                color: parent.color
+            }
         }
 
         Rectangle {

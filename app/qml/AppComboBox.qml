@@ -5,7 +5,10 @@ import QtQuick.Controls.Basic as Basic
 Basic.ComboBox {
     id: appComboBox
 
-    implicitHeight: 38
+    property bool compact: false
+    property int textHorizontalAlignment: Text.AlignLeft
+
+    implicitHeight: compact ? 30 : 38
 
     function textFor(modelData) {
         if (modelData === undefined || modelData === null)
@@ -16,23 +19,24 @@ Basic.ComboBox {
     }
 
     contentItem: Text {
-        leftPadding: 12
-        rightPadding: 32
+        leftPadding: appComboBox.compact ? 8 : 12
+        rightPadding: appComboBox.compact ? 24 : 32
         text: appComboBox.displayText
         color: appComboBox.enabled ? "#14242e" : "#7d8e98"
-        font.pixelSize: 15
+        font.pixelSize: appComboBox.compact ? 13 : 15
         font.bold: appComboBox.activeFocus
         verticalAlignment: Text.AlignVCenter
+        horizontalAlignment: appComboBox.textHorizontalAlignment
         elide: Text.ElideRight
     }
 
     indicator: Text {
         anchors.right: parent.right
-        anchors.rightMargin: 11
+        anchors.rightMargin: appComboBox.compact ? 8 : 11
         anchors.verticalCenter: parent.verticalCenter
         text: "\u25be"
         color: appComboBox.enabled ? "#657781" : "#9aa8af"
-        font.pixelSize: 16
+        font.pixelSize: appComboBox.compact ? 13 : 16
     }
 
     background: Rectangle {
@@ -46,17 +50,18 @@ Basic.ComboBox {
 
     delegate: Basic.ItemDelegate {
         width: appComboBox.width
-        height: 40
+        height: appComboBox.compact ? 30 : 40
         highlighted: appComboBox.highlightedIndex === index
 
         contentItem: Text {
             text: appComboBox.textFor(modelData)
             color: "#14242e"
-            font.pixelSize: 14
+            font.pixelSize: appComboBox.compact ? 13 : 14
             font.bold: appComboBox.currentIndex === index
             verticalAlignment: Text.AlignVCenter
-            leftPadding: 12
-            rightPadding: 12
+            horizontalAlignment: appComboBox.textHorizontalAlignment
+            leftPadding: appComboBox.compact ? 8 : 12
+            rightPadding: appComboBox.compact ? 8 : 12
             elide: Text.ElideRight
         }
 
@@ -68,7 +73,7 @@ Basic.ComboBox {
     popup: Popup {
         y: appComboBox.height + 2
         width: appComboBox.width
-        implicitHeight: Math.min(contentItem.implicitHeight, 280)
+        implicitHeight: Math.min(contentItem.implicitHeight, appComboBox.compact ? 180 : 280)
         padding: 1
 
         contentItem: ListView {

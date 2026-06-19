@@ -1,23 +1,51 @@
 import QtQuick
 import QtQuick.Layouts
 
-Rectangle {
+Item {
     id: appDialogFooter
 
     default property alias contentData: footerRow.data
+    property string tone: "normal"
     property int contentMargins: 18
     property int dialogRadius: 10
 
-    implicitHeight: 68
-    color: "#f8fbfd"
-    radius: dialogRadius
+    function footerColor() {
+        if (tone === "error")
+            return "#f7eeee"
+        if (tone === "warning")
+            return "#f7f0e3"
+        return "#f1f6f9"
+    }
+
+    function dividerColor() {
+        if (tone === "error")
+            return "#e3c0bc"
+        if (tone === "warning")
+            return "#dfc79e"
+        return "#d7e1e7"
+    }
+
+    implicitHeight: 64
 
     Rectangle {
+        id: footerPanel
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: parent.radius
-        color: parent.color
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 1
+        anchors.rightMargin: 1
+        anchors.bottomMargin: 1
+        color: appDialogFooter.footerColor()
+        radius: Math.max(0, appDialogFooter.dialogRadius - 1)
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: parent.radius
+            color: parent.color
+        }
     }
 
     Rectangle {
@@ -25,12 +53,12 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         height: 1
-        color: "#d7e1e7"
+        color: appDialogFooter.dividerColor()
     }
 
     RowLayout {
         id: footerRow
-        anchors.fill: parent
+        anchors.fill: footerPanel
         anchors.margins: appDialogFooter.contentMargins
         spacing: 10
     }

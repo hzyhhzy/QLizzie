@@ -63,7 +63,7 @@ AppDialog {
                 Repeater {
                     model: app.boardSizePresets()
 
-                    Basic.RadioButton {
+                    AppRadioChoice {
                         text: modelData + "x" + modelData
                         visible: app.boardSizePresetAllowed(modelData)
                         checked: boardSizeDialog.selectedPreset === modelData
@@ -72,7 +72,7 @@ AppDialog {
                     }
                 }
 
-                Basic.RadioButton {
+                AppRadioChoice {
                     text: app.trText("custom")
                     visible: app.customBoardSizeAllowed()
                     checked: boardSizeDialog.selectedPreset === 0

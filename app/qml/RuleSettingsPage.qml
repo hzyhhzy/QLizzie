@@ -11,7 +11,8 @@ ColumnLayout {
 
     spacing: 14
     readonly property bool inlineBoardPresentationControls: app.boardPresentationOptions().length > 1
-    readonly property bool inlineKomiControls: !inlineBoardPresentationControls && app.komiControlsVisible()
+    readonly property bool ruleKomiControlsVisible: app.currentKomiUsage() === app.komiUsageKomi
+    readonly property bool inlineKomiControls: !inlineBoardPresentationControls && ruleKomiControlsVisible
     property var collapsedRuleGroups: ({})
 
     function setRuleGroupCollapsed(groupId, collapsed) {
@@ -236,7 +237,7 @@ ColumnLayout {
         ctx.restore()
     }
 
-    component PresentationCombo: Basic.ComboBox {
+    component PresentationCombo: AppComboBox {
         id: control
 
         required property var app
@@ -247,76 +248,7 @@ ColumnLayout {
         textRole: "label"
         valueRole: "value"
         implicitHeight: 32
-        leftPadding: 10
-        rightPadding: 30
         onActivated: function(index) { picked(index) }
-
-        contentItem: Text {
-            leftPadding: control.leftPadding
-            rightPadding: control.rightPadding
-            text: control.displayText
-            color: "#14242e"
-            font.pixelSize: control.app.compactLayout ? 13 : 14
-            font.bold: true
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        indicator: Canvas {
-            id: arrowCanvas
-            x: control.width - width - 10
-            y: Math.round((control.height - height) / 2)
-            width: 12
-            height: 8
-
-            Connections {
-                target: control
-                function onHoveredChanged() { arrowCanvas.requestPaint() }
-                function onPressedChanged() { arrowCanvas.requestPaint() }
-            }
-
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.clearRect(0, 0, width, height)
-                ctx.fillStyle = control.pressed ? "#1f6f8d" : "#6b7880"
-                ctx.beginPath()
-                ctx.moveTo(1, 1)
-                ctx.lineTo(width - 1, 1)
-                ctx.lineTo(width / 2, height - 1)
-                ctx.closePath()
-                ctx.fill()
-            }
-        }
-
-        background: Rectangle {
-            radius: 5
-            color: control.pressed ? "#dcecf3"
-                                 : control.hovered ? "#eef7fa" : "#f8fbfd"
-            border.color: control.activeFocus ? "#2a91c9" : "#a8bac5"
-            border.width: control.activeFocus ? 2 : 1
-        }
-
-        delegate: Basic.ItemDelegate {
-            id: optionDelegate
-            width: control.width
-            height: control.app.compactLayout ? 30 : 34
-            highlighted: control.highlightedIndex === index
-            hoverEnabled: true
-
-            contentItem: Text {
-                text: modelData.label
-                color: "#14242e"
-                font.pixelSize: control.app.compactLayout ? 12 : 13
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 10
-                elide: Text.ElideRight
-            }
-
-            background: Rectangle {
-                color: optionDelegate.highlighted ? "#d8e9f1"
-                                                  : optionDelegate.hovered ? "#edf5f8" : "#ffffff"
-            }
-        }
     }
 
     Rectangle {
@@ -360,6 +292,15 @@ ColumnLayout {
                 Item { Layout.fillWidth: true }
             }
 
+            Label {
+                text: app.gameRuleTipForMode(app.gameRuleMode)
+                color: "#61727c"
+                font.pixelSize: app.compactLayout ? 12 : 13
+                wrapMode: Text.WordWrap
+                Layout.leftMargin: 118
+                Layout.fillWidth: true
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
@@ -370,31 +311,12 @@ ColumnLayout {
                     Layout.preferredWidth: 100
                 }
 
-                Basic.Button {
+                AppButton {
                     id: ruleVariantButton
                     Layout.preferredWidth: 170
                     Layout.minimumWidth: 150
-                    implicitHeight: 32
                     text: app.ruleVariantText()
                     onClicked: app.openRuleVariantDialog()
-
-                    contentItem: Text {
-                        text: ruleVariantButton.text
-                        color: "#17212a"
-                        font.pixelSize: ruleSettingsPage.app.compactLayout ? 13 : 14
-                        font.bold: true
-                        verticalAlignment: Text.AlignVCenter
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        radius: 5
-                        color: ruleVariantButton.pressed ? "#dcecf3"
-                             : ruleVariantButton.hovered ? "#eef7fa" : "#f8fbfd"
-                        border.color: ruleVariantButton.activeFocus ? "#2a91c9" : "#a8bac5"
-                        border.width: ruleVariantButton.activeFocus ? 2 : 1
-                    }
                 }
 
                 Label {
@@ -416,13 +338,13 @@ ColumnLayout {
                 }
 
                 Label {
-                    text: app.komiLabelText()
+                    text: app.trText("komi")
                     visible: ruleSettingsPage.inlineKomiControls
                     color: "#24313a"
                     Layout.preferredWidth: 70
                 }
 
-                SpinBox {
+                AppSpinBox {
                     visible: ruleSettingsPage.inlineKomiControls
                     from: Math.round(app.komiMinimum() * 2)
                     to: Math.round(app.komiMaximum() * 2)
@@ -577,15 +499,15 @@ ColumnLayout {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-                visible: app.komiControlsVisible() && !ruleSettingsPage.inlineKomiControls
+                visible: ruleSettingsPage.ruleKomiControlsVisible && !ruleSettingsPage.inlineKomiControls
 
                 Label {
-                    text: app.komiLabelText()
+                    text: app.trText("komi")
                     color: "#24313a"
                     Layout.preferredWidth: 110
                 }
 
-                SpinBox {
+                AppSpinBox {
                     from: Math.round(app.komiMinimum() * 2)
                     to: Math.round(app.komiMaximum() * 2)
                     value: Math.round(app.effectiveKomi() * 2)

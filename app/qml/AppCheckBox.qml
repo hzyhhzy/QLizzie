@@ -5,11 +5,14 @@ import QtQuick.Controls.Basic as Basic
 Basic.CheckBox {
     id: appCheckBox
 
-    spacing: 8
+    property bool compact: false
+    readonly property int indicatorSize: compact ? 18 : 20
+
+    spacing: compact ? 6 : 8
 
     indicator: Rectangle {
-        implicitWidth: 20
-        implicitHeight: 20
+        implicitWidth: appCheckBox.indicatorSize
+        implicitHeight: appCheckBox.indicatorSize
         x: appCheckBox.leftPadding
         y: Math.round((appCheckBox.height - height) / 2)
         radius: 4
@@ -21,21 +24,20 @@ Basic.CheckBox {
                       : appCheckBox.hovered ? "#5c8da6" : "#7f8b92"
         border.width: 1
 
-        Text {
-            anchors.centerIn: parent
-            text: appCheckBox.checkState === Qt.PartiallyChecked ? "-"
-                  : appCheckBox.checkState === Qt.Checked ? "\u2713" : ""
-            color: "#ffffff"
-            font.pixelSize: appCheckBox.checkState === Qt.PartiallyChecked ? 18 : 15
-            font.bold: true
-            lineHeight: 0.9
+        AppCheckMark {
+            anchors.fill: parent
+            anchors.margins: appCheckBox.compact ? 3 : 4
+            checked: appCheckBox.checkState === Qt.Checked
+            partial: appCheckBox.checkState === Qt.PartiallyChecked
+            markColor: "#ffffff"
+            lineWidth: appCheckBox.compact ? 2.0 : (appCheckBox.checkState === Qt.PartiallyChecked ? 2.4 : 2.2)
         }
     }
 
     contentItem: Text {
         text: appCheckBox.text
         color: appCheckBox.enabled ? "#24313a" : "#7d8e98"
-        font.pixelSize: 14
+        font.pixelSize: appCheckBox.compact ? 13 : 14
         verticalAlignment: Text.AlignVCenter
         leftPadding: appCheckBox.indicator.width + appCheckBox.spacing
         elide: Text.ElideRight

@@ -36,29 +36,34 @@ AppDialog {
         open()
     }
 
-    contentItem: ColumnLayout {
+    contentItem: Rectangle {
         implicitWidth: 484
-        spacing: 16
+        implicitHeight: Math.max(72, warningMessage.implicitHeight + 6)
+        color: "transparent"
 
         Label {
-            Layout.fillWidth: true
+            id: warningMessage
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             text: warningDialog.messageText
             color: "#342414"
             font.pixelSize: 14
             wrapMode: Text.WordWrap
         }
+    }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Item { Layout.fillWidth: true }
-            SavePromptButton {
-                text: app.trText("confirm")
-                primary: true
-                Layout.preferredWidth: 100
-                onClicked: {
-                    warningDialog.close()
-                    app.focusBoardInput()
-                }
+    footer: AppDialogFooter {
+        tone: warningDialog.tone
+        Item { Layout.fillWidth: true }
+
+        SavePromptButton {
+            text: app.trText("confirm")
+            primary: true
+            Layout.preferredWidth: 104
+            onClicked: {
+                warningDialog.close()
+                app.focusBoardInput()
             }
         }
     }

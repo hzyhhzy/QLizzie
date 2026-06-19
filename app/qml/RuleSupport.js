@@ -231,6 +231,15 @@ function gameRuleOptions(app) {
     return options
 }
 
+function ruleModeTipForMode(app, mode) {
+    var options = gameRuleOptions(app)
+    for (var i = 0; i < options.length; ++i) {
+        if (options[i].value === mode)
+            return options[i].tip
+    }
+    return ""
+}
+
 function validRuleMode(app, mode) {
     var options = gameRuleOptions(app)
     for (var i = 0; i < options.length; ++i) {
@@ -542,6 +551,23 @@ function ruleTreeRows(app, collapsedGroups) {
     return rows
 }
 
+function appendCollapsedRuleGroups(nodes, parentId, groups) {
+    for (var i = 0; nodes && i < nodes.length; ++i) {
+        var node = nodes[i]
+        if (node.type !== "group")
+            continue
+        var groupId = parentId && parentId.length > 0 ? parentId + "/" + node.labelKey : node.labelKey
+        groups[groupId] = true
+        appendCollapsedRuleGroups(node.children, groupId, groups)
+    }
+}
+
+function allRuleGroupsCollapsed(app) {
+    var groups = {}
+    appendCollapsedRuleGroups(gameRuleTree(app), "", groups)
+    return groups
+}
+
 function gameRuleCurrentIndex(app) {
     var options = gameRuleOptions(app)
     for (var i = 0; i < options.length; ++i) {
@@ -674,7 +700,6 @@ function komiUsageForRule(app, mode) {
             || mode === app.gameRuleAtaxx)
         return app.komiUsageKomi
     if (mode === app.gameRuleGomoku
-            || mode === app.gameRuleHex
             || mode === app.gameRuleConnect6)
         return app.komiUsageBlackAggression
     return app.komiUsageNone

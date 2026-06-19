@@ -146,7 +146,7 @@ Window {
 
         function onActiveChanged() {
             if (app.active && engineCommunicationDialog.visible && !engineCommunicationDialog.active)
-                engineCommunicationDialog.lower()
+                app.raise()
         }
     }
 
@@ -166,19 +166,19 @@ Window {
             Layout.fillWidth: true
             spacing: 18
 
-            CheckBox {
+            AppCheckBox {
                 text: "stdin"
                 checked: app.showEngineCommunicationStdin
                 onToggled: app.showEngineCommunicationStdin = checked
             }
 
-            CheckBox {
+            AppCheckBox {
                 text: "stdout"
                 checked: app.showEngineCommunicationStdout
                 onToggled: app.showEngineCommunicationStdout = checked
             }
 
-            CheckBox {
+            AppCheckBox {
                 text: "stderr"
                 checked: app.showEngineCommunicationStderr
                 onToggled: app.showEngineCommunicationStderr = checked

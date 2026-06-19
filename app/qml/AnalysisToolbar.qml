@@ -113,83 +113,31 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
         }
 
-        Basic.TextField {
-            id: komiField
+        AppSpinBox {
+            id: komiSpin
             visible: app.komiControlsVisible()
-            text: Number(app.effectiveKomi()).toFixed(1)
-            selectByMouse: true
-            validator: DoubleValidator {
-                bottom: app.komiMinimum()
-                top: app.komiMaximum()
-                decimals: 2
-                notation: DoubleValidator.StandardNotation
-            }
+            compact: true
+            editable: true
+            from: Math.round(app.komiMinimum() * 10)
+            to: Math.round(app.komiMaximum() * 10)
+            stepSize: 5
+            value: Math.round(app.effectiveKomi() * 10)
             Layout.preferredWidth: app.compactLayout ? 72 : 82
-            implicitHeight: app.compactLayout ? 28 : 32
-            leftPadding: 3
-            rightPadding: 3
-            topPadding: 0
-            bottomPadding: 1
-            color: "#17252d"
-            selectedTextColor: "#ffffff"
-            selectionColor: "#2e8eb0"
+            Layout.preferredHeight: app.compactLayout ? 28 : 32
             font.pixelSize: app.compactLayout ? 15 : 17
             font.bold: true
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            background: Rectangle {
-                radius: 4
-                color: komiField.activeFocus ? "#ffffff" : "#f9fbfc"
-                border.color: komiField.activeFocus ? "#2e8eb0" : "#9fb0b8"
-                border.width: komiField.activeFocus ? 2 : 1
+            textFromValue: function(value) { return (value / 10).toFixed(1) }
+            valueFromText: function(text) {
+                var number = Number(text)
+                return isNaN(number) ? komiSpin.value : Math.round(number * 10)
             }
 
-            function applyValue() {
-                var nextValue = Number(text)
-                if (!isNaN(nextValue))
-                    app.setKomiValue(nextValue)
-                text = Number(app.effectiveKomi()).toFixed(1)
-            }
-
-            onEditingFinished: applyValue()
+            onValueModified: app.setKomiValue(value / 10)
             Keys.onReturnPressed: {
-                applyValue()
                 app.focusBoardInput()
             }
             Keys.onEnterPressed: {
-                applyValue()
                 app.focusBoardInput()
-            }
-
-            Connections {
-                target: app
-                function onKomiChanged() {
-                    if (!komiField.activeFocus)
-                        komiField.text = Number(app.effectiveKomi()).toFixed(1)
-                }
-                function onGameRuleModeChanged() {
-                    if (!komiField.activeFocus)
-                        komiField.text = Number(app.effectiveKomi()).toFixed(1)
-                }
-            }
-        }
-
-        ColumnLayout {
-            visible: app.komiControlsVisible()
-            spacing: 0
-            Layout.minimumWidth: app.compactLayout ? 14 : 16
-            Layout.preferredWidth: app.compactLayout ? 14 : 16
-            Layout.maximumWidth: app.compactLayout ? 14 : 16
-            Layout.preferredHeight: app.compactLayout ? 30 : 34
-
-            StepButton {
-                text: "^"
-                onClicked: app.adjustKomi(0.5)
-            }
-
-            StepButton {
-                text: "v"
-                onClicked: app.adjustKomi(-0.5)
             }
         }
 
@@ -218,13 +166,12 @@ Rectangle {
                               : wideRootNoiseEnabledBox.hovered ? "#6f8794" : "#9fb0b8"
                 border.width: 1
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: wideRootNoiseEnabledBox.checked
-                    text: "\u2713"
-                    color: "#ffffff"
-                    font.pixelSize: app.compactLayout ? 11 : 12
-                    font.bold: true
+                AppCheckMark {
+                    anchors.fill: parent
+                    anchors.margins: app.compactLayout ? 3 : 4
+                    checked: wideRootNoiseEnabledBox.checked
+                    markColor: "#ffffff"
+                    lineWidth: app.compactLayout ? 1.8 : 2.0
                 }
             }
 
@@ -242,6 +189,7 @@ Rectangle {
         Basic.TextField {
             id: wideRootNoiseField
             visible: app.analysisWideRootNoiseControlsVisible()
+            enabled: app.analysisWideRootNoiseEnabled
             text: app.formatAnalysisWideRootNoise(app.analysisWideRootNoise)
             selectByMouse: true
             validator: DoubleValidator {
@@ -258,7 +206,7 @@ Rectangle {
             rightPadding: 3
             topPadding: 0
             bottomPadding: 1
-            color: "#17252d"
+            color: enabled ? "#17252d" : "#80919a"
             selectedTextColor: "#ffffff"
             selectionColor: "#2e8eb0"
             font.pixelSize: app.compactLayout ? 15 : 17
@@ -267,8 +215,10 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
             background: Rectangle {
                 radius: 4
-                color: wideRootNoiseField.activeFocus ? "#ffffff" : "#f9fbfc"
-                border.color: wideRootNoiseField.activeFocus ? "#2e8eb0" : "#9fb0b8"
+                color: !wideRootNoiseField.enabled ? "#e7eef2"
+                      : wideRootNoiseField.activeFocus ? "#ffffff" : "#f9fbfc"
+                border.color: !wideRootNoiseField.enabled ? "#c5d0d6"
+                              : wideRootNoiseField.activeFocus ? "#2e8eb0" : "#9fb0b8"
                 border.width: wideRootNoiseField.activeFocus ? 2 : 1
             }
 

@@ -3,21 +3,17 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: settingsDialog
 
-    required property var app
     required property var controller
     property int currentPage: 0
 
     modal: true
     title: app.trText("settingsDialogTitle")
     closePolicy: Popup.CloseOnEscape
-    padding: 18
     width: Math.min(820, app.width - 70)
     height: Math.min(680, app.height - 70)
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     function openPage(pageIndex) {
         currentPage = app.clamp(Math.round(pageIndex), 0, 3)
@@ -58,48 +54,6 @@ Basic.Dialog {
         app.requestBoardDimensionsChange(boardXSpin.value, boardYSpin.value)
         app.onSettingsDialogClosed()
         app.focusBoardInput()
-    }
-
-    background: Rectangle {
-        radius: 10
-        color: "#f8fbfd"
-        border.color: "#8ea5b1"
-        border.width: 1
-    }
-
-    header: Rectangle {
-        height: 52
-        color: "#e6eff4"
-        radius: 10
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: "#c5d4dc"
-        }
-
-        Label {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            text: settingsDialog.title
-            color: "#14242e"
-            font.pixelSize: 17
-            font.bold: true
-            elide: Text.ElideRight
-        }
     }
 
     contentItem: RowLayout {
@@ -175,7 +129,7 @@ Basic.Dialog {
 
                             Label { text: app.trText("boardSizeX"); color: "#24313a" }
 
-                            SpinBox {
+                            AppSpinBox {
                                 id: boardXSpin
                                 from: app.minBoardSize
                                 to: app.maxBoardSize
@@ -186,7 +140,7 @@ Basic.Dialog {
 
                             Label { text: "x " + app.trText("boardSizeY"); color: "#24313a" }
 
-                            SpinBox {
+                            AppSpinBox {
                                 id: boardYSpin
                                 from: app.minBoardSize
                                 to: app.maxBoardSize
@@ -259,7 +213,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 240
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: app.maxLargeIntegerSetting
                                 editable: true
@@ -279,7 +233,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 240
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: app.maxLargeIntegerSetting
                                 editable: true
@@ -301,7 +255,7 @@ Basic.Dialog {
                                 elide: Text.ElideRight
                             }
 
-                            CheckBox {
+                            AppCheckBox {
                                 checked: app.candidateVariationPreviewVisible
                                 onToggled: app.candidateVariationPreviewVisible = checked
                             }
@@ -312,7 +266,7 @@ Basic.Dialog {
                                 font.pixelSize: 12
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: app.maxLargeIntegerSetting
                                 editable: true
@@ -342,7 +296,7 @@ Basic.Dialog {
                                 elide: Text.ElideRight
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: 100
                                 editable: true
@@ -370,7 +324,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 150
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: 65536
                                 editable: true
@@ -398,7 +352,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 150
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: 1000
                                 editable: true
@@ -435,7 +389,7 @@ Basic.Dialog {
                                 elide: Text.ElideRight
                             }
 
-                            CheckBox {
+                            AppCheckBox {
                                 checked: app.candidateShowFilteredMarkers
                                 onToggled: app.candidateShowFilteredMarkers = checked
                             }
@@ -462,7 +416,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 120
                             }
 
-                            SpinBox {
+                            AppSpinBox {
                                 from: 1
                                 to: 999
                                 value: Math.round(app.secondsPerMove * 10)
@@ -490,7 +444,7 @@ Basic.Dialog {
                             }
 
                             Label { text: app.trText("resignAfterMove"); color: "#52636d" }
-                            SpinBox {
+                            AppSpinBox {
                                 from: 1
                                 to: 500
                                 value: app.resignMinMove
@@ -499,7 +453,7 @@ Basic.Dialog {
                             }
 
                             Label { text: app.trText("resignBelowWinrate"); color: "#52636d" }
-                            SpinBox {
+                            AppSpinBox {
                                 from: 0
                                 to: 100
                                 value: Math.round(app.resignWinrateThreshold)
@@ -597,7 +551,7 @@ Basic.Dialog {
                                             elide: Text.ElideRight
                                         }
 
-                                        ComboBox {
+                                        AppComboBox {
                                             model: [
                                                 app.trText("candidateScoreMean"),
                                                 app.trText("candidateDrawRate")
@@ -627,8 +581,9 @@ Basic.Dialog {
                                             Layout.fillWidth: true
                                             spacing: 8
 
-                                            CheckBox {
+                                            AppCheckBox {
                                                 text: app.trText("candidateRingVisible")
+                                                compact: true
                                                 checked: app.candidateRingVisible
                                                 onToggled: app.candidateRingVisible = checked
                                             }
@@ -639,21 +594,24 @@ Basic.Dialog {
                                                 font.pixelSize: 12
                                             }
 
-                                            SpinBox {
+                                            AppSpinBox {
                                                 enabled: app.candidateRingVisible
+                                                compact: true
                                                 from: 1
                                                 to: 64
                                                 editable: true
                                                 value: app.candidateRingLineWidth
                                                 Layout.preferredWidth: 78
+                                                Layout.preferredHeight: 30
                                                 onValueModified: app.candidateRingLineWidth = value
                                             }
 
                                             Item { Layout.fillWidth: true }
                                         }
 
-                                        CheckBox {
+                                        AppCheckBox {
                                             text: app.trText("candidateRankLabelVisible")
+                                            compact: true
                                             checked: app.candidateRankLabelVisible
                                             onToggled: app.candidateRankLabelVisible = checked
                                         }
@@ -741,7 +699,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 150
                             }
 
-                            ComboBox {
+                            AppComboBox {
                                 model: [
                                     app.trText("coordinateDisplayGoNoI"),
                                     app.trText("coordinateDisplayGomokuWithI"),
@@ -807,7 +765,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 150
                             }
 
-                            ComboBox {
+                            AppComboBox {
                                 model: [
                                     app.trText("moveNumberAll"),
                                     app.trText("moveNumberLastOnly"),
@@ -893,7 +851,7 @@ Basic.Dialog {
                                 Layout.preferredWidth: 96
                             }
 
-                            Basic.ComboBox {
+                            AppComboBox {
                                 id: defaultEngineCombo
                                 model: app.engineDefaultOptions()
                                 textRole: "label"
@@ -904,74 +862,6 @@ Basic.Dialog {
                                 Layout.preferredWidth: 420
                                 Layout.minimumWidth: 260
                                 implicitHeight: 34
-
-                                contentItem: Text {
-                                    leftPadding: 12
-                                    rightPadding: 30
-                                    text: defaultEngineCombo.displayText
-                                    color: "#102532"
-                                    font.pixelSize: 14
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
-                                }
-
-                                indicator: Text {
-                                    x: defaultEngineCombo.width - width - 8
-                                    y: Math.round((defaultEngineCombo.height - height) / 2)
-                                    text: "\u25BE"
-                                    color: "#657883"
-                                    font.pixelSize: 13
-                                }
-
-                                background: Rectangle {
-                                    radius: 4
-                                    color: defaultEngineCombo.pressed ? "#dcecf3" : "#ffffff"
-                                    border.color: defaultEngineCombo.activeFocus ? "#2388b8" : "#a9bcc6"
-                                    border.width: defaultEngineCombo.activeFocus ? 2 : 1
-                                }
-
-                                delegate: Basic.ItemDelegate {
-                                    id: defaultEngineDelegate
-                                    width: defaultEngineCombo.width
-                                    height: 36
-                                    highlighted: defaultEngineCombo.highlightedIndex === index
-
-                                    contentItem: Text {
-                                        text: modelData && modelData.label !== undefined ? modelData.label : String(modelData)
-                                        color: "#102532"
-                                        font.pixelSize: 14
-                                        font.bold: defaultEngineDelegate.highlighted
-                                        verticalAlignment: Text.AlignVCenter
-                                        leftPadding: 12
-                                        rightPadding: 12
-                                        elide: Text.ElideRight
-                                    }
-
-                                    background: Rectangle {
-                                        color: defaultEngineDelegate.highlighted ? "#d8e9f1" : "#ffffff"
-                                        border.color: defaultEngineDelegate.highlighted ? "#9abaca" : "#eef3f6"
-                                    }
-                                }
-
-                                popup: Popup {
-                                    y: defaultEngineCombo.height
-                                    width: defaultEngineCombo.width
-                                    implicitHeight: Math.min(contentItem.implicitHeight, 360)
-                                    padding: 1
-
-                                    contentItem: ListView {
-                                        clip: true
-                                        implicitHeight: contentHeight
-                                        model: defaultEngineCombo.popup.visible ? defaultEngineCombo.delegateModel : null
-                                        currentIndex: defaultEngineCombo.highlightedIndex
-                                        boundsBehavior: Flickable.StopAtBounds
-                                    }
-
-                                    background: Rectangle {
-                                        color: "#ffffff"
-                                        border.color: "#91a8b4"
-                                    }
-                                }
                             }
 
                             SavePromptButton {
@@ -1125,31 +1015,17 @@ Basic.Dialog {
         }
     }
 
-    footer: Rectangle {
+    footer: AppDialogFooter {
         implicitHeight: 62
-        color: "#f8fbfd"
-        radius: 10
+        contentMargins: 16
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: 1
-            color: "#d7e1e7"
-        }
+        Item { Layout.fillWidth: true }
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 16
-
-            Item { Layout.fillWidth: true }
-
-            SavePromptButton {
-                text: app.trText("close")
-                primary: true
-                Layout.preferredWidth: 110
-                onClicked: settingsDialog.close()
-            }
+        SavePromptButton {
+            text: app.trText("close")
+            primary: true
+            Layout.preferredWidth: 110
+            onClicked: settingsDialog.close()
         }
     }
 
@@ -1392,10 +1268,11 @@ Basic.Dialog {
                 Layout.preferredWidth: 10
             }
 
-            CheckBox {
+            AppCheckBox {
                 enabled: labelControl.controlsEnabled
+                compact: true
                 checked: labelControl.lineVisible()
-                Layout.preferredWidth: 28
+                Layout.preferredWidth: 24
                 onToggled: labelControl.setLineVisible(checked)
             }
 
@@ -1408,11 +1285,12 @@ Basic.Dialog {
                 elide: Text.ElideRight
             }
 
-            CheckBox {
+            AppCheckBox {
                 enabled: labelControl.controlsEnabled
+                compact: true
                 text: app.trText("candidateLabelBold")
                 checked: labelControl.lineBold()
-                Layout.preferredWidth: 34
+                Layout.preferredWidth: 46
                 onToggled: labelControl.setLineBold(checked)
             }
 
@@ -1424,13 +1302,15 @@ Basic.Dialog {
                 elide: Text.ElideRight
             }
 
-            SpinBox {
+            AppSpinBox {
                 enabled: labelControl.controlsEnabled
+                compact: true
                 from: 12
                 to: 120
                 editable: true
                 value: labelControl.lineFontSize()
-                Layout.preferredWidth: 54
+                Layout.preferredWidth: 58
+                Layout.preferredHeight: 30
                 onValueModified: labelControl.setLineFontSize(value)
             }
 
@@ -1442,13 +1322,15 @@ Basic.Dialog {
                 elide: Text.ElideRight
             }
 
-            SpinBox {
+            AppSpinBox {
                 enabled: labelControl.controlsEnabled
+                compact: true
                 from: -64
                 to: 64
                 editable: true
                 value: labelControl.lineOffsetY()
-                Layout.preferredWidth: 54
+                Layout.preferredWidth: 58
+                Layout.preferredHeight: 30
                 onValueModified: labelControl.setLineOffsetY(value)
             }
 
@@ -1461,20 +1343,24 @@ Basic.Dialog {
                 elide: Text.ElideRight
             }
 
-            ComboBox {
+            AppComboBox {
                 visible: labelControl.lineKind !== 1
                 enabled: labelControl.controlsEnabled
+                compact: true
+                textHorizontalAlignment: Text.AlignHCenter
                 model: [ "0", "1", "2" ]
                 currentIndex: labelControl.lineDecimals()
-                Layout.preferredWidth: 42
+                Layout.preferredWidth: 48
+                Layout.preferredHeight: 30
                 onActivated: function(index) { labelControl.setLineDecimals(index) }
             }
 
-            CheckBox {
+            AppCheckBox {
                 visible: labelControl.lineKind === 0
                          || (labelControl.lineKind === 2
                              && app.candidateScoreTitleMode === app.candidateScoreTitleDrawRate)
                 enabled: labelControl.controlsEnabled
+                compact: true
                 text: "%"
                 checked: labelControl.lineShowPercent()
                 Layout.preferredWidth: 38
@@ -1685,11 +1571,12 @@ Basic.Dialog {
             elide: Text.ElideRight
         }
 
-        Basic.TextField {
+        AppTextField {
             id: colorField
             text: colorRow.field ? colorRow.field.text : ""
-            selectByMouse: true
+            font.pixelSize: colorRow.compact ? 14 : 15
             Layout.preferredWidth: colorRow.compact ? 88 : 120
+            Layout.preferredHeight: colorRow.compact ? 34 : 38
             onTextChanged: if (colorRow.field) colorRow.field.text = text
             onEditingFinished: colorRow.apply()
         }

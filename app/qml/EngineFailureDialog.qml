@@ -12,30 +12,35 @@ AppDialog {
     closePolicy: Popup.CloseOnEscape
     width: Math.min(520, app.width - 80)
 
-    contentItem: ColumnLayout {
+    contentItem: Rectangle {
         implicitWidth: 484
-        spacing: 18
+        implicitHeight: Math.max(62, engineFailureMessage.implicitHeight + 6)
+        color: "transparent"
 
         Label {
+            id: engineFailureMessage
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             text: app.engineFailureDialogText()
             color: "#4a201b"
             wrapMode: Text.WordWrap
-            font.pixelSize: 14
-            Layout.fillWidth: true
+            font.pixelSize: 15
+            lineHeight: 1.12
         }
+    }
 
-        RowLayout {
-            Layout.fillWidth: true
+    footer: AppDialogFooter {
+        tone: engineFailureDialog.tone
+        Item { Layout.fillWidth: true }
 
-            Item { Layout.fillWidth: true }
-
-            SavePromptButton {
-                text: app.trText("confirm")
-                primary: true
-                onClicked: {
-                    engineFailureDialog.close()
-                    app.focusBoardInput()
-                }
+        SavePromptButton {
+            text: app.trText("confirm")
+            primary: true
+            Layout.preferredWidth: 104
+            onClicked: {
+                engineFailureDialog.close()
+                app.focusBoardInput()
             }
         }
     }

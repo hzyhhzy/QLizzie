@@ -3,10 +3,9 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-Basic.Dialog {
+AppDialog {
     id: gomokuRuleDialog
 
-    required property var app
     property int ruleMode: app.gomokuRuleFreestyle
     property int maxMoves: 0
     property string vcnRule: "NOVC"
@@ -20,8 +19,6 @@ Basic.Dialog {
     padding: 16
     width: Math.min(680, app.width - 42)
     height: Math.min(340, app.height - 42)
-    x: Math.round((app.width - width) / 2)
-    y: Math.round((app.height - height) / 2)
 
     function openWithCurrent() {
         applyToApp = true
@@ -305,39 +302,6 @@ Basic.Dialog {
         }
     }
 
-    background: Rectangle {
-        radius: 8
-        color: "#f8fbfd"
-        border.color: "#b9cbd4"
-    }
-
-    header: Rectangle {
-        height: 48
-        color: "#e7eff4"
-        radius: 8
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.radius
-            color: parent.color
-        }
-
-        Label {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            text: gomokuRuleDialog.title
-            color: "#14242e"
-            font.pixelSize: 16
-            font.bold: true
-            elide: Text.ElideRight
-        }
-    }
-
     contentItem: ColumnLayout {
         spacing: 12
 
@@ -494,8 +458,7 @@ Basic.Dialog {
         }
     }
 
-    footer: RowLayout {
-        spacing: 10
+    footer: AppDialogFooter {
         Item { Layout.fillWidth: true }
         ChoiceButton {
             text: gomokuRuleDialog.app.trText("confirm")
@@ -508,6 +471,5 @@ Basic.Dialog {
             Layout.preferredWidth: 108
             onClicked: gomokuRuleDialog.close()
         }
-        Item { width: 2 }
     }
 }
