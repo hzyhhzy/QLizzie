@@ -1,5 +1,6 @@
 .pragma library
 .import "SgfUtils.js" as SgfUtils
+.import "CandidateAnalysis.js" as CandidateAnalysis
 
 function build(app) {
     return SgfUtils.buildSgf(app.gameNodes, app.gameRuleMode,
@@ -29,6 +30,32 @@ function sgfGameIdMismatch(app, parsed) {
     return sgfGameIdNumber(parsed.gameId) !== SgfUtils.sgfGameInfo(app.gameRuleMode).gameId
 }
 
+function finalizeAnalysisCaches(app) {
+    var nodes = app.gameNodes || []
+    var boardSignature = app.engineBoardSignature()
+    var komiSignature = app.engineKomiSignature()
+    var signatureChanged = false
+    for (var i = 0; i < nodes.length; ++i) {
+        var node = nodes[i]
+        if (!node || !node.analysisCandidates || node.analysisCandidates.length <= 0)
+            continue
+        if (!node.analysisCandidateBoardSignature || node.analysisCandidateBoardSignature.length <= 0) {
+            node.analysisCandidateBoardSignature = boardSignature
+            signatureChanged = true
+        }
+        if (!node.analysisCandidateKomiSignature || node.analysisCandidateKomiSignature.length <= 0) {
+            node.analysisCandidateKomiSignature = komiSignature
+            signatureChanged = true
+        }
+        if (node.analysisBlackWinrate === undefined || Number(node.analysisBlackWinrate) < 0)
+            CandidateAnalysis.recordAnalysisWinrateForNode(app, node,
+                                                           node.analysisCandidates,
+                                                           app.playerToMoveAfterNode(node))
+    }
+    if (signatureChanged)
+        app.analysisRevision += 1
+}
+
 function applyParsed(app, parsed, url) {
     app.resetEngineSyncState()
     if (!app.boardDimensionsAllowedForPackage(parsed.boardSizeX, parsed.boardSizeY)) {
@@ -53,6 +80,7 @@ function applyParsed(app, parsed, url) {
     app.gameNodes = parsed.nodes
     app.nextNodeId = parsed.nextNodeId
     app.currentNodeId = 0
+    finalizeAnalysisCaches(app)
     app.clearHover(true)
     app.rebuildPositionFromNode(app.currentNodeId)
     app.rebuildTreeLayout()

@@ -57,19 +57,101 @@ function parseSgfCoordinateText(value) {
 function sgfMoveNode(node, numericCoordinates) {
     var color = node.player === 1 ? "B" : "W"
     var coordinate = node.isPass ? "" : sgfCoordinateText(node.x, node.y, numericCoordinates)
-    return color + "[" + coordinate + "]MN[" + node.moveNumber + "]"
+    return color + "[" + coordinate + "]MN[" + node.moveNumber + "]" + sgfAnalysisProperties(node)
 }
 
-function sgfSubtree(nodes, id, numericCoordinates) {
+function candidateNumberValue(value, fallback) {
+    var number = Number(value)
+    return isNaN(number) ? fallback : number
+}
+
+function candidateStringValue(value) {
+    if (value === undefined || value === null)
+        return ""
+    return String(value)
+}
+
+function serializableCandidate(candidate) {
+    if (!candidate || candidate.move === undefined)
+        return null
+
+    var item = { "move": candidateStringValue(candidate.move) }
+    if (candidate.order !== undefined)
+        item.order = candidateNumberValue(candidate.order, 0)
+    if (candidate.visits !== undefined)
+        item.visits = candidateNumberValue(candidate.visits, 0)
+    if (candidate.winrate !== undefined)
+        item.winrate = candidateNumberValue(candidate.winrate, 0)
+    if (candidate.scoreMean !== undefined)
+        item.scoreMean = candidateNumberValue(candidate.scoreMean, 0)
+    if (candidate.scoreStdev !== undefined)
+        item.scoreStdev = candidateNumberValue(candidate.scoreStdev, 0)
+    if (candidate.pv && candidate.pv.length !== undefined) {
+        var pv = []
+        for (var i = 0; i < candidate.pv.length; ++i) {
+            var move = candidateStringValue(candidate.pv[i]).trim()
+            if (move.length > 0)
+                pv.push(move)
+        }
+        if (pv.length > 0)
+            item.pv = pv
+    }
+    if (candidate.pvVisits && candidate.pvVisits.length !== undefined) {
+        var pvVisits = []
+        for (var p = 0; p < candidate.pvVisits.length; ++p) {
+            var visits = candidateNumberValue(candidate.pvVisits[p], NaN)
+            if (!isNaN(visits))
+                pvVisits.push(visits)
+        }
+        if (pvVisits.length > 0)
+            item.pvVisits = pvVisits
+    }
+    return item
+}
+
+function analysisPayloadForNode(node) {
+    if (!node || !node.analysisCandidates || node.analysisCandidates.length <= 0)
+        return null
+
+    var candidates = []
+    for (var i = 0; i < node.analysisCandidates.length; ++i) {
+        var candidate = serializableCandidate(node.analysisCandidates[i])
+        if (candidate)
+            candidates.push(candidate)
+    }
+    if (candidates.length <= 0)
+        return null
+
+    return {
+        "version": 1,
+        "blackWinrate": node.analysisBlackWinrate === undefined ? -1 : Number(node.analysisBlackWinrate),
+        "boardSignature": candidateStringValue(node.analysisCandidateBoardSignature),
+        "komiSignature": candidateStringValue(node.analysisCandidateKomiSignature),
+        "candidates": candidates
+    }
+}
+
+function sgfAnalysisProperties(node) {
+    var payload = analysisPayloadForNode(node)
+    if (!payload)
+        return ""
+    return "QLZ[" + sgfEscape(JSON.stringify(payload)) + "]"
+}
+
+function sgfNodeSequence(nodes, id, numericCoordinates) {
     var node = nodes[id]
     if (!node)
         return ""
 
-    var text = "(;" + sgfMoveNode(node, numericCoordinates)
+    var text = ";" + sgfMoveNode(node, numericCoordinates)
     var children = node.children || []
-    for (var i = 0; i < children.length; ++i)
-        text += sgfSubtree(nodes, children[i], numericCoordinates)
-    return text + ")"
+    if (children.length === 1) {
+        text += sgfNodeSequence(nodes, children[0], numericCoordinates)
+    } else {
+        for (var i = 0; i < children.length; ++i)
+            text += "(" + sgfNodeSequence(nodes, children[i], numericCoordinates) + ")"
+    }
+    return text
 }
 
 function boardSizeText(xSize, ySize) {
@@ -107,15 +189,257 @@ function buildSgf(nodes, ruleMode, xSize, ySize, ruleText) {
                + "SZ[" + boardSizeText(xSize, ySize) + "]"
                + "C[" + sgfEscape("QLizzie " + ruleText) + "]"
     var rootNode = nodes[0]
+    text += sgfAnalysisProperties(rootNode)
     var children = rootNode ? (rootNode.children || []) : []
-    for (var i = 0; i < children.length; ++i)
-        text += sgfSubtree(nodes, children[i], numericCoordinates)
+    if (children.length === 1) {
+        text += sgfNodeSequence(nodes, children[0], numericCoordinates)
+    } else {
+        for (var i = 0; i < children.length; ++i)
+            text += "(" + sgfNodeSequence(nodes, children[i], numericCoordinates) + ")"
+    }
     return text + ")\n"
 }
 
 function firstSgfValue(properties, key) {
     var values = properties[key]
     return values && values.length > 0 ? values[0] : ""
+}
+
+function parseVisitNumber(value) {
+    var text = String(value).trim().toLowerCase()
+    if (text.length <= 0)
+        return NaN
+    var factor = 1
+    var suffix = text.charAt(text.length - 1)
+    if (suffix === "k" || suffix === "m" || suffix === "g") {
+        text = text.substring(0, text.length - 1)
+        factor = suffix === "k" ? 1000 : suffix === "m" ? 1000000 : 1000000000
+    }
+    var number = Number(text)
+    return isNaN(number) ? NaN : number * factor
+}
+
+function normalizeSavedWinrate(value) {
+    var number = Number(value)
+    if (isNaN(number))
+        return NaN
+    if (Math.abs(number) > 100)
+        return number / 10000
+    if (Math.abs(number) > 1)
+        return number / 100
+    return number
+}
+
+function normalizedCandidate(candidate, orderFallback) {
+    if (!candidate || candidate.move === undefined)
+        return null
+    var move = candidateStringValue(candidate.move).trim()
+    if (move.length <= 0)
+        return null
+
+    var item = { "move": move }
+    var order = candidateNumberValue(candidate.order, orderFallback)
+    item.order = isNaN(order) ? orderFallback : order
+
+    if (candidate.visits !== undefined) {
+        var visits = parseVisitNumber(candidate.visits)
+        if (!isNaN(visits))
+            item.visits = visits
+    }
+    if (candidate.winrate !== undefined) {
+        var winrate = normalizeSavedWinrate(candidate.winrate)
+        if (!isNaN(winrate))
+            item.winrate = winrate
+    }
+    if (candidate.scoreMean !== undefined || candidate.scoreLead !== undefined) {
+        var scoreMean = candidateNumberValue(candidate.scoreMean !== undefined
+                                             ? candidate.scoreMean : candidate.scoreLead, NaN)
+        if (!isNaN(scoreMean))
+            item.scoreMean = scoreMean
+    }
+    if (candidate.scoreStdev !== undefined) {
+        var scoreStdev = candidateNumberValue(candidate.scoreStdev, NaN)
+        if (!isNaN(scoreStdev))
+            item.scoreStdev = scoreStdev
+    }
+    if (candidate.pv && candidate.pv.length !== undefined) {
+        var pv = []
+        for (var p = 0; p < candidate.pv.length; ++p) {
+            var pvMove = candidateStringValue(candidate.pv[p]).trim()
+            if (pvMove.length > 0)
+                pv.push(pvMove)
+        }
+        if (pv.length > 0)
+            item.pv = pv
+    }
+    if (candidate.pvVisits && candidate.pvVisits.length !== undefined) {
+        var pvVisits = []
+        for (var v = 0; v < candidate.pvVisits.length; ++v) {
+            var pvVisit = parseVisitNumber(candidate.pvVisits[v])
+            if (!isNaN(pvVisit))
+                pvVisits.push(pvVisit)
+        }
+        if (pvVisits.length > 0)
+            item.pvVisits = pvVisits
+    }
+    return item
+}
+
+function analysisFromPayload(payload) {
+    if (!payload || !payload.candidates || payload.candidates.length === undefined)
+        return null
+
+    var candidates = []
+    for (var i = 0; i < payload.candidates.length; ++i) {
+        var candidate = normalizedCandidate(payload.candidates[i], i)
+        if (candidate)
+            candidates.push(candidate)
+    }
+    if (candidates.length <= 0)
+        return null
+    candidates.sort(function(left, right) {
+        return candidateNumberValue(left.order, 0) - candidateNumberValue(right.order, 0)
+    })
+
+    return {
+        "blackWinrate": candidateNumberValue(payload.blackWinrate, -1),
+        "boardSignature": candidateStringValue(payload.boardSignature),
+        "komiSignature": candidateStringValue(payload.komiSignature),
+        "candidates": candidates
+    }
+}
+
+function parseQlzAnalysis(value) {
+    try {
+        return analysisFromPayload(JSON.parse(String(value)))
+    } catch (error) {
+        return null
+    }
+}
+
+function tokenizeAnalysisSegment(text) {
+    var source = String(text)
+    var tokens = []
+    var pos = 0
+    while (pos < source.length) {
+        while (pos < source.length && /\s/.test(source.charAt(pos)))
+            pos += 1
+        if (pos >= source.length)
+            break
+
+        var start = pos
+        if (source.charAt(pos) === "(") {
+            while (pos < source.length) {
+                var ch = source.charAt(pos++)
+                if (ch === ")")
+                    break
+            }
+        } else {
+            while (pos < source.length && !/\s/.test(source.charAt(pos)))
+                pos += 1
+        }
+        tokens.push(source.substring(start, pos))
+    }
+    return tokens
+}
+
+function parseLizzieCandidateSegment(segment, orderFallback) {
+    var tokens = tokenizeAnalysisSegment(segment)
+    if (tokens.length <= 0)
+        return null
+
+    var candidate = { "move": tokens[0], "order": orderFallback }
+    var index = 1
+    while (index < tokens.length) {
+        var key = tokens[index++]
+        if (key === "pv") {
+            var pv = []
+            while (index < tokens.length && tokens[index] !== "pvVisits") {
+                var pvMove = String(tokens[index++]).trim()
+                if (pvMove.length > 0)
+                    pv.push(pvMove)
+            }
+            if (pv.length > 0)
+                candidate.pv = pv
+            continue
+        }
+        if (key === "pvVisits") {
+            var pvVisits = []
+            while (index < tokens.length) {
+                var visits = parseVisitNumber(tokens[index++])
+                if (!isNaN(visits))
+                    pvVisits.push(visits)
+            }
+            if (pvVisits.length > 0)
+                candidate.pvVisits = pvVisits
+            continue
+        }
+
+        if (index >= tokens.length)
+            break
+        var value = tokens[index++]
+        if (key === "order")
+            candidate.order = candidateNumberValue(value, orderFallback)
+        else if (key === "visits")
+            candidate.visits = value
+        else if (key === "winrate")
+            candidate.winrate = value
+        else if (key === "scoreMean" || key === "scoreLead")
+            candidate.scoreMean = value
+        else if (key === "scoreStdev")
+            candidate.scoreStdev = value
+    }
+    return normalizedCandidate(candidate, orderFallback)
+}
+
+function parseLizzieYzyAnalysis(value) {
+    var text = String(value).replace(/\r?\n/g, " ")
+    var moveStart = text.search(/(^|\s)move\s+/)
+    if (moveStart < 0)
+        return null
+
+    text = text.substring(moveStart).trim()
+    if (text.indexOf("move ") === 0)
+        text = text.substring(5)
+    var segments = text.split(/\s+info\s+move\s+/)
+    var candidates = []
+    for (var i = 0; i < segments.length; ++i) {
+        var candidate = parseLizzieCandidateSegment(segments[i], i)
+        if (candidate)
+            candidates.push(candidate)
+    }
+    if (candidates.length <= 0)
+        return null
+    candidates.sort(function(left, right) {
+        return candidateNumberValue(left.order, 0) - candidateNumberValue(right.order, 0)
+    })
+    return {
+        "blackWinrate": -1,
+        "boardSignature": "",
+        "komiSignature": "",
+        "candidates": candidates
+    }
+}
+
+function analysisFromProperties(properties) {
+    var qlz = firstSgfValue(properties, "QLZ")
+    if (qlz !== "") {
+        var parsedQlz = parseQlzAnalysis(qlz)
+        if (parsedQlz)
+            return parsedQlz
+    }
+
+    var lz = firstSgfValue(properties, "LZ")
+    return lz === "" ? null : parseLizzieYzyAnalysis(lz)
+}
+
+function applyAnalysisToNode(node, analysis) {
+    if (!node || !analysis || !analysis.candidates || analysis.candidates.length <= 0)
+        return
+    node.analysisBlackWinrate = isNaN(Number(analysis.blackWinrate)) ? -1 : Number(analysis.blackWinrate)
+    node.analysisCandidates = analysis.candidates
+    node.analysisCandidateBoardSignature = candidateStringValue(analysis.boardSignature)
+    node.analysisCandidateKomiSignature = candidateStringValue(analysis.komiSignature)
 }
 
 function parseSgfBoardSize(value) {
@@ -322,6 +646,7 @@ function parseSgf(text, options) {
                     updateGameIdFromProperties(props)
                     if (!ignoreRuleMode)
                         updateRuleFromProperties(props)
+                    applyAnalysisToNode(nodes[0], analysisFromProperties(props))
                 }
                 var move = moveFromProperties(props)
                 if (!move)
@@ -354,6 +679,7 @@ function parseSgf(text, options) {
                     "analysisCandidateBoardSignature": "",
                     "analysisCandidateKomiSignature": ""
                 }
+                applyAnalysisToNode(nodes[id], analysisFromProperties(props))
                 if (nodes[currentParent])
                     nodes[currentParent].children.push(id)
                 currentParent = id

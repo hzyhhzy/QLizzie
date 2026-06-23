@@ -652,10 +652,41 @@ void EngineController::parseInfoLine(const QString &line)
                     const QString pvMove = nextMoveToken(segment, tokenPosition);
                     if (pvMove.isEmpty())
                         break;
+                    if (pvMove == QLatin1StringView("pvVisits")) {
+                        QVariantList pvVisits;
+                        while (tokenPosition < segment.size()) {
+                            const QStringView pvVisitToken = nextToken(segment, tokenPosition);
+                            if (pvVisitToken.isEmpty())
+                                break;
+                            bool visitOk = false;
+                            const int visitValue = pvVisitToken.toInt(&visitOk);
+                            if (visitOk)
+                                pvVisits.append(visitValue);
+                        }
+                        if (!pvVisits.isEmpty())
+                            item.insert(QStringLiteral("pvVisits"), pvVisits);
+                        break;
+                    }
                     pv.append(pvMove);
                 }
                 if (!pv.isEmpty())
                     item.insert(QStringLiteral("pv"), pv);
+                break;
+            }
+
+            if (key == QLatin1StringView("pvVisits")) {
+                QVariantList pvVisits;
+                while (tokenPosition < segment.size()) {
+                    const QStringView pvVisitToken = nextToken(segment, tokenPosition);
+                    if (pvVisitToken.isEmpty())
+                        break;
+                    bool visitOk = false;
+                    const int visitValue = pvVisitToken.toInt(&visitOk);
+                    if (visitOk)
+                        pvVisits.append(visitValue);
+                }
+                if (!pvVisits.isEmpty())
+                    item.insert(QStringLiteral("pvVisits"), pvVisits);
                 break;
             }
 
