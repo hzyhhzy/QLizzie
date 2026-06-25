@@ -112,6 +112,9 @@ ApplicationWindow {
     property string koLocKey: ""
     property int koLocX: -1
     property int koLocY: -1
+    property string koLocKey2: ""
+    property int koLocX2: -1
+    property int koLocY2: -1
     property string hoverKey: ""
     property int hoverX: -1
     property int hoverY: -1
@@ -140,6 +143,7 @@ ApplicationWindow {
     readonly property int gameRuleAtaxx: 9
     readonly property int gameRuleBreakthrough: 10
     readonly property int gameRuleTorusGo: 11
+    readonly property int gameRuleTwoLibGo: 12
     readonly property int gameRuleMoreOption: -1000000
     property int gameRuleMode: gameRuleGo
     property var ruleVisibilityMap: ({})
@@ -1699,6 +1703,9 @@ ApplicationWindow {
             "koLocKey": "",
             "koLocX": -1,
             "koLocY": -1,
+            "koLocKey2": "",
+            "koLocX2": -1,
+            "koLocY2": -1,
             "analysisBlackWinrate": -1,
             "analysisCandidates": [],
             "analysisCandidateBoardSignature": "",
@@ -1768,6 +1775,21 @@ ApplicationWindow {
                                          gameRuleMode, currentMoveSourcePoint())
     }
 
+    function currentKoLoc() {
+        return {
+            "key": koLocKey,
+            "x": koLocX,
+            "y": koLocY,
+            "key2": koLocKey2,
+            "x2": koLocX2,
+            "y2": koLocY2
+        }
+    }
+
+    function pointKeyIsKoBanned(pointKey) {
+        return GameRules.koLocMatches(currentKoLoc(), pointKey)
+    }
+
     function buildPointLegalityMap(map, player, activeKoLocKey) {
         return GameRules.buildPointLegalityMap(map, boardDims(), player, activeKoLocKey,
                                                gameRuleMode, currentMoveSourcePoint())
@@ -1779,7 +1801,7 @@ ApplicationWindow {
 
     function rebuildPointLegality() {
         legalPointMap = shouldCachePointLegality()
-                        ? buildPointLegalityMap(stones, currentPlayer, koLocKey)
+                        ? buildPointLegalityMap(stones, currentPlayer, currentKoLoc())
                         : ({})
         legalityRevision += 1
     }
@@ -1789,7 +1811,7 @@ ApplicationWindow {
         if (!pointInBoard(x, y))
             return false
         if (!shouldCachePointLegality())
-            return pointLegalInMap(stones, x, y, currentPlayer, koLocKey)
+            return pointLegalInMap(stones, x, y, currentPlayer, currentKoLoc())
         return legalPointMap[keyFor(x, y)] === true
     }
 
@@ -1864,7 +1886,7 @@ ApplicationWindow {
     function illegalPointMessage(x, y, fallback) {
         if (stoneAt(x, y) !== 0 && !ruleAllowsOccupiedMoves() && !ruleUsesMoveSource())
             return trText("occupied") + ": " + coordinateText(x, y)
-        if (koLocKey !== "" && keyFor(x, y) === koLocKey)
+        if (pointKeyIsKoBanned(keyFor(x, y)))
             return trText("koMove") + ": " + coordinateText(x, y)
         if (ruleUsesGoCapture())
             return trText("suicideMove") + ": " + coordinateText(x, y)
@@ -1897,6 +1919,9 @@ ApplicationWindow {
                 node.koLocKey = ko.key
                 node.koLocX = ko.x
                 node.koLocY = ko.y
+                node.koLocKey2 = ko.key2
+                node.koLocX2 = ko.x2
+                node.koLocY2 = ko.y2
                 continue
             }
             if (node.moveRole === "source") {
@@ -1907,6 +1932,9 @@ ApplicationWindow {
                 node.koLocKey = ko.key
                 node.koLocX = ko.x
                 node.koLocY = ko.y
+                node.koLocKey2 = ko.key2
+                node.koLocX2 = ko.x2
+                node.koLocY2 = ko.y2
                 continue
             }
 
@@ -1922,10 +1950,13 @@ ApplicationWindow {
             if (ruleUsesGoCapture()) {
                 var result = GameRules.simulateGoMoveOnMap(map, boardDims(), item, true, gameRuleMode)
                 if (result.ok) {
-                    if (node.player === 1)
+                    if (node.player === 1) {
                         blackCap += result.captured
-                    else
+                        whiteCap += result.selfCaptured || 0
+                    } else {
                         whiteCap += result.captured
+                        blackCap += result.selfCaptured || 0
+                    }
                     ko = GameRules.koLocFromGoMoveResult(gameRuleMode, result)
                 }
             } else if (gameRuleMode === gameRuleReversi) {
@@ -1954,6 +1985,9 @@ ApplicationWindow {
             node.koLocKey = ko.key
             node.koLocX = ko.x
             node.koLocY = ko.y
+            node.koLocKey2 = ko.key2
+            node.koLocX2 = ko.x2
+            node.koLocY2 = ko.y2
         }
 
         stones = map
@@ -1964,6 +1998,9 @@ ApplicationWindow {
         koLocKey = ko.key
         koLocX = ko.x
         koLocY = ko.y
+        koLocKey2 = ko.key2
+        koLocX2 = ko.x2
+        koLocY2 = ko.y2
         currentPlayer = nextPlayerFromMode()
         rebuildPointLegality()
         refreshWinVisuals(map)
@@ -1987,6 +2024,9 @@ ApplicationWindow {
         koLocKey = ""
         koLocX = -1
         koLocY = -1
+        koLocKey2 = ""
+        koLocX2 = -1
+        koLocY2 = -1
         gameWinner = 0
         gameOverReason = ""
         gomokuWinLineItems = []
@@ -2047,6 +2087,9 @@ ApplicationWindow {
             "koLocKey": koLoc ? koLoc.key : "",
             "koLocX": koLoc ? koLoc.x : -1,
             "koLocY": koLoc ? koLoc.y : -1,
+            "koLocKey2": koLoc ? koLoc.key2 : "",
+            "koLocX2": koLoc ? koLoc.x2 : -1,
+            "koLocY2": koLoc ? koLoc.y2 : -1,
             "analysisBlackWinrate": -1,
             "analysisCandidates": [],
             "analysisCandidateBoardSignature": "",
@@ -2086,7 +2129,7 @@ ApplicationWindow {
         }
 
         var pointKey = keyFor(x, y)
-        if (ruleUsesGoCapture() && koLocKey !== "" && pointKey === koLocKey) {
+        if (ruleUsesGoCapture() && pointKeyIsKoBanned(pointKey)) {
             statusMode = "message"
             statusMessage = illegalPointMessage(x, y, "ko")
             return false
@@ -2120,7 +2163,7 @@ ApplicationWindow {
                 statusMessage = illegalPointMessage(x, y, result.reason)
                 return false
             }
-            captured = result.capturedStones
+            captured = (result.capturedStones || []).concat(result.selfCapturedStones || [])
             ko = GameRules.koLocFromGoMoveResult(gameRuleMode, result)
         } else if (gameRuleMode === gameRuleReversi) {
             var reversi = GameRules.applyReversiMoveOnMap(working, boardDims(), item)
@@ -2139,7 +2182,8 @@ ApplicationWindow {
         if (!node)
             return false
         node.gomokuForbidden = forbiddenMove
-        applyIncrementalMovePosition(node, working, captured.length, ko)
+        applyIncrementalMovePosition(node, working, result ? result.captured : captured.length,
+                                     ko, result ? (result.selfCaptured || 0) : 0)
         statusMode = "turn"
         statusMessage = captured.length > 0 ? trText("captureMessage") + ": " + captured.length : ""
         checkGameOverAfterMove(node)
@@ -2209,7 +2253,7 @@ ApplicationWindow {
         return true
     }
 
-    function applyIncrementalMovePosition(node, nextMap, capturedCount, ko) {
+    function applyIncrementalMovePosition(node, nextMap, capturedCount, ko, selfCapturedCount) {
         if (!node || !nextMap)
             return
 
@@ -2221,19 +2265,30 @@ ApplicationWindow {
         stones = nextMap
         stoneItems = mapStoneItems(nextMap)
         stoneCount = stoneItems.length
-        if (node.player === 1)
+        capturedCount = Math.max(0, Math.round(Number(capturedCount || 0)))
+        selfCapturedCount = Math.max(0, Math.round(Number(selfCapturedCount || 0)))
+        if (node.player === 1) {
             blackCaptures += capturedCount
-        else if (node.player === 2)
+            whiteCaptures += selfCapturedCount
+        } else if (node.player === 2) {
             whiteCaptures += capturedCount
+            blackCaptures += selfCapturedCount
+        }
         ko = ko || GameRules.emptyKoLoc()
         koLocKey = ko.key
         koLocX = ko.x
         koLocY = ko.y
+        koLocKey2 = ko.key2
+        koLocX2 = ko.x2
+        koLocY2 = ko.y2
         node.blackCaptures = blackCaptures
         node.whiteCaptures = whiteCaptures
         node.koLocKey = koLocKey
         node.koLocX = koLocX
         node.koLocY = koLocY
+        node.koLocKey2 = koLocKey2
+        node.koLocX2 = koLocX2
+        node.koLocY2 = koLocY2
         currentPlayer = nextPlayerFromMode()
         rebuildPointLegality()
         refreshWinVisuals(nextMap)
@@ -2558,7 +2613,7 @@ ApplicationWindow {
 
     function currentRuleSelectionText() {
         if (language === "zh")
-            return "当前：" + gameRuleText()
+            return "\u5f53\u524d\uff1a" + gameRuleText()
         return "Current: " + gameRuleText()
     }
 
@@ -3263,6 +3318,8 @@ ApplicationWindow {
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.goRulesObject(root)) ]
         if (gameRuleMode === gameRuleTorusGo)
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.torusGoRulesObject(root)) ]
+        if (gameRuleMode === gameRuleTwoLibGo)
+            return [ "kata-set-rules " + JSON.stringify(RuleSupport.twoLibGoRulesObject(root)) ]
         if (gameRuleMode === gameRuleGomoku)
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.gomokuRulesObject(root)) ]
         return []
@@ -3338,6 +3395,7 @@ ApplicationWindow {
         var ruleDetail = gameRuleMode === gameRuleGomoku ? JSON.stringify(RuleSupport.gomokuRulesObject(root))
                        : gameRuleMode === gameRuleGo ? JSON.stringify(RuleSupport.goRulesObject(root))
                        : gameRuleMode === gameRuleTorusGo ? JSON.stringify(RuleSupport.torusGoRulesObject(root))
+                       : gameRuleMode === gameRuleTwoLibGo ? JSON.stringify(RuleSupport.twoLibGoRulesObject(root))
                        : gameRuleMode === gameRuleHex ? "hex" : "go"
         return [boardSizeX, boardSizeY, gameRuleMode, ruleDetail,
                 legacyHexEngineCoordinateMode() ? "legacyHex" : "normal"].join(":")

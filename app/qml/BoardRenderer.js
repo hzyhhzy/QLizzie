@@ -23,6 +23,7 @@ function stateFromApp(app, overrides) {
         "gameRuleHexGoHexagon": app.gameRuleHexGoHexagon,
         "gameRuleHexGoTriangle": app.gameRuleHexGoTriangle,
         "gameRuleTorusGo": app.gameRuleTorusGo,
+        "gameRuleTwoLibGo": app.gameRuleTwoLibGo,
         "gameRuleReversi": app.gameRuleReversi,
         "gameRuleAtaxx": app.gameRuleAtaxx,
         "gameRuleBreakthrough": app.gameRuleBreakthrough,
@@ -959,7 +960,9 @@ function drawGrid(ctx, state, geometry) {
 }
 
 function drawStarPoints(ctx, state, geometry) {
-    if (state.gameRuleMode !== state.gameRuleGo && state.gameRuleMode !== state.gameRuleTorusGo)
+    if (state.gameRuleMode !== state.gameRuleGo
+            && state.gameRuleMode !== state.gameRuleTorusGo
+            && state.gameRuleMode !== state.gameRuleTwoLibGo)
         return
     var cell = geometry.cellSize
     var xs = starPoints(state.boardSizeX)

@@ -175,6 +175,8 @@ function sgfGameInfo(ruleMode) {
         return { "gameId": 1, "ruleName": "QLizzie-HexGo-Triangle" }
     if (ruleMode === 11)
         return { "gameId": 1, "ruleName": "QLizzie-TorusGo" }
+    if (ruleMode === 12)
+        return { "gameId": 1, "ruleName": "QLizzie-TwoLibGo" }
     if (ruleMode === 4)
         return { "gameId": 2, "ruleName": "QLizzie-Reversi" }
     if (ruleMode === 9)
@@ -474,6 +476,7 @@ function parseSgf(text, options) {
         "id": 0, "parent": -1, "children": [], "x": -1, "y": -1,
         "key": "", "player": 0, "moveNumber": 0, "isPass": false,
         "koLocKey": "", "koLocX": -1, "koLocY": -1,
+        "koLocKey2": "", "koLocX2": -1, "koLocY2": -1,
         "blackCaptures": 0, "whiteCaptures": 0,
         "analysisBlackWinrate": -1,
         "analysisCandidates": [],
@@ -672,6 +675,9 @@ function parseSgf(text, options) {
                     "koLocKey": "",
                     "koLocX": -1,
                     "koLocY": -1,
+                    "koLocKey2": "",
+                    "koLocX2": -1,
+                    "koLocY2": -1,
                     "blackCaptures": 0,
                     "whiteCaptures": 0,
                     "analysisBlackWinrate": -1,

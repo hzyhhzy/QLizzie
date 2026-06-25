@@ -85,6 +85,13 @@ function torusGoRulesObject(app) {
     }
 }
 
+function twoLibGoRulesObject(app) {
+    return {
+        "ko": "SIMPLE",
+        "suicide": true
+    }
+}
+
 function gomokuRulesObject(app) {
     var firstPassWin = app.gomokuRuleFirstPassWin === true
     return {
@@ -151,6 +158,8 @@ function gameRuleTree(app) {
         ruleLeaf(ruleOption(app, "gameRuleGo", app.gameRuleGo, "gameRuleGoTip", [])),
         ruleLeaf(ruleOption(app, "gameRuleGomoku", app.gameRuleGomoku, "gameRuleGomokuTip", [])),
         ruleGroup("ruleGroupGoVariants", [
+            ruleLeaf(ruleOption(app, "gameRuleTwoLibGo", app.gameRuleTwoLibGo,
+                                "gameRuleTwoLibGoTip", ["ruleGroupGoVariants"])),
             ruleLeaf(ruleOption(app, "gameRuleTorusGo", app.gameRuleTorusGo,
                                 "gameRuleTorusGoTip", ["ruleGroupGoVariants"])),
             ruleGroup("ruleGroupHexGo", [
@@ -214,6 +223,8 @@ function gameRuleTextForMode(app, mode) {
         return app.trText("gameRuleHexGoTriangle")
     if (mode === app.gameRuleTorusGo)
         return app.trText("gameRuleTorusGo")
+    if (mode === app.gameRuleTwoLibGo)
+        return app.trText("gameRuleTwoLibGo")
     if (mode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
     if (mode === app.gameRuleBreakthrough)
@@ -259,6 +270,7 @@ function ruleUsesHexGrid(app, mode) {
 function ruleUsesGoCapture(app, mode) {
     return mode === app.gameRuleGo
            || mode === app.gameRuleTorusGo
+           || mode === app.gameRuleTwoLibGo
            || mode === app.gameRuleHexGoParallelogram
            || mode === app.gameRuleHexGoHexagon
            || mode === app.gameRuleHexGoTriangle
@@ -692,6 +704,7 @@ function toolbarPresentationControlsVisible(app) {
 function komiUsageForRule(app, mode) {
     if (mode === app.gameRuleGo
             || mode === app.gameRuleTorusGo
+            || mode === app.gameRuleTwoLibGo
             || mode === app.gameRuleSquareFree
             || mode === app.gameRuleReversi
             || mode === app.gameRuleHexGoParallelogram
@@ -794,7 +807,8 @@ function boardSizePresets(app) {
     if (app.packageMode === app.packageModeSix)
         return [15, 19]
 
-    if (app.gameRuleMode === app.gameRuleGo || app.gameRuleMode === app.gameRuleTorusGo)
+    if (app.gameRuleMode === app.gameRuleGo || app.gameRuleMode === app.gameRuleTorusGo
+            || app.gameRuleMode === app.gameRuleTwoLibGo)
         return [9, 13, 19]
     if (app.gameRuleMode === app.gameRuleGomoku)
         return [12, 15, 19]

@@ -417,8 +417,8 @@ Item {
                 }
             }
 
-            if (app.koLocKey !== "" && app.stoneAt(app.koLocX, app.koLocY) === 0) {
-                var kp = boardScene.boardPointLocal(app.koLocX, app.koLocY)
+            function drawKoMark(x, y) {
+                var kp = boardScene.boardPointLocal(x, y)
                 ctx.strokeStyle = "#f01818"
                 ctx.lineWidth = 3
                 ctx.lineCap = "round"
@@ -429,6 +429,10 @@ Item {
                 ctx.lineTo(kp.x - 8, kp.y + 8)
                 ctx.stroke()
             }
+            if (app.koLocKey !== "" && app.stoneAt(app.koLocX, app.koLocY) === 0)
+                drawKoMark(app.koLocX, app.koLocY)
+            if (app.koLocKey2 !== "" && app.stoneAt(app.koLocX2, app.koLocY2) === 0)
+                drawKoMark(app.koLocX2, app.koLocY2)
 
             renderState = null
             renderGeometry = null

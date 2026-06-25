@@ -283,6 +283,7 @@ function defaultRuleMode(app) {
 function defaultKomiForRule(app, mode) {
     if (mode === app.gameRuleGo
             || mode === app.gameRuleTorusGo
+            || mode === app.gameRuleTwoLibGo
             || mode === app.gameRuleHexGoParallelogram
             || mode === app.gameRuleHexGoHexagon
             || mode === app.gameRuleHexGoTriangle)
@@ -311,6 +312,8 @@ function ruleText(app, preset) {
         return app.trText("gameRuleHexGoTriangle")
     if (preset.ruleMode === app.gameRuleTorusGo)
         return app.trText("gameRuleTorusGo")
+    if (preset.ruleMode === app.gameRuleTwoLibGo)
+        return app.trText("gameRuleTwoLibGo")
     if (preset.ruleMode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
     if (preset.ruleMode === app.gameRuleBreakthrough)

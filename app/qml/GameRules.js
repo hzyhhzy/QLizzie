@@ -12,6 +12,7 @@ var RULE_HEX_GO_TRIANGLE = 8
 var RULE_ATAXX = 9
 var RULE_BREAKTHROUGH = 10
 var RULE_TORUS_GO = 11
+var RULE_TWO_LIB_GO = 12
 
 var GOMOKU_RULE_FREESTYLE = 0
 var GOMOKU_RULE_STANDARD = 1
@@ -69,7 +70,10 @@ function isHexGoRule(ruleMode) {
 }
 
 function isGoCaptureRule(ruleMode) {
-    return ruleMode === RULE_GO || ruleMode === RULE_TORUS_GO || isHexGoRule(ruleMode)
+    return ruleMode === RULE_GO
+           || ruleMode === RULE_TORUS_GO
+           || ruleMode === RULE_TWO_LIB_GO
+           || isHexGoRule(ruleMode)
 }
 
 function isHexGridRule(ruleMode) {
@@ -225,24 +229,75 @@ function groupLibertyCountInMap(map, dims, group, ruleMode) {
     return count
 }
 
+function groupLibertyPointsInMap(map, dims, group, ruleMode) {
+    var liberties = ({})
+    var points = []
+    for (var i = 0; i < group.length; ++i) {
+        var stone = group[i]
+        var neighbors = neighborPointsForRule(dims, stone.x, stone.y, ruleMode)
+        for (var n = 0; n < neighbors.length; ++n) {
+            var neighbor = neighbors[n]
+            if (stoneMapPlayerAt(map, neighbor.x, neighbor.y) !== 0)
+                continue
+            if (liberties[neighbor.key])
+                continue
+            liberties[neighbor.key] = true
+            points.push(neighbor)
+        }
+    }
+    return points
+}
+
+function pointIsLibertyOfGroupInMap(map, dims, point, group, ruleMode) {
+    if (!point || stoneMapPlayerAt(map, point.x, point.y) !== 0)
+        return false
+    for (var i = 0; i < group.length; ++i) {
+        var stone = group[i]
+        var neighbors = neighborPointsForRule(dims, stone.x, stone.y, ruleMode)
+        for (var n = 0; n < neighbors.length; ++n) {
+            if (neighbors[n].key === point.key)
+                return true
+        }
+    }
+    return false
+}
+
 function removeGroupFromMap(map, group) {
     for (var i = 0; i < group.length; ++i)
         delete map[group[i].key]
 }
 
-function goMoveResult(ok, captured, reason, capturedStones, ownGroupSize, ownLibertyCount) {
+function stoneMapSignature(map) {
+    var parts = []
+    for (var key in map) {
+        var stone = map[key]
+        if (stone)
+            parts.push(key + ":" + stone.player)
+    }
+    parts.sort()
+    return parts.join("|")
+}
+
+function goMoveResult(ok, captured, reason, capturedStones, ownGroupSize, ownLibertyCount,
+                      selfCapturedStones, koLoc) {
+    var selfCaptured = selfCapturedStones || []
     return {
         "ok": ok,
         "captured": captured,
         "reason": reason,
         "capturedStones": capturedStones || [],
+        "selfCaptured": selfCaptured.length,
+        "selfCapturedStones": selfCaptured,
         "ownGroupSize": ownGroupSize || 0,
-        "ownLibertyCount": ownLibertyCount || 0
+        "ownLibertyCount": ownLibertyCount || 0,
+        "koLoc": koLoc || emptyKoLoc()
     }
 }
 
 function simulateGoMoveOnMap(map, dims, stoneItem, collectKoInfo, ruleMode) {
     ruleMode = ruleMode === undefined ? RULE_GO : ruleMode
+    if (ruleMode === RULE_TWO_LIB_GO)
+        return simulateTwoLibGoMoveOnMap(map, dims, stoneItem, collectKoInfo, ruleMode)
     if (map[stoneItem.key] !== undefined)
         return goMoveResult(false, 0, "occupied")
 
@@ -282,6 +337,115 @@ function simulateGoMoveOnMap(map, dims, stoneItem, collectKoInfo, ruleMode) {
 
     var ownLibertyCount = collectKoInfo ? groupLibertyCountInMap(map, dims, ownGroup, ruleMode) : 0
     return goMoveResult(true, captured, "", capturedStones, ownGroup.length, ownLibertyCount)
+}
+
+function addKoLoc(ko, point) {
+    if (!point || !point.key || point.key.length <= 0)
+        return
+    if (ko.key === "") {
+        ko.key = point.key
+        ko.x = point.x
+        ko.y = point.y
+    } else if (ko.key !== point.key && ko.key2 === "") {
+        ko.key2 = point.key
+        ko.x2 = point.x
+        ko.y2 = point.y
+    }
+}
+
+function simulateTwoLibGoMoveOnMap(map, dims, stoneItem, collectKoInfo, ruleMode, computeKo) {
+    ruleMode = ruleMode === undefined ? RULE_TWO_LIB_GO : ruleMode
+    if (computeKo === undefined)
+        computeKo = collectKoInfo === true
+    if (map[stoneItem.key] !== undefined)
+        return goMoveResult(false, 0, "occupied")
+
+    var beforeSignature = computeKo ? stoneMapSignature(map) : ""
+    map[stoneItem.key] = stoneItem
+
+    var captured = 0
+    var capturedStones = []
+    var possibleKoPoint = null
+    var opponent = stoneItem.player === 1 ? 2 : 1
+    var checked = ({})
+    var neighbors = neighborPointsForRule(dims, stoneItem.x, stoneItem.y, ruleMode)
+    for (var i = 0; i < neighbors.length; ++i) {
+        var neighborPoint = neighbors[i]
+        var neighbor = stoneMapDataAt(map, neighborPoint.x, neighborPoint.y)
+        if (!neighbor || neighbor.player !== opponent || checked[neighbor.key])
+            continue
+
+        var group = collectGroupInMap(map, dims, neighborPoint.x, neighborPoint.y, ({}), ruleMode)
+        for (var g = 0; g < group.length; ++g)
+            checked[group[g].key] = true
+        if (groupLibertyCountInMap(map, dims, group, ruleMode) <= 1) {
+            captured += group.length
+            if (group.length === 1)
+                possibleKoPoint = copyStoneItem(group[0])
+            if (collectKoInfo) {
+                for (var c = 0; c < group.length; ++c)
+                    capturedStones.push(copyStoneItem(group[c]))
+            }
+            removeGroupFromMap(map, group)
+        }
+    }
+
+    var selfCapturedStones = []
+    var ownGroup = []
+    var ownLibertyCount = 0
+    if (stoneMapDataAt(map, stoneItem.x, stoneItem.y)) {
+        ownGroup = collectGroupInMap(map, dims, stoneItem.x, stoneItem.y, ({}), ruleMode)
+        ownLibertyCount = groupLibertyCountInMap(map, dims, ownGroup, ruleMode)
+        if (ownLibertyCount <= 1) {
+            // Two-liberty Go only allows suicide when the move also captures opponent stones.
+            if (captured === 0) {
+                delete map[stoneItem.key]
+                return goMoveResult(false, 0, "suicide", [], ownGroup.length, ownLibertyCount)
+            }
+            if (collectKoInfo) {
+                for (var s = 0; s < ownGroup.length; ++s)
+                    selfCapturedStones.push(copyStoneItem(ownGroup[s]))
+            }
+            removeGroupFromMap(map, ownGroup)
+            ownGroup = []
+            ownLibertyCount = 0
+        }
+    }
+
+    var ko = emptyKoLoc()
+    if (computeKo) {
+        if (captured === 1 && possibleKoPoint) {
+            if (selfCapturedStones.length === 0
+                    && ownGroup.length > 0
+                    && ownLibertyCount === 2
+                    && pointIsLibertyOfGroupInMap(map, dims, possibleKoPoint, ownGroup, ruleMode)) {
+                addKoLoc(ko, possibleKoPoint)
+            } else if (selfCapturedStones.length === 1) {
+                addKoLoc(ko, possibleKoPoint)
+            }
+        } else if (captured === 0 && selfCapturedStones.length === 0
+                   && ownGroup.length === 1 && ownLibertyCount === 2) {
+            var liberties = groupLibertyPointsInMap(map, dims, ownGroup, ruleMode)
+            for (var l = 0; l < liberties.length; ++l) {
+                var liberty = liberties[l]
+                var copy = cloneStoneMap(map)
+                var reply = {
+                    "x": liberty.x,
+                    "y": liberty.y,
+                    "key": liberty.key,
+                    "player": opponent,
+                    "moveNumber": 0,
+                    "nodeId": -1
+                }
+                var replyResult = simulateTwoLibGoMoveOnMap(copy, dims, reply, false, ruleMode, false)
+                if (replyResult.ok && stoneMapSignature(copy) === beforeSignature)
+                    addKoLoc(ko, liberty)
+            }
+        }
+    }
+
+    return goMoveResult(true, captured, "", capturedStones, ownGroup.length, ownLibertyCount,
+                        selfCapturedStones, ko)
 }
 
 function reversiFlipsForMove(map, dims, x, y, player) {
@@ -369,7 +533,7 @@ function pointLegalInMap(map, dims, x, y, player, activeKoLocKey, ruleMode, sour
         return true
 
     var pointKey = keyFor(x, y)
-    if (activeKoLocKey !== "" && pointKey === activeKoLocKey)
+    if (koLocMatches(activeKoLocKey, pointKey))
         return false
 
     var item = {
@@ -393,10 +557,23 @@ function buildPointLegalityMap(map, dims, player, activeKoLocKey, ruleMode, sour
 }
 
 function emptyKoLoc() {
-    return { "key": "", "x": -1, "y": -1 }
+    return { "key": "", "x": -1, "y": -1, "key2": "", "x2": -1, "y2": -1 }
+}
+
+function koLocMatches(koLoc, key) {
+    if (!koLoc || key === "")
+        return false
+    if (typeof koLoc === "string")
+        return koLoc !== "" && koLoc === key
+    return koLoc.key === key || koLoc.key2 === key
 }
 
 function koLocFromGoMoveResult(ruleMode, result) {
+    if (result && result.koLoc
+            && (ruleMode === RULE_TWO_LIB_GO
+                || result.koLoc.key !== ""
+                || result.koLoc.key2 !== ""))
+        return result.koLoc
     if (!isGoCaptureRule(ruleMode) || !result || !result.ok
             || result.captured !== 1
             || result.capturedStones.length !== 1
@@ -405,7 +582,8 @@ function koLocFromGoMoveResult(ruleMode, result) {
         return emptyKoLoc()
 
     var captured = result.capturedStones[0]
-    return { "key": captured.key, "x": captured.x, "y": captured.y }
+    return { "key": captured.key, "x": captured.x, "y": captured.y,
+             "key2": "", "x2": -1, "y2": -1 }
 }
 
 function gomokuRuleTargetLength(gomokuRuleMode, ruleMode) {
