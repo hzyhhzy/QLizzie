@@ -106,6 +106,9 @@ EngineController::EngineController(QObject *parent)
     m_process.setProcessChannelMode(QProcess::SeparateChannels);
 
     connect(&m_process, &QProcess::started, this, [this]() {
+#ifdef Q_OS_WIN
+        attachProcessToJobObject();
+#endif
         setRunning(true);
         setReady(false);
         m_nameResponsePending = true;
@@ -164,6 +167,9 @@ EngineController::EngineController(QObject *parent)
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
                 const bool intentionalStop = m_stopping;
                 const bool restartPending = m_restartPending;
+#ifdef Q_OS_WIN
+                closeProcessJobObject();
+#endif
                 m_stopping = false;
                 m_restartPending = false;
                 setRunning(false);
@@ -202,12 +208,7 @@ EngineController::EngineController(QObject *parent)
 
 EngineController::~EngineController()
 {
-    if (m_process.state() != QProcess::NotRunning) {
-        m_stopping = true;
-        m_restartPending = false;
-        m_process.kill();
-        m_process.waitForFinished(1200);
-    }
+    shutdown();
 }
 
 QString EngineController::command() const
@@ -330,6 +331,95 @@ void EngineController::stop()
             m_process.kill();
     });
 }
+
+void EngineController::shutdown()
+{
+    m_pendingCommands.clear();
+    m_syncResponsesPending = 0;
+    m_acceptCandidateInfo = false;
+    m_moveRequestActive = false;
+    m_moveResponsesPending = 0;
+    m_moveRequestId = 0;
+    m_stopping = true;
+    m_restartPending = false;
+
+    if (m_process.state() == QProcess::NotRunning) {
+#ifdef Q_OS_WIN
+        closeProcessJobObject();
+#endif
+        return;
+    }
+
+    bool finished = false;
+
+    if (m_process.state() == QProcess::Running) {
+        emit engineInput(QStringLiteral("quit"));
+        m_process.write(QByteArrayLiteral("quit\n"));
+        m_process.closeWriteChannel();
+        finished = m_process.waitForFinished(1200);
+    }
+
+    if (!finished) {
+        m_process.terminate();
+        finished = m_process.waitForFinished(500);
+    }
+
+    if (!finished) {
+        m_process.kill();
+        m_process.waitForFinished(1500);
+    }
+
+#ifdef Q_OS_WIN
+    closeProcessJobObject();
+    if (m_process.state() != QProcess::NotRunning)
+        m_process.waitForFinished(500);
+#endif
+}
+
+#ifdef Q_OS_WIN
+void EngineController::attachProcessToJobObject()
+{
+    closeProcessJobObject();
+
+    const qint64 processId = m_process.processId();
+    if (processId <= 0)
+        return;
+
+    HANDLE job = CreateJobObjectW(nullptr, nullptr);
+    if (!job)
+        return;
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+        CloseHandle(job);
+        return;
+    }
+
+    HANDLE process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, static_cast<DWORD>(processId));
+    if (!process) {
+        CloseHandle(job);
+        return;
+    }
+
+    const BOOL assigned = AssignProcessToJobObject(job, process);
+    CloseHandle(process);
+    if (!assigned) {
+        CloseHandle(job);
+        return;
+    }
+
+    m_jobHandle = job;
+}
+
+void EngineController::closeProcessJobObject()
+{
+    if (!m_jobHandle)
+        return;
+    CloseHandle(static_cast<HANDLE>(m_jobHandle));
+    m_jobHandle = nullptr;
+}
+#endif
 
 void EngineController::sendCommand(const QString &command)
 {

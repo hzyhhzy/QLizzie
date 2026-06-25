@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("fileIo"), &fileIo);
     engine.rootContext()->setContextProperty(QStringLiteral("engineController"), &engineController);
     engine.rootContext()->setContextProperty(QStringLiteral("gomokuForbidden"), &gomokuForbidden);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &engineController, &EngineController::shutdown);
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

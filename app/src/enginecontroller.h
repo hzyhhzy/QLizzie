@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE void ensureStarted();
     Q_INVOKABLE void restart();
     Q_INVOKABLE void stop();
+    Q_INVOKABLE void shutdown();
     Q_INVOKABLE void sendCommand(const QString &command);
     Q_INVOKABLE void requestAnalysis(const QStringList &syncCommands, const QString &analyzeCommand);
     Q_INVOKABLE void requestMove(const QStringList &syncCommands,
@@ -66,6 +67,10 @@ private:
     static QStringList splitCommandLine(const QString &commandLine);
     void startProcess();
     void sendPendingCommands();
+#ifdef Q_OS_WIN
+    void attachProcessToJobObject();
+    void closeProcessJobObject();
+#endif
     void readStandardOutput();
     void readStandardError();
     void consumeLines(QByteArray &buffer, bool stderrStream);
@@ -101,4 +106,7 @@ private:
     int m_moveRequestId = 0;
     QByteArray m_stdoutBuffer;
     QByteArray m_stderrBuffer;
+#ifdef Q_OS_WIN
+    void *m_jobHandle = nullptr;
+#endif
 };
