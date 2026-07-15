@@ -1,19 +1,20 @@
 .pragma library
+.import "rules/RuleRegistry.js" as RuleRegistry
 
-var RULE_GO = 0
-var RULE_GOMOKU = 1
-var RULE_HEX = 2
-var RULE_SQUARE_FREE = 3
-var RULE_REVERSI = 4
-var RULE_CONNECT6 = 5
-var RULE_HEX_GO_PARALLELOGRAM = 6
-var RULE_HEX_GO_HEXAGON = 7
-var RULE_HEX_GO_TRIANGLE = 8
-var RULE_ATAXX = 9
-var RULE_BREAKTHROUGH = 10
-var RULE_TORUS_GO = 11
-var RULE_TWO_LIB_GO = 12
-var RULE_DOTS_AND_BOXES = 13
+var RULE_GO = RuleRegistry.RULE_GO
+var RULE_GOMOKU = RuleRegistry.RULE_GOMOKU
+var RULE_HEX = RuleRegistry.RULE_HEX
+var RULE_SQUARE_FREE = RuleRegistry.RULE_SQUARE_FREE
+var RULE_REVERSI = RuleRegistry.RULE_REVERSI
+var RULE_CONNECT6 = RuleRegistry.RULE_CONNECT6
+var RULE_HEX_GO_PARALLELOGRAM = RuleRegistry.RULE_HEX_GO_PARALLELOGRAM
+var RULE_HEX_GO_HEXAGON = RuleRegistry.RULE_HEX_GO_HEXAGON
+var RULE_HEX_GO_TRIANGLE = RuleRegistry.RULE_HEX_GO_TRIANGLE
+var RULE_ATAXX = RuleRegistry.RULE_ATAXX
+var RULE_BREAKTHROUGH = RuleRegistry.RULE_BREAKTHROUGH
+var RULE_TORUS_GO = RuleRegistry.RULE_TORUS_GO
+var RULE_TWO_LIB_GO = RuleRegistry.RULE_TWO_LIB_GO
+var RULE_DOTS_AND_BOXES = RuleRegistry.RULE_DOTS_AND_BOXES
 
 var GOMOKU_RULE_FREESTYLE = 0
 var GOMOKU_RULE_STANDARD = 1
@@ -196,14 +197,10 @@ function cloneStoneMap(map) {
     var nextMap = ({})
     for (var key in map) {
         var value = map[key]
-        nextMap[key] = {
-            "x": value.x,
-            "y": value.y,
-            "key": value.key,
-            "player": value.player,
-            "moveNumber": value.moveNumber,
-            "nodeId": value.nodeId
-        }
+        var copy = ({})
+        for (var property in value)
+            copy[property] = value[property]
+        nextMap[key] = copy
     }
     return nextMap
 }
@@ -886,10 +883,393 @@ function applyBreakthroughMoveOnMap(map, dims, stoneItem, source) {
         "y": stoneItem.y,
         "key": stoneItem.key,
         "player": stoneItem.player,
-        "moveNumber": moving ? moving.moveNumber : stoneItem.moveNumber,
+        "moveNumber": stoneItem.moveNumber,
         "nodeId": stoneItem.nodeId
     }
     return { "ok": true, "capturedStones": captured }
+}
+
+// Unified move reducer contract:
+//   * by default map is never mutated and result.nextMap is a fresh stone map.
+//   * trusted replay may pass context.mutate=true to update map in place.
+//   * a failed move leaves the selected working map unchanged.
+//   * source actions select a piece but do not change the map or finish the turn.
+//   * target/place/pass actions finish the turn when result.ok is true.
+//
+// action accepts either a point-shaped object or an explicit compound move:
+//   { x, y, player, ... }
+//   { role: "source", x, y, player }
+//   { role: "target", source: { x, y }, target: { x, y }, player }
+// context supplies ruleMode and may supply source/pendingSource, activeKoLoc,
+// and the explicit mutate optimization.
+function unifiedMoveResult(nextMap, ruleMode) {
+    var ko = emptyKoLoc()
+    return {
+        "ok": false,
+        "reason": "illegal",
+        "ruleMode": ruleMode,
+        "role": "",
+        "moveKind": "",
+        "nextMap": nextMap,
+        "mapChanged": false,
+        "turnCompleted": false,
+        "source": null,
+        "target": null,
+        "nextSource": null,
+        "captured": 0,
+        "capturedStones": [],
+        "selfCaptured": 0,
+        "selfCapturedStones": [],
+        "convertedStones": [],
+        "completedBoxes": [],
+        "extraTurn": false,
+        "ko": ko,
+        "koLoc": ko,
+        "ownGroupSize": 0,
+        "ownLibertyCount": 0
+    }
+}
+
+function moveActionRole(action) {
+    if (!action)
+        return ""
+    if (action.isPass === true || action.role === "pass" || action.moveRole === "pass")
+        return "pass"
+    return action.role || action.moveRole || ""
+}
+
+function moveActionTarget(action) {
+    if (!action)
+        return null
+    return action.target || action
+}
+
+function moveActionSource(action, context) {
+    if (action && action.source)
+        return action.source
+    if (context && context.source)
+        return context.source
+    if (context && context.pendingSource)
+        return context.pendingSource
+    return null
+}
+
+function movePointCopy(point, player) {
+    if (!point)
+        return null
+    return {
+        "x": point.x,
+        "y": point.y,
+        "key": keyFor(point.x, point.y),
+        "player": point.player === undefined ? player : point.player
+    }
+}
+
+function stoneItemForMoveAction(action, target) {
+    var player = target && target.player !== undefined ? target.player : action.player
+    var moveNumber = target && target.moveNumber !== undefined
+                     ? target.moveNumber : action.moveNumber
+    var nodeId = target && target.nodeId !== undefined ? target.nodeId : action.nodeId
+    return {
+        "x": target.x,
+        "y": target.y,
+        "key": keyFor(target.x, target.y),
+        "player": player,
+        "moveNumber": moveNumber === undefined ? 0 : moveNumber,
+        "nodeId": nodeId === undefined ? -1 : nodeId
+    }
+}
+
+function activeKoForMoveContext(context) {
+    if (!context)
+        return emptyKoLoc()
+    if (context.activeKoLoc !== undefined)
+        return context.activeKoLoc
+    if (context.koLoc !== undefined)
+        return context.koLoc
+    if (context.ko !== undefined)
+        return context.ko
+    if (context.activeKoLocKey !== undefined)
+        return context.activeKoLocKey
+    return emptyKoLoc()
+}
+
+function setUnifiedMoveFailure(result, reason, role, source, target) {
+    result.reason = reason || "illegal"
+    result.role = role || ""
+    result.source = source || null
+    result.target = target || null
+    return result
+}
+
+function setUnifiedMoveSuccess(result, role, moveKind, source, target, mapChanged) {
+    result.ok = true
+    result.reason = ""
+    result.role = role
+    result.moveKind = moveKind
+    result.source = source || null
+    result.target = target || null
+    result.mapChanged = mapChanged === true
+    result.turnCompleted = role !== "source"
+    return result
+}
+
+function illegalPlacementReason(map, dims, target, activeKoLoc, ruleMode) {
+    if (!target || !pointInRuleBoard(dims, target.x, target.y, ruleMode))
+        return "out-of-board"
+    if (stoneMapPlayerAt(map, target.x, target.y) !== 0 && ruleMode !== RULE_SQUARE_FREE)
+        return "occupied"
+    if (isGoCaptureRule(ruleMode) && koLocMatches(activeKoLoc, keyFor(target.x, target.y)))
+        return "ko"
+    return "illegal"
+}
+
+function applySourceSelectionOnMap(result, map, dims, target, player, ruleMode) {
+    var kind = ruleMode === RULE_ATAXX
+               ? ataxxMoveKind(map, dims, target.x, target.y, player, null)
+               : breakthroughMoveKind(map, dims, target.x, target.y, player, null)
+    var point = movePointCopy(target, player)
+    if (kind !== "source")
+        return setUnifiedMoveFailure(result, "invalid-source", "source", null, point)
+
+    setUnifiedMoveSuccess(result, "source", "source", point, null, false)
+    result.nextSource = point
+    return result
+}
+
+function applyGoMoveUnified(result, working, dims, item, activeKoLoc, ruleMode) {
+    var target = movePointCopy(item, item.player)
+    var earlyReason = illegalPlacementReason(working, dims, target, activeKoLoc, ruleMode)
+    if (earlyReason !== "illegal")
+        return setUnifiedMoveFailure(result, earlyReason, "place", null, target)
+
+    var go = simulateGoMoveOnMap(working, dims, item, true, ruleMode)
+    if (!go.ok)
+        return setUnifiedMoveFailure(result, go.reason, "place", null, target)
+
+    setUnifiedMoveSuccess(result, "place", "place", null, target, true)
+    result.captured = go.captured || 0
+    result.capturedStones = go.capturedStones || []
+    result.selfCaptured = go.selfCaptured || 0
+    result.selfCapturedStones = go.selfCapturedStones || []
+    result.ownGroupSize = go.ownGroupSize || 0
+    result.ownLibertyCount = go.ownLibertyCount || 0
+    result.ko = koLocFromGoMoveResult(ruleMode, go)
+    result.koLoc = result.ko
+    return result
+}
+
+function applyReversiMoveUnified(result, working, dims, item) {
+    var target = movePointCopy(item, item.player)
+    if (!pointInBoard(dims, item.x, item.y))
+        return setUnifiedMoveFailure(result, "out-of-board", "place", null, target)
+    if (stoneMapPlayerAt(working, item.x, item.y) !== 0)
+        return setUnifiedMoveFailure(result, "occupied", "place", null, target)
+
+    var flips = reversiFlipsForMove(working, dims, item.x, item.y, item.player)
+    var converted = []
+    for (var i = 0; i < flips.length; ++i)
+        converted.push(copyStoneItem(flips[i]))
+    var reversi = applyReversiMoveOnMap(working, dims, item)
+    if (!reversi.ok)
+        return setUnifiedMoveFailure(result, "no-flips", "place", null, target)
+
+    setUnifiedMoveSuccess(result, "place", "place", null, target, true)
+    result.convertedStones = converted
+    return result
+}
+
+function applyAtaxxMoveUnified(result, working, dims, item, source, requestedRole) {
+    var target = movePointCopy(item, item.player)
+    var sourcePoint = movePointCopy(source, item.player)
+    var kind = ataxxMoveKind(working, dims, item.x, item.y, item.player, source)
+
+    if (kind === "source" && requestedRole !== "target")
+        return applySourceSelectionOnMap(result, working, dims, target, item.player, RULE_ATAXX)
+    if (kind !== "clone" && kind !== "jump") {
+        var reason = !pointInBoard(dims, item.x, item.y) ? "out-of-board" : "invalid-target"
+        if (requestedRole === "target" && !source && stoneMapPlayerAt(working, item.x, item.y) === 0)
+            reason = "source-required"
+        return setUnifiedMoveFailure(result, reason, requestedRole || "target", sourcePoint, target)
+    }
+
+    var flips = ataxxFlippedNeighbors(working, dims, item.x, item.y, item.player)
+    var converted = []
+    for (var i = 0; i < flips.length; ++i)
+        converted.push(copyStoneItem(flips[i]))
+    var ataxx = applyAtaxxMoveOnMap(working, dims, item, source)
+    if (!ataxx.ok)
+        return setUnifiedMoveFailure(result, "invalid-target", "target", sourcePoint, target)
+
+    setUnifiedMoveSuccess(result, "target", kind, sourcePoint, target, true)
+    result.convertedStones = converted
+    return result
+}
+
+function applyBreakthroughMoveUnified(result, working, dims, item, source, requestedRole) {
+    var target = movePointCopy(item, item.player)
+    var sourcePoint = movePointCopy(source, item.player)
+    var kind = breakthroughMoveKind(working, dims, item.x, item.y, item.player, source)
+
+    if (kind === "source" && requestedRole !== "target")
+        return applySourceSelectionOnMap(result, working, dims, target, item.player, RULE_BREAKTHROUGH)
+    if (kind !== "move" && kind !== "capture") {
+        var reason = !pointInBoard(dims, item.x, item.y) ? "out-of-board" : "invalid-target"
+        if (!source)
+            reason = "source-required"
+        return setUnifiedMoveFailure(result, reason, requestedRole || "target", sourcePoint, target)
+    }
+
+    var breakthrough = applyBreakthroughMoveOnMap(working, dims, item, source)
+    if (!breakthrough.ok)
+        return setUnifiedMoveFailure(result, "invalid-target", "target", sourcePoint, target)
+
+    setUnifiedMoveSuccess(result, "target", kind, sourcePoint, target, true)
+    result.capturedStones = breakthrough.capturedStones || []
+    result.captured = result.capturedStones.length
+    return result
+}
+
+function applyDotsAndBoxesMoveUnified(result, working, dims, item) {
+    var target = movePointCopy(item, item.player)
+    var dots = applyDotsAndBoxesMoveOnMap(working, dims, item)
+    if (!dots.ok) {
+        var reason = !pointInBoard(dims, item.x, item.y) ? "out-of-board" : "invalid-edge"
+        if (pointInBoard(dims, item.x, item.y)
+                && dotsAndBoxesPointKind(item.x, item.y) === "edge"
+                && stoneMapPlayerAt(working, item.x, item.y) !== 0)
+            reason = "occupied"
+        return setUnifiedMoveFailure(result, reason, "place", null, target)
+    }
+
+    setUnifiedMoveSuccess(result, "place", "edge", null, target, true)
+    result.completedBoxes = dots.completedBoxes || []
+    result.extraTurn = result.completedBoxes.length > 0
+    return result
+}
+
+function applyOrdinaryMoveUnified(result, working, dims, item, ruleMode) {
+    var target = movePointCopy(item, item.player)
+    if (!pointInRuleBoard(dims, item.x, item.y, ruleMode))
+        return setUnifiedMoveFailure(result, "out-of-board", "place", null, target)
+    if (stoneMapPlayerAt(working, item.x, item.y) !== 0 && ruleMode !== RULE_SQUARE_FREE)
+        return setUnifiedMoveFailure(result, "occupied", "place", null, target)
+
+    working[item.key] = item
+    return setUnifiedMoveSuccess(result, "place", "place", null, target, true)
+}
+
+function applyMoveOnMap(map, dims, action, context) {
+    context = context || ({})
+    var ruleMode = context.ruleMode === undefined ? RULE_GO : context.ruleMode
+    var sourceMap = map || ({})
+    var working = context.mutate === true ? sourceMap : cloneStoneMap(sourceMap)
+    var result = unifiedMoveResult(working, ruleMode)
+    var role = moveActionRole(action)
+
+    if (!action)
+        return setUnifiedMoveFailure(result, "missing-action", role, null, null)
+    if (role === "pass")
+        return setUnifiedMoveSuccess(result, "pass", "pass", null, null, false)
+
+    var target = moveActionTarget(action)
+    if (!target || target.x === undefined || target.y === undefined)
+        return setUnifiedMoveFailure(result, "missing-target", role, null, null)
+    var player = target && target.player !== undefined ? target.player : action.player
+    if (player !== 1 && player !== 2)
+        return setUnifiedMoveFailure(result, "invalid-player", role, null,
+                                     movePointCopy(target, player))
+
+    var source = moveActionSource(action, context)
+    if (role === "source") {
+        if (ruleMode !== RULE_ATAXX && ruleMode !== RULE_BREAKTHROUGH)
+            return setUnifiedMoveFailure(result, "unsupported-source", role, null,
+                                         movePointCopy(target, player))
+        return applySourceSelectionOnMap(result, working, dims, target, player, ruleMode)
+    }
+
+    var item = stoneItemForMoveAction(action, target)
+    if (isGoCaptureRule(ruleMode))
+        return applyGoMoveUnified(result, working, dims, item,
+                                  activeKoForMoveContext(context), ruleMode)
+    if (ruleMode === RULE_REVERSI)
+        return applyReversiMoveUnified(result, working, dims, item)
+    if (ruleMode === RULE_ATAXX)
+        return applyAtaxxMoveUnified(result, working, dims, item, source, role)
+    if (ruleMode === RULE_BREAKTHROUGH)
+        return applyBreakthroughMoveUnified(result, working, dims, item, source, role)
+    if (ruleMode === RULE_DOTS_AND_BOXES)
+        return applyDotsAndBoxesMoveUnified(result, working, dims, item)
+    return applyOrdinaryMoveUnified(result, working, dims, item, ruleMode)
+}
+
+function validateGameTree(nodes, dims, ruleMode) {
+    if (!nodes || !nodes[0])
+        return { "ok": false, "reason": "missing-root", "nodeId": 0 }
+
+    var stack = [{
+        "nodeId": 0,
+        "map": initialStoneMap(dims, ruleMode),
+        "ko": emptyKoLoc(),
+        "pendingSource": null
+    }]
+    var visited = ({ "0": true })
+
+    while (stack.length > 0) {
+        var state = stack.pop()
+        var parent = nodes[state.nodeId]
+        var children = parent && parent.children ? parent.children : []
+        for (var i = 0; i < children.length; ++i) {
+            var childId = Number(children[i])
+            var child = nodes[childId]
+            if (!child)
+                return { "ok": false, "reason": "missing-node", "nodeId": childId }
+            if (Number(child.parent) !== Number(state.nodeId))
+                return { "ok": false, "reason": "invalid-parent", "nodeId": childId }
+            if (visited[String(childId)] === true)
+                return { "ok": false, "reason": "cycle-or-duplicate", "nodeId": childId }
+
+            var action = {
+                "x": child.x,
+                "y": child.y,
+                "player": child.player,
+                "moveNumber": child.moveNumber,
+                "nodeId": child.id,
+                "isPass": child.isPass === true,
+                "moveRole": child.moveRole || ""
+            }
+            var result = applyMoveOnMap(state.map, dims, action, {
+                "ruleMode": ruleMode,
+                "activeKoLoc": state.ko,
+                "pendingSource": state.pendingSource,
+                "mutate": children.length === 1
+            })
+            if (!result.ok) {
+                return {
+                    "ok": false,
+                    "reason": result.reason,
+                    "nodeId": childId,
+                    "moveNumber": child.moveNumber,
+                    "x": child.x,
+                    "y": child.y
+                }
+            }
+
+            visited[String(childId)] = true
+            stack.push({
+                "nodeId": childId,
+                "map": result.nextMap,
+                "ko": result.ko,
+                "pendingSource": result.nextSource
+            })
+        }
+    }
+
+    for (var nodeIndex = 1; nodeIndex < nodes.length; ++nodeIndex) {
+        if (nodes[nodeIndex] && visited[String(nodeIndex)] !== true)
+            return { "ok": false, "reason": "orphan-node", "nodeId": nodeIndex }
+    }
+    return { "ok": true }
 }
 
 function initialStoneMap(dims, ruleMode) {

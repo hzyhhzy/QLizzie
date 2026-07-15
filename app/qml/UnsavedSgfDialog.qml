@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 AppDialog {
@@ -39,7 +38,7 @@ AppDialog {
             primary: true
             onClicked: {
                 unsavedSgfDialog.close()
-                app.openSaveSgfDialog(true)
+                app.openSaveSgfDialog(app.saveContinuationQuit)
             }
         }
 

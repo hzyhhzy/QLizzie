@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 AppDialog {
@@ -24,15 +23,24 @@ AppDialog {
         open()
     }
 
-    function openForSgf(gameId, expectedGameId) {
+    function sgfRuleIdentity(gameId, ruleName) {
+        var identity = "GM[" + gameId + "]"
+        if (ruleName !== undefined && String(ruleName).length > 0)
+            identity += "  RU[" + ruleName + "]"
+        return identity
+    }
+
+    function openForSgf(gameId, expectedGameId, ruleName, expectedRuleName) {
         title = app.trText("sgfGameTypeMismatchTitle")
         messageText = app.trText("sgfGameTypeMismatchBody")
                       + "\n\n"
                       + app.trText("currentRule") + ": " + app.gameRuleText()
                       + "\n"
-                      + app.trText("sgfGameTypeField") + ": GM[" + gameId + "]"
+                      + app.trText("sgfGameTypeField") + ": "
+                      + sgfRuleIdentity(gameId, ruleName)
                       + "\n"
-                      + app.trText("expectedGameType") + ": GM[" + expectedGameId + "]"
+                      + app.trText("expectedGameType") + ": "
+                      + sgfRuleIdentity(expectedGameId, expectedRuleName)
         open()
     }
 

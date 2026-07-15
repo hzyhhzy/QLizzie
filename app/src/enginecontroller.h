@@ -1,5 +1,8 @@
 #pragma once
 
+#include "engineprotocol.h"
+
+#include <QList>
 #include <QObject>
 #include <QProcess>
 #include <QStringList>
@@ -64,9 +67,17 @@ signals:
     void moveGenerated(int requestId, const QString &move, bool ok, const QString &rawLine);
 
 private:
+    struct QueuedCommand {
+        QString text;
+        EngineProtocolState::ResponseRole responseRole = EngineProtocolState::ResponseRole::Ignored;
+        bool expectsResponse = true;
+    };
+
     static QStringList splitCommandLine(const QString &commandLine);
     void startProcess();
     void sendPendingCommands();
+    void writeCommand(const QueuedCommand &command);
+    void interruptCurrentCommand(const QueuedCommand &command, const QString &reason);
 #ifdef Q_OS_WIN
     void attachProcessToJobObject();
     void closeProcessJobObject();
@@ -76,7 +87,9 @@ private:
     void consumeLines(QByteArray &buffer, bool stderrStream);
     void handleStdoutLine(const QString &line);
     void handleStderrLine(const QString &line);
-    bool handleMoveResponseLine(const QString &line);
+    void handleProtocolOutcome(const EngineProtocolState::Outcome &outcome);
+    void failActiveMoveRequest(const QString &message);
+    void resetProtocolState(bool clearPendingCommands = true);
     void parseInfoLine(const QString &line);
     void setRunning(bool running);
     void setReady(bool ready);
@@ -91,19 +104,15 @@ private:
     bool m_failed = false;
     bool m_stopping = false;
     bool m_restartPending = false;
-    bool m_nameResponsePending = false;
     QString m_failureKind;
     QString m_failureMessage;
     QString m_statusText;
     QString m_lastError;
     QVariantList m_candidates;
     int m_candidateRevision = 0;
-    QStringList m_pendingCommands;
-    int m_syncResponsesPending = 0;
-    bool m_acceptCandidateInfo = false;
-    bool m_moveRequestActive = false;
-    int m_moveResponsesPending = 0;
-    int m_moveRequestId = 0;
+    QList<QueuedCommand> m_pendingCommands;
+    int m_responsesPending = 0;
+    EngineProtocolState m_protocolState;
     QByteArray m_stdoutBuffer;
     QByteArray m_stderrBuffer;
 #ifdef Q_OS_WIN

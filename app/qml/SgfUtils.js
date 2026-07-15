@@ -1,4 +1,5 @@
 .pragma library
+.import "rules/RuleRegistry.js" as RuleRegistry
 
 function keyFor(x, y) {
     return x + "," + y
@@ -57,7 +58,20 @@ function parseSgfCoordinateText(value) {
 function sgfMoveNode(node, numericCoordinates) {
     var color = node.player === 1 ? "B" : "W"
     var coordinate = node.isPass ? "" : sgfCoordinateText(node.x, node.y, numericCoordinates)
-    return color + "[" + coordinate + "]MN[" + node.moveNumber + "]" + sgfAnalysisProperties(node)
+    return color + "[" + coordinate + "]MN[" + node.moveNumber + "]"
+           + sgfMoveSemanticsProperties(node) + sgfAnalysisProperties(node)
+}
+
+// QLMR is a QLizzie-private property. Source/target cannot be reconstructed
+// from two ordinary SGF move nodes, unlike other derived node state.
+function normalizedMoveRole(value) {
+    var role = value === undefined || value === null ? "" : String(value).trim().toLowerCase()
+    return role === "source" || role === "target" ? role : ""
+}
+
+function sgfMoveSemanticsProperties(node) {
+    var role = normalizedMoveRole(node ? node.moveRole : "")
+    return role === "" ? "" : "QLMR[" + role + "]"
 }
 
 function candidateNumberValue(value, fallback) {
@@ -158,32 +172,50 @@ function boardSizeText(xSize, ySize) {
     return xSize === ySize ? String(xSize) : xSize + ":" + ySize
 }
 
+// GM alone is ambiguous for variants sharing an SGF game family. These are
+// deliberately the conservative defaults used when a stable RU is absent.
+var SGF_GAME_ID_DEFAULT_RULE_MODE = {
+    "1": RuleRegistry.RULE_GO,
+    "2": RuleRegistry.RULE_REVERSI,
+    "4": RuleRegistry.RULE_GOMOKU,
+    "10": RuleRegistry.RULE_ATAXX,
+    "11": RuleRegistry.RULE_HEX,
+    "40": RuleRegistry.RULE_DOTS_AND_BOXES
+}
+
+var SGF_LEGACY_RULE_HINTS = [
+    { "token": "GOMOKU", "ruleMode": RuleRegistry.RULE_GOMOKU },
+    { "token": "HEX", "ruleMode": RuleRegistry.RULE_HEX },
+    { "token": "GO", "ruleMode": RuleRegistry.RULE_GO }
+]
+
+function sgfRuleInfoForMode(ruleMode) {
+    return RuleRegistry.descriptor(ruleMode)
+}
+
+function sgfRuleInfoForName(ruleName) {
+    return RuleRegistry.descriptorForSgfRuleName(ruleName)
+}
+
+function sgfRuleInfoForLegacyHint(ruleName) {
+    var normalizedName = String(ruleName).trim().toUpperCase()
+    for (var i = 0; i < SGF_LEGACY_RULE_HINTS.length; ++i) {
+        if (normalizedName.indexOf(SGF_LEGACY_RULE_HINTS[i].token) >= 0)
+            return sgfRuleInfoForMode(SGF_LEGACY_RULE_HINTS[i].ruleMode)
+    }
+    return null
+}
+
+function sgfRuleInfoForGameId(gameId) {
+    var mode = SGF_GAME_ID_DEFAULT_RULE_MODE[String(gameId).trim()]
+    return mode === undefined ? null : sgfRuleInfoForMode(mode)
+}
+
 function sgfGameInfo(ruleMode) {
-    if (ruleMode === 0)
-        return { "gameId": 1, "ruleName": "QLizzie-Go" }
-    if (ruleMode === 1)
-        return { "gameId": 4, "ruleName": "QLizzie-Gomoku" }
-    if (ruleMode === 2)
-        return { "gameId": 11, "ruleName": "QLizzie-Hex" }
-    if (ruleMode === 5)
-        return { "gameId": 4, "ruleName": "QLizzie-Connect6" }
-    if (ruleMode === 6)
-        return { "gameId": 1, "ruleName": "QLizzie-HexGo-Parallelogram" }
-    if (ruleMode === 7)
-        return { "gameId": 1, "ruleName": "QLizzie-HexGo-Hexagon" }
-    if (ruleMode === 8)
-        return { "gameId": 1, "ruleName": "QLizzie-HexGo-Triangle" }
-    if (ruleMode === 11)
-        return { "gameId": 1, "ruleName": "QLizzie-TorusGo" }
-    if (ruleMode === 12)
-        return { "gameId": 1, "ruleName": "QLizzie-TwoLibGo" }
-    if (ruleMode === 13)
-        return { "gameId": 40, "ruleName": "QLizzie-DotsAndBoxes" }
-    if (ruleMode === 4)
-        return { "gameId": 2, "ruleName": "QLizzie-Reversi" }
-    if (ruleMode === 9)
-        return { "gameId": 10, "ruleName": "QLizzie-Ataxx" }
-    return { "gameId": 0, "ruleName": "QLizzie-Custom" }
+    var info = sgfRuleInfoForMode(ruleMode)
+    return info
+           ? { "gameId": info.sgfGameId, "ruleName": info.sgfRuleName }
+           : { "gameId": 0, "ruleName": "QLizzie-Custom" }
 }
 
 function buildSgf(nodes, ruleMode, xSize, ySize, ruleText) {
@@ -470,6 +502,7 @@ function parseSgf(text, options) {
     var parsedBoardSizeX = 19
     var parsedBoardSizeY = 19
     var parsedRuleMode = options.defaultRuleMode
+    var parsedRuleName = sgfGameInfo(parsedRuleMode).ruleName
     var parsedGameId = ""
     var maxX = -1
     var maxY = -1
@@ -477,6 +510,7 @@ function parseSgf(text, options) {
     var nodes = [{
         "id": 0, "parent": -1, "children": [], "x": -1, "y": -1,
         "key": "", "player": 0, "moveNumber": 0, "isPass": false,
+        "moveRole": "",
         "koLocKey": "", "koLocX": -1, "koLocY": -1,
         "koLocKey2": "", "koLocX2": -1, "koLocY2": -1,
         "blackCaptures": 0, "whiteCaptures": 0,
@@ -486,6 +520,7 @@ function parseSgf(text, options) {
         "analysisCandidateKomiSignature": ""
     }]
     var nextId = 1
+    var rootPropertiesRead = false
 
     function fail(message) {
         if (parseError === "")
@@ -585,27 +620,32 @@ function parseSgf(text, options) {
         parsedGameId = firstSgfValue(properties, "GM").trim()
     }
 
+    function publicRuleMode(ruleMode) {
+        if (ruleMode === RuleRegistry.RULE_GO && gameRuleGo !== undefined)
+            return gameRuleGo
+        if (ruleMode === RuleRegistry.RULE_GOMOKU && gameRuleGomoku !== undefined)
+            return gameRuleGomoku
+        if (ruleMode === RuleRegistry.RULE_HEX && gameRuleHex !== undefined)
+            return gameRuleHex
+        return ruleMode
+    }
+
     function updateRuleFromProperties(properties) {
-        var gmValue = firstSgfValue(properties, "GM")
-        var ruValue = firstSgfValue(properties, "RU").toUpperCase()
-        if (ruValue.indexOf("GOMOKU") >= 0) {
-            parsedRuleMode = gameRuleGomoku
-            return
+        var gmValue = firstSgfValue(properties, "GM").trim()
+        var ruValue = firstSgfValue(properties, "RU").trim()
+        var info = sgfRuleInfoForName(ruValue)
+        if (!info)
+            info = sgfRuleInfoForLegacyHint(ruValue)
+        if (!info)
+            info = sgfRuleInfoForGameId(gmValue)
+
+        if (info) {
+            parsedRuleName = info.sgfRuleName
+            if (!ignoreRuleMode)
+                parsedRuleMode = publicRuleMode(info.id)
+        } else if (ruValue !== "") {
+            parsedRuleName = ruValue
         }
-        if (ruValue.indexOf("HEX") >= 0) {
-            parsedRuleMode = gameRuleHex
-            return
-        }
-        if (ruValue.indexOf("GO") >= 0) {
-            parsedRuleMode = gameRuleGo
-            return
-        }
-        if (gmValue === "1")
-            parsedRuleMode = gameRuleGo
-        else if (gmValue === "4")
-            parsedRuleMode = gameRuleGomoku
-        else if (gmValue === "11")
-            parsedRuleMode = gameRuleHex
     }
 
     function moveFromProperties(properties) {
@@ -646,11 +686,11 @@ function parseSgf(text, options) {
             if (ch === ";") {
                 pos += 1
                 var props = parseNodeProperties()
-                if (currentParent === 0 && lastId === 0) {
+                if (!rootPropertiesRead) {
+                    rootPropertiesRead = true
                     updateSizeFromProperties(props)
                     updateGameIdFromProperties(props)
-                    if (!ignoreRuleMode)
-                        updateRuleFromProperties(props)
+                    updateRuleFromProperties(props)
                     applyAnalysisToNode(nodes[0], analysisFromProperties(props))
                 }
                 var move = moveFromProperties(props)
@@ -664,6 +704,7 @@ function parseSgf(text, options) {
                                  ? (parentNode ? parentNode.moveNumber + 1 : 1)
                                  : moveNumberValue
                 var key = move.isPass ? passKey() : keyFor(move.x, move.y)
+                var moveRole = normalizedMoveRole(firstSgfValue(props, "QLMR"))
                 nodes[id] = {
                     "id": id,
                     "parent": currentParent,
@@ -674,6 +715,7 @@ function parseSgf(text, options) {
                     "player": move.player,
                     "moveNumber": moveNumber,
                     "isPass": move.isPass,
+                    "moveRole": moveRole,
                     "koLocKey": "",
                     "koLocX": -1,
                     "koLocY": -1,
@@ -727,6 +769,7 @@ function parseSgf(text, options) {
         "nodes": nodes,
         "nextNodeId": nextId,
         "ruleMode": parsedRuleMode,
+        "ruleName": parsedRuleName,
         "gameId": parsedGameId,
         "boardSizeX": targetBoardSizeX,
         "boardSizeY": targetBoardSizeY

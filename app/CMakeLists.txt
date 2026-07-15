@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.24)
 
 project(qlizzie LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -14,6 +16,8 @@ qt_add_executable(qlizzie
     src/appsettings.h
     src/enginecontroller.cpp
     src/enginecontroller.h
+    src/engineprotocol.cpp
+    src/engineprotocol.h
     src/main.cpp
     src/fileio.cpp
     src/fileio.h
@@ -89,6 +93,7 @@ qt_add_qml_module(qlizzie
         qml/TreeLayout.js
         qml/UnsavedSgfDialog.qml
         qml/rules/RuleCatalog.js
+        qml/rules/RuleRegistry.js
 )
 
 qt_add_resources(qlizzie qlizzie_icons
@@ -110,6 +115,30 @@ target_link_libraries(qlizzie
         Qt6::Core
         Qt6::Quick
 )
+
+if(BUILD_TESTING)
+    find_package(Qt6 QUIET COMPONENTS Test)
+    if(TARGET Qt6::Test)
+        qt_add_executable(qlizzie_core_tests
+            tests/coretests.cpp
+            src/engineprotocol.cpp
+            src/engineprotocol.h
+            src/fileio.cpp
+            src/fileio.h
+        )
+
+        target_include_directories(qlizzie_core_tests PRIVATE src)
+        target_link_libraries(qlizzie_core_tests PRIVATE Qt6::Core Qt6::Test)
+
+        add_test(NAME qlizzie_core_tests COMMAND qlizzie_core_tests)
+        if(WIN32)
+            set_tests_properties(qlizzie_core_tests PROPERTIES
+                ENVIRONMENT_MODIFICATION
+                    "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            )
+        endif()
+    endif()
+endif()
 
 if(WIN32)
     enable_language(RC)

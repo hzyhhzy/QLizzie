@@ -13,6 +13,7 @@ import "EnginePresets.js" as EnginePresets
 import "EngineSupport.js" as EngineSupport
 import "GameRules.js" as GameRules
 import "RuleSupport.js" as RuleSupport
+import "rules/RuleRegistry.js" as RuleRegistry
 import "SettingsStore.js" as SettingsStore
 import "SgfSession.js" as SgfSession
 import "SgfUtils.js" as SgfUtils
@@ -39,7 +40,10 @@ ApplicationWindow {
     property bool persistentSettingsLoaded: false
     property bool gameDirty: false
     property bool suppressUnsavedPrompt: false
-    property bool saveDialogClosesApp: false
+    readonly property string saveContinuationNone: ""
+    readonly property string saveContinuationQuit: "quit"
+    readonly property string saveContinuationPendingAction: "pendingAction"
+    property string pendingSaveContinuation: saveContinuationNone
     property string pendingClearAction: ""
     property int pendingRuleMode: -1
     property int pendingBoardSizeX: -1
@@ -131,20 +135,20 @@ ApplicationWindow {
     readonly property int stoneColorModeWhite: 2
     property int stoneColorMode: stoneColorModeAuto
 
-    readonly property int gameRuleGo: 0
-    readonly property int gameRuleGomoku: 1
-    readonly property int gameRuleHex: 2
-    readonly property int gameRuleSquareFree: 3
-    readonly property int gameRuleReversi: 4
-    readonly property int gameRuleConnect6: 5
-    readonly property int gameRuleHexGoParallelogram: 6
-    readonly property int gameRuleHexGoHexagon: 7
-    readonly property int gameRuleHexGoTriangle: 8
-    readonly property int gameRuleAtaxx: 9
-    readonly property int gameRuleBreakthrough: 10
-    readonly property int gameRuleTorusGo: 11
-    readonly property int gameRuleTwoLibGo: 12
-    readonly property int gameRuleDotsAndBoxes: 13
+    readonly property int gameRuleGo: RuleRegistry.RULE_GO
+    readonly property int gameRuleGomoku: RuleRegistry.RULE_GOMOKU
+    readonly property int gameRuleHex: RuleRegistry.RULE_HEX
+    readonly property int gameRuleSquareFree: RuleRegistry.RULE_SQUARE_FREE
+    readonly property int gameRuleReversi: RuleRegistry.RULE_REVERSI
+    readonly property int gameRuleConnect6: RuleRegistry.RULE_CONNECT6
+    readonly property int gameRuleHexGoParallelogram: RuleRegistry.RULE_HEX_GO_PARALLELOGRAM
+    readonly property int gameRuleHexGoHexagon: RuleRegistry.RULE_HEX_GO_HEXAGON
+    readonly property int gameRuleHexGoTriangle: RuleRegistry.RULE_HEX_GO_TRIANGLE
+    readonly property int gameRuleAtaxx: RuleRegistry.RULE_ATAXX
+    readonly property int gameRuleBreakthrough: RuleRegistry.RULE_BREAKTHROUGH
+    readonly property int gameRuleTorusGo: RuleRegistry.RULE_TORUS_GO
+    readonly property int gameRuleTwoLibGo: RuleRegistry.RULE_TWO_LIB_GO
+    readonly property int gameRuleDotsAndBoxes: RuleRegistry.RULE_DOTS_AND_BOXES
     readonly property int gameRuleMoreOption: -1000000
     property int gameRuleMode: gameRuleGo
     property var ruleVisibilityMap: ({})
@@ -673,7 +677,7 @@ ApplicationWindow {
         nameFilters: [root.trText("sgfFileFilter"), root.trText("allFileFilter")]
         onAccepted: root.saveSgfToFile(selectedFile)
         onRejected: {
-            root.saveDialogClosesApp = false
+            root.pendingSaveContinuation = root.saveContinuationNone
             root.clearPendingClearAction()
             root.onSettingsDialogClosed()
             root.focusBoardInput()
@@ -1932,6 +1936,18 @@ ApplicationWindow {
         return items
     }
 
+    function updateNodePositionMetadata(node, blackCap, whiteCap, ko) {
+        ko = ko || GameRules.emptyKoLoc()
+        node.blackCaptures = blackCap
+        node.whiteCaptures = whiteCap
+        node.koLocKey = ko.key
+        node.koLocX = ko.x
+        node.koLocY = ko.y
+        node.koLocKey2 = ko.key2
+        node.koLocX2 = ko.x2
+        node.koLocY2 = ko.y2
+    }
+
     function rebuildPositionFromNode(id) {
         clearEngineCandidates()
         var map = GameRules.initialStoneMap(boardDims(), gameRuleMode)
@@ -1942,87 +1958,50 @@ ApplicationWindow {
         var path = nodePath(id)
         for (var i = 0; i < path.length; ++i) {
             var node = path[i]
-            if (node.isPass) {
-                ko = GameRules.emptyKoLoc()
-                pendingSource = null
-                node.blackCaptures = blackCap
-                node.whiteCaptures = whiteCap
-                node.koLocKey = ko.key
-                node.koLocX = ko.x
-                node.koLocY = ko.y
-                node.koLocKey2 = ko.key2
-                node.koLocX2 = ko.x2
-                node.koLocY2 = ko.y2
-                continue
-            }
-            if (node.moveRole === "source") {
-                pendingSource = { "x": node.x, "y": node.y, "player": node.player }
-                ko = GameRules.emptyKoLoc()
-                node.blackCaptures = blackCap
-                node.whiteCaptures = whiteCap
-                node.koLocKey = ko.key
-                node.koLocX = ko.x
-                node.koLocY = ko.y
-                node.koLocKey2 = ko.key2
-                node.koLocX2 = ko.x2
-                node.koLocY2 = ko.y2
-                continue
-            }
-
-            var item = {
+            var action = {
                 "x": node.x,
                 "y": node.y,
                 "key": keyFor(node.x, node.y),
                 "player": node.player,
                 "moveNumber": node.moveNumber,
-                "nodeId": node.id
+                "nodeId": node.id,
+                "isPass": node.isPass === true,
+                "moveRole": node.moveRole || ""
             }
-            node.gomokuForbidden = pointIsGomokuForbidden(node.x, node.y, node.player, map)
-            if (ruleUsesGoCapture()) {
-                var result = GameRules.simulateGoMoveOnMap(map, boardDims(), item, true, gameRuleMode)
-                if (result.ok) {
-                    if (node.player === 1) {
-                        blackCap += result.captured
-                        whiteCap += result.selfCaptured || 0
-                    } else {
-                        whiteCap += result.captured
-                        blackCap += result.selfCaptured || 0
-                    }
-                    ko = GameRules.koLocFromGoMoveResult(gameRuleMode, result)
+            if (!node.isPass)
+                node.gomokuForbidden = pointIsGomokuForbidden(node.x, node.y, node.player, map)
+            var result = GameRules.applyMoveOnMap(map, boardDims(), action, {
+                "ruleMode": gameRuleMode,
+                "activeKoLoc": ko,
+                "pendingSource": pendingSource,
+                "mutate": true
+            })
+            if (!result.ok) {
+                return {
+                    "ok": false,
+                    "reason": result.reason,
+                    "nodeId": node.id,
+                    "moveNumber": node.moveNumber,
+                    "x": node.x,
+                    "y": node.y
                 }
-            } else if (gameRuleMode === gameRuleReversi) {
-                GameRules.applyReversiMoveOnMap(map, boardDims(), item)
-                ko = GameRules.emptyKoLoc()
-            } else if (gameRuleMode === gameRuleAtaxx) {
-                GameRules.applyAtaxxMoveOnMap(map, boardDims(), item, pendingSource)
-                pendingSource = null
-                ko = GameRules.emptyKoLoc()
-            } else if (gameRuleMode === gameRuleBreakthrough && pendingSource) {
-                var breakthrough = GameRules.applyBreakthroughMoveOnMap(map, boardDims(), item, pendingSource)
-                if (breakthrough.ok) {
-                    if (node.player === 1)
-                        blackCap += breakthrough.capturedStones.length
-                    else
-                        whiteCap += breakthrough.capturedStones.length
-                }
-                pendingSource = null
-                ko = GameRules.emptyKoLoc()
-            } else if (gameRuleMode === gameRuleDotsAndBoxes) {
-                var dotsResult = GameRules.applyDotsAndBoxesMoveOnMap(map, boardDims(), item)
-                node.extraTurn = dotsResult.ok && dotsResult.completedBoxes.length > 0
-                ko = GameRules.emptyKoLoc()
-            } else {
-                map[item.key] = item
-                ko = GameRules.emptyKoLoc()
             }
-            node.blackCaptures = blackCap
-            node.whiteCaptures = whiteCap
-            node.koLocKey = ko.key
-            node.koLocX = ko.x
-            node.koLocY = ko.y
-            node.koLocKey2 = ko.key2
-            node.koLocX2 = ko.x2
-            node.koLocY2 = ko.y2
+            map = result.nextMap
+            ko = result.ko
+            pendingSource = result.nextSource
+            if (result.role === "source" || result.role === "target")
+                node.moveRole = result.role
+            node.extraTurn = result.extraTurn === true
+            node.capturedStones = (result.capturedStones || [])
+                    .concat(result.selfCapturedStones || [])
+            if (node.player === 1) {
+                blackCap += result.captured || 0
+                whiteCap += result.selfCaptured || 0
+            } else if (node.player === 2) {
+                whiteCap += result.captured || 0
+                blackCap += result.selfCaptured || 0
+            }
+            updateNodePositionMetadata(node, blackCap, whiteCap, ko)
         }
 
         stones = map
@@ -2042,6 +2021,7 @@ ApplicationWindow {
         refreshGameOutcomeFromCurrentNode(false)
         boardRevision += 1
         showCachedAnalysisForCurrentNode()
+        return { "ok": true }
     }
 
     function resetGameTree() {
@@ -2158,19 +2138,7 @@ ApplicationWindow {
         if (ruleUsesMoveSource())
             return placeMoveRulePoint(x, y)
 
-        if (stoneAt(x, y) !== 0 && !ruleAllowsOccupiedMoves()) {
-            statusMode = "occupied"
-            statusMessage = illegalPointMessage(x, y, "")
-            return false
-        }
-
         var pointKey = keyFor(x, y)
-        if (ruleUsesGoCapture() && pointKeyIsKoBanned(pointKey)) {
-            statusMode = "message"
-            statusMessage = illegalPointMessage(x, y, "ko")
-            return false
-        }
-
         var player = currentPlayer
         var forbiddenMove = pointIsGomokuForbidden(x, y, player, stones)
         var existingChild = branchChildMatching(currentNode(), pointKey, player, false)
@@ -2189,46 +2157,26 @@ ApplicationWindow {
             "moveNumber": currentMoveNumberValue() + 1,
             "nodeId": -1
         }
-        var captured = []
-        var ko = GameRules.emptyKoLoc()
-        var working = GameRules.cloneStoneMap(stones)
-        if (ruleUsesGoCapture()) {
-            var result = GameRules.simulateGoMoveOnMap(working, boardDims(), item, true, gameRuleMode)
-            if (!result.ok) {
-                statusMode = "message"
-                statusMessage = illegalPointMessage(x, y, result.reason)
-                return false
-            }
-            captured = (result.capturedStones || []).concat(result.selfCapturedStones || [])
-            ko = GameRules.koLocFromGoMoveResult(gameRuleMode, result)
-        } else if (gameRuleMode === gameRuleReversi) {
-            var reversi = GameRules.applyReversiMoveOnMap(working, boardDims(), item)
-            if (!reversi.ok) {
-                statusMode = "message"
-                statusMessage = illegalPointMessage(x, y, "")
-                return false
-            }
-        } else if (gameRuleMode === gameRuleDotsAndBoxes) {
-            var dotsResult = GameRules.applyDotsAndBoxesMoveOnMap(working, boardDims(), item)
-            if (!dotsResult.ok) {
-                statusMode = "message"
-                statusMessage = illegalPointMessage(x, y, "")
-                return false
-            }
-        } else {
-            working[item.key] = item
+        var result = GameRules.applyMoveOnMap(stones, boardDims(), item, {
+            "ruleMode": gameRuleMode,
+            "activeKoLoc": currentKoLoc()
+        })
+        if (!result.ok) {
+            statusMode = stoneAt(x, y) !== 0 ? "occupied" : "message"
+            statusMessage = illegalPointMessage(x, y, result.reason)
+            return false
         }
+        var captured = (result.capturedStones || []).concat(result.selfCapturedStones || [])
 
         selectedPointLocked = false
         selectedPointFromCandidateList = false
-        var node = addMoveNode(player, x, y, false, captured, ko, true, true)
+        var node = addMoveNode(player, x, y, false, captured, result.ko, true, true)
         if (!node)
             return false
-        if (gameRuleMode === gameRuleDotsAndBoxes)
-            node.extraTurn = dotsResult.completedBoxes.length > 0
+        node.extraTurn = result.extraTurn === true
         node.gomokuForbidden = forbiddenMove
-        applyIncrementalMovePosition(node, working, result ? result.captured : captured.length,
-                                     ko, result ? (result.selfCaptured || 0) : 0)
+        applyIncrementalMovePosition(node, result.nextMap, result.captured,
+                                     result.ko, result.selfCaptured)
         statusMode = "turn"
         statusMessage = captured.length > 0 ? trText("captureMessage") + ": " + captured.length : ""
         checkGameOverAfterMove(node)
@@ -2242,19 +2190,28 @@ ApplicationWindow {
         var sourceNode = currentMoveSourceNode()
         var sourcePoint = sourceNode ? { "x": sourceNode.x, "y": sourceNode.y } : null
         var pointKey = keyFor(x, y)
-        var kind = gameRuleMode === gameRuleAtaxx
-                   ? GameRules.ataxxMoveKind(stones, boardDims(), x, y, player, sourcePoint)
-                   : GameRules.breakthroughMoveKind(stones, boardDims(), x, y, player, sourcePoint)
-        if (kind === "" || kind === "source" && sourceNode) {
+        var item = {
+            "x": x,
+            "y": y,
+            "key": pointKey,
+            "player": player,
+            "moveNumber": currentMoveNumberValue() + 1,
+            "nodeId": -1
+        }
+        var result = GameRules.applyMoveOnMap(stones, boardDims(), item, {
+            "ruleMode": gameRuleMode,
+            "pendingSource": sourcePoint
+        })
+        if (!result.ok) {
             statusMode = "message"
-            statusMessage = illegalPointMessage(x, y, "")
+            statusMessage = illegalPointMessage(x, y, result.reason)
             return false
         }
 
         selectedPointLocked = false
         selectedPointFromCandidateList = false
 
-        if (kind === "source") {
+        if (result.role === "source") {
             var source = addMoveNode(player, x, y, false, [], GameRules.emptyKoLoc(), true, true, "source")
             if (!source)
                 return false
@@ -2268,28 +2225,12 @@ ApplicationWindow {
             return true
         }
 
-        var item = {
-            "x": x,
-            "y": y,
-            "key": pointKey,
-            "player": player,
-            "moveNumber": currentMoveNumberValue() + 1,
-            "nodeId": -1
-        }
-        var working = GameRules.cloneStoneMap(stones)
-        var result = gameRuleMode === gameRuleAtaxx
-                     ? GameRules.applyAtaxxMoveOnMap(working, boardDims(), item, sourcePoint)
-                     : GameRules.applyBreakthroughMoveOnMap(working, boardDims(), item, sourcePoint)
-        if (!result.ok) {
-            statusMode = "message"
-            statusMessage = illegalPointMessage(x, y, "")
-            return false
-        }
         var node = addMoveNode(player, x, y, false, result.capturedStones || [],
-                               GameRules.emptyKoLoc(), true, true, "target")
+                               result.ko, true, true, "target")
         if (!node)
             return false
-        applyIncrementalMovePosition(node, working, (result.capturedStones || []).length, GameRules.emptyKoLoc())
+        applyIncrementalMovePosition(node, result.nextMap, result.captured,
+                                     result.ko, result.selfCaptured)
         statusMode = "turn"
         statusMessage = ""
         checkGameOverAfterMove(node)
@@ -2419,10 +2360,19 @@ ApplicationWindow {
             return false
         if (id === currentNodeId)
             return false
+        var previousNodeId = currentNodeId
         currentNodeId = id
         selectedPointLocked = false
         selectedPointFromCandidateList = false
-        rebuildPositionFromNode(id)
+        var replay = rebuildPositionFromNode(id)
+        if (!replay.ok) {
+            currentNodeId = previousNodeId
+            rebuildPositionFromNode(previousNodeId)
+            statusMode = "message"
+            statusMessage = trText("invalidGameRecordNode") + " #"
+                            + replay.nodeId + ": " + replay.reason
+            return false
+        }
         rebuildTreeLayout()
         scheduleAutoAnalysis()
         focusBoardInput()
@@ -2440,7 +2390,18 @@ ApplicationWindow {
             id = node.children[0]
             node = nodeById(id)
         }
-        gotoNode(id)
+        if (id === currentNodeId)
+            return true
+        return gotoNode(id)
+    }
+
+    function validateParsedGame(parsed) {
+        var mode = parsed.ruleMode === undefined || parsed.ruleMode === null
+                   ? gameRuleMode : Number(parsed.ruleMode)
+        return GameRules.validateGameTree(parsed.nodes, {
+                                              "x": parsed.boardSizeX,
+                                              "y": parsed.boardSizeY
+                                          }, mode)
     }
 
     function gotoRelativeMove(delta) {
@@ -3008,6 +2969,10 @@ ApplicationWindow {
 
     function applyRuleModeChange(mode) {
         RuleSupport.applyRuleModeChange(root, mode)
+    }
+
+    function activateRuleModeForSgf(mode) {
+        return RuleSupport.activateRuleMode(root, mode)
     }
 
     function requestBoardDimensionsChange(xSize, ySize, markDirty) {
@@ -3969,6 +3934,7 @@ ApplicationWindow {
         var text = message && message.length > 0 ? message : trText("engineFailedNotice")
         engineFailureNoticeText = text
         engineNoticeDismissed = false
+        resetEngineSyncState()
         enterNoEngineMode(text, true)
         Qt.callLater(function() {
             engineFailureDialog.open()
@@ -4305,7 +4271,11 @@ ApplicationWindow {
         engineListDialog.openManage()
     }
 
-    function openSaveSgfDialog() {
+    function openSaveSgfDialog(continuation) {
+        if (continuation !== saveContinuationQuit
+                && continuation !== saveContinuationPendingAction)
+            continuation = saveContinuationNone
+        pendingSaveContinuation = continuation
         saveSgfDialog.currentFile = ""
         saveSgfDialog.open()
     }
@@ -4319,9 +4289,10 @@ ApplicationWindow {
         loadSgfDialog.open()
     }
 
-    function openSgfGameTypeWarning(gameId, expectedGameId) {
+    function openSgfGameTypeWarning(gameId, expectedGameId, ruleName, expectedRuleName) {
         Qt.callLater(function() {
-            engineRuleWarningDialog.openForSgf(gameId, expectedGameId)
+            engineRuleWarningDialog.openForSgf(gameId, expectedGameId,
+                                               ruleName, expectedRuleName)
         })
     }
 
@@ -4330,7 +4301,31 @@ ApplicationWindow {
     }
 
     function saveSgfToFile(url) {
-        SgfSession.saveToFile(root, fileIo, url)
+        var continuation = pendingSaveContinuation
+        pendingSaveContinuation = saveContinuationNone
+        var ok = SgfSession.saveToFile(root, fileIo, url)
+        if (!ok) {
+            if (continuation === saveContinuationPendingAction
+                    && pendingClearAction.length > 0) {
+                Qt.callLater(function() { ruleChangeSaveDialog.open() })
+            } else if (continuation === saveContinuationQuit) {
+                Qt.callLater(function() { unsavedSgfDialog.open() })
+            } else {
+                focusBoardInput()
+            }
+            return false
+        }
+        if (continuation === saveContinuationQuit) {
+            suppressUnsavedPrompt = true
+            Qt.quit()
+            return true
+        }
+        if (continuation === saveContinuationPendingAction) {
+            applyPendingClearAction()
+            return true
+        }
+        focusBoardInput()
+        return true
     }
 
     function parseSgf(text) {

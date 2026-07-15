@@ -91,6 +91,40 @@ qsizetype nextInfoSeparator(QStringView text, qsizetype from)
     }
     return -1;
 }
+
+QStringList normalizedCommands(const QStringList &commands)
+{
+    QStringList result;
+    result.reserve(commands.size());
+    for (const QString &command : commands) {
+        const QString trimmedCommand = command.trimmed();
+        if (!trimmedCommand.isEmpty())
+            result.append(trimmedCommand);
+    }
+    return result;
+}
+
+QString commandName(const QString &command)
+{
+    const QStringList tokens = command.simplified().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (tokens.isEmpty())
+        return {};
+
+    int commandIndex = 0;
+    bool hasCommandId = false;
+    tokens.first().toInt(&hasCommandId);
+    if (hasCommandId && tokens.size() > 1)
+        commandIndex = 1;
+
+    return tokens.at(commandIndex).toLower();
+}
+
+bool commandExpectsResponse(const QString &command)
+{
+    const QString name = commandName(command);
+    return name != QStringLiteral("kata-analyze")
+        && name != QStringLiteral("lz-analyze");
+}
 }
 
 EngineController::EngineController(QObject *parent)
@@ -111,9 +145,11 @@ EngineController::EngineController(QObject *parent)
 #endif
         setRunning(true);
         setReady(false);
-        m_nameResponsePending = true;
+        m_protocolState.beginHandshake();
         setStatusText(QStringLiteral("Engine starting"));
-        sendCommand(QStringLiteral("name"));
+        writeCommand({ QStringLiteral("name"),
+                       EngineProtocolState::ResponseRole::Ignored,
+                       false });
         sendPendingCommands();
     });
 
@@ -147,15 +183,10 @@ EngineController::EngineController(QObject *parent)
         }
         if (!m_process.errorString().isEmpty())
             message += QStringLiteral(": ") + m_process.errorString();
-        m_pendingCommands.clear();
-        m_syncResponsesPending = 0;
-        m_acceptCandidateInfo = false;
-        m_moveRequestActive = false;
-        m_moveResponsesPending = 0;
-        m_moveRequestId = 0;
+        failActiveMoveRequest(message);
+        resetProtocolState();
         setReady(false);
         setRunning(false);
-        m_nameResponsePending = false;
         setFailed(true, message, QStringLiteral("generic"));
         setLastError(message);
         setStatusText(message);
@@ -174,21 +205,16 @@ EngineController::EngineController(QObject *parent)
                 m_restartPending = false;
                 setRunning(false);
                 setReady(false);
-                m_nameResponsePending = false;
 
                 if (restartPending) {
+                    m_protocolState.resetTransport();
                     setStatusText(QStringLiteral("Engine restarting"));
                     startProcess();
                     return;
                 }
 
-                m_syncResponsesPending = 0;
-                m_acceptCandidateInfo = false;
-                m_moveRequestActive = false;
-                m_moveResponsesPending = 0;
-                m_moveRequestId = 0;
-
                 if (intentionalStop) {
+                    resetProtocolState();
                     setStatusText(QStringLiteral("Engine stopped"));
                     return;
                 }
@@ -197,11 +223,10 @@ EngineController::EngineController(QObject *parent)
                                       ? QStringLiteral("Engine crashed")
                                       : QStringLiteral("Engine exited");
                 message += QStringLiteral(" (%1)").arg(exitCode);
-                if (exitStatus == QProcess::CrashExit || exitCode != 0) {
-                    m_pendingCommands.clear();
-                    setFailed(true, message, QStringLiteral("generic"));
-                    setLastError(message);
-                }
+                failActiveMoveRequest(message);
+                resetProtocolState();
+                setFailed(true, message, QStringLiteral("generic"));
+                setLastError(message);
                 setStatusText(message);
             });
 }
@@ -280,12 +305,8 @@ void EngineController::restart()
 {
     setFailed(false);
     setLastError(QString());
-    m_pendingCommands.clear();
-    m_syncResponsesPending = 0;
-    m_acceptCandidateInfo = false;
-    m_moveRequestActive = false;
-    m_moveResponsesPending = 0;
-    m_moveRequestId = 0;
+    failActiveMoveRequest(QStringLiteral("Engine restarting"));
+    resetProtocolState();
 
     if (m_process.state() != QProcess::NotRunning) {
         m_stopping = true;
@@ -298,7 +319,6 @@ void EngineController::restart()
     m_restartPending = false;
     setRunning(false);
     setReady(false);
-    m_nameResponsePending = false;
     startProcess();
 }
 
@@ -306,17 +326,12 @@ void EngineController::stop()
 {
     setFailed(false);
     setLastError(QString());
-    m_pendingCommands.clear();
-    m_syncResponsesPending = 0;
-    m_acceptCandidateInfo = false;
-    m_moveRequestActive = false;
-    m_moveResponsesPending = 0;
-    m_moveRequestId = 0;
+    failActiveMoveRequest(QStringLiteral("Engine stopped"));
+    resetProtocolState();
 
     if (m_process.state() == QProcess::NotRunning) {
         setRunning(false);
         setReady(false);
-        m_nameResponsePending = false;
         setStatusText(QStringLiteral("Engine stopped"));
         return;
     }
@@ -334,12 +349,8 @@ void EngineController::stop()
 
 void EngineController::shutdown()
 {
-    m_pendingCommands.clear();
-    m_syncResponsesPending = 0;
-    m_acceptCandidateInfo = false;
-    m_moveRequestActive = false;
-    m_moveResponsesPending = 0;
-    m_moveRequestId = 0;
+    failActiveMoveRequest(QStringLiteral("Engine shutting down"));
+    resetProtocolState();
     m_stopping = true;
     m_restartPending = false;
 
@@ -423,47 +434,63 @@ void EngineController::closeProcessJobObject()
 
 void EngineController::sendCommand(const QString &command)
 {
-    if (command.trimmed().isEmpty())
+    const QString trimmedCommand = command.trimmed();
+    if (trimmedCommand.isEmpty())
         return;
 
-    if (m_restartPending) {
-        m_pendingCommands.append(command);
+    const QueuedCommand queuedCommand {
+        trimmedCommand,
+        EngineProtocolState::ResponseRole::Ignored,
+        commandExpectsResponse(trimmedCommand)
+    };
+
+    if (commandName(trimmedCommand) == QStringLiteral("stop")) {
+        interruptCurrentCommand(queuedCommand, QStringLiteral("Move request stopped"));
         return;
     }
 
+    m_pendingCommands.append(queuedCommand);
+
+    if (m_restartPending)
+        return;
+
     if (m_process.state() == QProcess::NotRunning) {
-        m_pendingCommands.append(command);
         startProcess();
         return;
     }
 
-    if (m_process.state() == QProcess::Starting) {
-        m_pendingCommands.append(command);
+    if (m_process.state() == QProcess::Starting)
         return;
-    }
 
-    if (!m_ready && command.trimmed() != QStringLiteral("name") && command.trimmed() != QStringLiteral("quit")) {
-        m_pendingCommands.append(command);
-        return;
-    }
-
-    const QString trimmedCommand = command.trimmed();
-    emit engineInput(trimmedCommand);
-    const QByteArray bytes = trimmedCommand.toUtf8() + '\n';
-    m_process.write(bytes);
+    sendPendingCommands();
 }
 
 void EngineController::requestAnalysis(const QStringList &syncCommands, const QString &analyzeCommand)
 {
+    const QString supersededMessage = QStringLiteral("Move request superseded by analysis");
+    if (m_responsesPending > 0) {
+        interruptCurrentCommand({ QStringLiteral("stop"),
+                                  EngineProtocolState::ResponseRole::Ignored,
+                                  true },
+                                supersededMessage);
+    } else {
+        failActiveMoveRequest(supersededMessage);
+    }
     clearCandidates();
-    m_pendingCommands = syncCommands;
-    if (!analyzeCommand.trimmed().isEmpty())
-        m_pendingCommands.append(analyzeCommand.trimmed());
-    m_syncResponsesPending = syncCommands.size();
-    m_acceptCandidateInfo = m_syncResponsesPending == 0;
-    m_moveRequestActive = false;
-    m_moveResponsesPending = 0;
-    m_moveRequestId = 0;
+    m_pendingCommands.clear();
+    const QStringList normalizedSyncCommands = normalizedCommands(syncCommands);
+    for (const QString &command : normalizedSyncCommands) {
+        m_pendingCommands.append({ command,
+                                   EngineProtocolState::ResponseRole::AnalysisSync,
+                                   true });
+    }
+    const int syncResponseCount = normalizedSyncCommands.size();
+    const QString trimmedAnalyzeCommand = analyzeCommand.trimmed();
+    if (!trimmedAnalyzeCommand.isEmpty())
+        m_pendingCommands.append({ trimmedAnalyzeCommand,
+                                   EngineProtocolState::ResponseRole::Ignored,
+                                   false });
+    m_protocolState.beginAnalysis(syncResponseCount);
 
     if (m_restartPending) {
         setStatusText(QStringLiteral("Engine restarting"));
@@ -484,20 +511,40 @@ void EngineController::requestMove(const QStringList &syncCommands,
                                    const QString &genmoveCommand,
                                    int requestId)
 {
+    const QString supersededMessage = QStringLiteral("Move request superseded");
+    if (m_responsesPending > 0) {
+        interruptCurrentCommand({ QStringLiteral("stop"),
+                                  EngineProtocolState::ResponseRole::Ignored,
+                                  true },
+                                supersededMessage);
+    } else {
+        failActiveMoveRequest(supersededMessage);
+    }
     clearCandidates();
-    m_pendingCommands = syncCommands;
+    m_pendingCommands.clear();
+    const QStringList normalizedSyncCommands = normalizedCommands(syncCommands);
+    for (const QString &command : normalizedSyncCommands) {
+        m_pendingCommands.append({ command,
+                                   EngineProtocolState::ResponseRole::MovePrelude,
+                                   true });
+    }
     const QString trimmedTimeSettings = timeSettingsCommand.trimmed();
     const QString trimmedGenmove = genmoveCommand.trimmed();
     if (!trimmedTimeSettings.isEmpty())
-        m_pendingCommands.append(trimmedTimeSettings);
+        m_pendingCommands.append({ trimmedTimeSettings,
+                                   EngineProtocolState::ResponseRole::MovePrelude,
+                                   true });
     if (!trimmedGenmove.isEmpty())
-        m_pendingCommands.append(trimmedGenmove);
+        m_pendingCommands.append({ trimmedGenmove,
+                                   EngineProtocolState::ResponseRole::MoveGenerate,
+                                   true });
 
-    m_syncResponsesPending = 0;
-    m_acceptCandidateInfo = false;
-    m_moveRequestActive = !trimmedGenmove.isEmpty();
-    m_moveResponsesPending = syncCommands.size() + (trimmedTimeSettings.isEmpty() ? 0 : 1);
-    m_moveRequestId = m_moveRequestActive ? requestId : 0;
+    if (trimmedGenmove.isEmpty()) {
+        m_protocolState.resetTransaction();
+    } else {
+        const int preludeResponseCount = m_pendingCommands.size() - 1;
+        m_protocolState.beginMove(preludeResponseCount, requestId);
+    }
 
     if (m_restartPending) {
         setStatusText(QStringLiteral("Engine restarting"));
@@ -515,7 +562,7 @@ void EngineController::requestMove(const QStringList &syncCommands,
 
 void EngineController::clearCandidates()
 {
-    m_acceptCandidateInfo = false;
+    m_protocolState.stopAcceptingCandidateInfo();
     if (m_candidates.isEmpty())
         return;
 
@@ -568,9 +615,12 @@ void EngineController::startProcess()
     setLastError(QString());
 
     if (parts.isEmpty() || parts.first().trimmed().isEmpty()) {
+        const QString message = QStringLiteral("Engine command is empty");
+        failActiveMoveRequest(message);
+        resetProtocolState();
         setFailed(true, QString(), QStringLiteral("emptyCommand"));
         setLastError(QString());
-        setStatusText(QStringLiteral("Engine command is empty"));
+        setStatusText(message);
         setRunning(false);
         setReady(false);
         return;
@@ -579,6 +629,9 @@ void EngineController::startProcess()
     const QString programPath = resolvedProgramPath(parts.first());
     const QFileInfo programInfo(programPath);
     if (!programInfo.exists() || !programInfo.isFile()) {
+        const QString message = QStringLiteral("Engine program path does not exist: %1").arg(programPath);
+        failActiveMoveRequest(message);
+        resetProtocolState();
         setFailed(true, QString(), QStringLiteral("missingProgram"));
         setLastError(programPath);
         setStatusText(QStringLiteral("Engine program path does not exist"));
@@ -590,14 +643,8 @@ void EngineController::startProcess()
     m_stopping = false;
     setStatusText(QStringLiteral("Starting engine"));
     setReady(false);
-    m_nameResponsePending = false;
-    if (m_pendingCommands.isEmpty()) {
-        m_syncResponsesPending = 0;
-        m_acceptCandidateInfo = false;
-        m_moveRequestActive = false;
-        m_moveResponsesPending = 0;
-        m_moveRequestId = 0;
-    }
+    if (m_pendingCommands.isEmpty())
+        m_protocolState.resetTransaction();
     m_stdoutBuffer.clear();
     m_stderrBuffer.clear();
     m_process.setWorkingDirectory(portableRootPath());
@@ -606,13 +653,37 @@ void EngineController::startProcess()
 
 void EngineController::sendPendingCommands()
 {
-    if (m_process.state() != QProcess::Running || !m_ready)
+    if (m_process.state() != QProcess::Running || !m_ready || m_responsesPending > 0)
         return;
 
-    const QStringList commands = m_pendingCommands;
+    while (!m_pendingCommands.isEmpty()) {
+        const QueuedCommand command = m_pendingCommands.takeFirst();
+        writeCommand(command);
+        if (command.expectsResponse)
+            return;
+    }
+}
+
+void EngineController::writeCommand(const QueuedCommand &command)
+{
+    if (command.text.isEmpty())
+        return;
+
+    if (command.expectsResponse) {
+        m_protocolState.expectResponse(command.responseRole);
+        ++m_responsesPending;
+    }
+    emit engineInput(command.text);
+    m_process.write(command.text.toUtf8() + '\n');
+}
+
+void EngineController::interruptCurrentCommand(const QueuedCommand &command, const QString &reason)
+{
+    failActiveMoveRequest(reason);
     m_pendingCommands.clear();
-    for (const QString &command : commands)
-        sendCommand(command);
+    m_protocolState.resetTransaction();
+    if (m_process.state() == QProcess::Running && m_ready)
+        writeCommand(command);
 }
 
 void EngineController::readStandardOutput()
@@ -650,29 +721,24 @@ void EngineController::handleStdoutLine(const QString &line)
     emit engineOutput(line);
 
     if (line.startsWith(QStringLiteral("info "))) {
-        if (m_acceptCandidateInfo)
+        if (m_ready && m_protocolState.acceptsCandidateInfo())
             parseInfoLine(line);
         return;
     }
 
     setStatusText(line);
-    if (m_nameResponsePending
-            && (line.startsWith(QLatin1Char('=')) || line.startsWith(QLatin1Char('?')))) {
-        m_nameResponsePending = false;
-        setReady(true);
+    const EngineProtocolState::Outcome outcome = m_protocolState.consumeLine(line);
+    if (!outcome.handled)
+        return;
+
+    if (m_responsesPending > 0)
+        --m_responsesPending;
+    const bool abortPendingCommands =
+        (outcome.event == EngineProtocolState::Event::AnalysisSyncCompleted && !outcome.success)
+        || outcome.event == EngineProtocolState::Event::MovePreludeFailed;
+    handleProtocolOutcome(outcome);
+    if (!abortPendingCommands)
         sendPendingCommands();
-        return;
-    }
-
-    if (handleMoveResponseLine(line))
-        return;
-
-    if (m_syncResponsesPending > 0
-            && (line.startsWith(QLatin1Char('=')) || line.startsWith(QLatin1Char('?')))) {
-        --m_syncResponsesPending;
-        if (m_syncResponsesPending <= 0)
-            m_acceptCandidateInfo = true;
-    }
 }
 
 void EngineController::handleStderrLine(const QString &line)
@@ -681,27 +747,76 @@ void EngineController::handleStderrLine(const QString &line)
     setStatusText(line);
 }
 
-bool EngineController::handleMoveResponseLine(const QString &line)
+void EngineController::handleProtocolOutcome(const EngineProtocolState::Outcome &outcome)
 {
-    if (!m_moveRequestActive)
-        return false;
-    if (!line.startsWith(QLatin1Char('=')) && !line.startsWith(QLatin1Char('?')))
-        return false;
-
-    if (m_moveResponsesPending > 0) {
-        --m_moveResponsesPending;
-        return true;
+    switch (outcome.event) {
+    case EngineProtocolState::Event::None:
+        return;
+    case EngineProtocolState::Event::HandshakeCompleted:
+        if (outcome.success) {
+            setReady(true);
+            return;
+        }
+        {
+            QString message = QStringLiteral("Engine handshake failed");
+            const QString detail = outcome.payload.isEmpty() ? outcome.rawLine : outcome.payload;
+            if (!detail.isEmpty())
+                message += QStringLiteral(": ") + detail;
+            failActiveMoveRequest(message);
+            m_pendingCommands.clear();
+            m_protocolState.resetTransaction();
+            setReady(false);
+            setFailed(true, message, QStringLiteral("protocol"));
+            setLastError(message);
+            setStatusText(message);
+        }
+        return;
+    case EngineProtocolState::Event::AnalysisSyncCompleted:
+        if (!outcome.success) {
+            m_pendingCommands.clear();
+            QString message = QStringLiteral("Engine synchronization failed");
+            if (!outcome.rawLine.isEmpty())
+                message += QStringLiteral(": ") + outcome.rawLine;
+            setFailed(true, message, QStringLiteral("protocol"));
+            setLastError(message);
+            setStatusText(message);
+        }
+        return;
+    case EngineProtocolState::Event::MovePreludeFailed:
+        m_pendingCommands.clear();
+        emit moveGenerated(outcome.requestId,
+                           QString(),
+                           false,
+                           outcome.rawLine);
+        {
+            QString message = QStringLiteral("Engine move synchronization failed");
+            if (!outcome.rawLine.isEmpty())
+                message += QStringLiteral(": ") + outcome.rawLine;
+            setFailed(true, message, QStringLiteral("protocol"));
+            setLastError(message);
+            setStatusText(message);
+        }
+        return;
+    case EngineProtocolState::Event::MoveCompleted:
+        emit moveGenerated(outcome.requestId,
+                           outcome.payload,
+                           outcome.success,
+                           outcome.rawLine);
+        return;
     }
+}
 
-    m_moveRequestActive = false;
-    const int requestId = m_moveRequestId;
-    m_moveRequestId = 0;
-    const bool ok = line.startsWith(QLatin1Char('='));
-    QString payload = line.mid(1).trimmed();
-    if (payload.isEmpty() && ok)
-        payload = QStringLiteral("pass");
-    emit moveGenerated(requestId, payload, ok, line);
-    return true;
+void EngineController::failActiveMoveRequest(const QString &message)
+{
+    handleProtocolOutcome(m_protocolState.cancelMove(message));
+}
+
+void EngineController::resetProtocolState(bool clearPendingCommands)
+{
+    if (clearPendingCommands)
+        m_pendingCommands.clear();
+    m_responsesPending = 0;
+    m_protocolState.reset();
 }
 
 void EngineController::parseInfoLine(const QString &line)

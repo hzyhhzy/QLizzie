@@ -1,6 +1,7 @@
 .pragma library
 .import "EnginePresets.js" as EnginePresets
 .import "rules/RuleCatalog.js" as RuleCatalog
+.import "rules/RuleRegistry.js" as RuleRegistry
 
 function normalizeColorHex(value, fallback) {
     var text = String(value)
@@ -150,9 +151,7 @@ function parseJsonArray(text, fallback) {
 }
 
 function defaultRuleModeVisible(app, mode) {
-    return mode === app.gameRuleGo
-           || mode === app.gameRuleGomoku
-           || mode === app.gameRuleHex
+    return RuleRegistry.hasCapability(mode, "defaultVisible")
 }
 
 function defaultRuleVisibilityMap(app) {
@@ -164,7 +163,7 @@ function defaultRuleVisibilityMap(app) {
 }
 
 function defaultCommonRuleOrder(app) {
-    return [app.gameRuleGo, app.gameRuleGomoku, app.gameRuleHex]
+    return [RuleRegistry.RULE_GO, RuleRegistry.RULE_GOMOKU, RuleRegistry.RULE_HEX]
 }
 
 function normalizeRuleVisibilityMap(app, source) {

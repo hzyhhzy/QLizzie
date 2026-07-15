@@ -1,15 +1,27 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 AppDialog {
     id: ruleChangeSaveDialog
 
+    property bool explicitClose: false
+
     modal: true
     title: app.pendingClearTitle()
     closePolicy: Popup.CloseOnEscape
     width: Math.max(400, Math.min(480, app.width - 80))
+
+    onOpened: explicitClose = false
+    onClosed: {
+        if (explicitClose) {
+            explicitClose = false
+            return
+        }
+        app.clearPendingClearAction()
+        app.onSettingsDialogClosed()
+        app.focusBoardInput()
+    }
 
     contentItem: Rectangle {
         implicitWidth: 440
@@ -38,14 +50,16 @@ AppDialog {
             text: app.trText("save")
             primary: true
             onClicked: {
+                ruleChangeSaveDialog.explicitClose = true
                 ruleChangeSaveDialog.close()
-                app.openSaveSgfDialog(false)
+                app.openSaveSgfDialog(app.saveContinuationPendingAction)
             }
         }
 
         SavePromptButton {
             text: app.trText("dontSave")
             onClicked: {
+                ruleChangeSaveDialog.explicitClose = true
                 ruleChangeSaveDialog.close()
                 app.applyPendingClearAction()
             }
@@ -54,6 +68,7 @@ AppDialog {
         SavePromptButton {
             text: app.trText("cancel")
             onClicked: {
+                ruleChangeSaveDialog.explicitClose = true
                 ruleChangeSaveDialog.close()
                 app.clearPendingClearAction()
                 app.onSettingsDialogClosed()

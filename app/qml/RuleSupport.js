@@ -1,5 +1,6 @@
 .pragma library
 .import "rules/RuleCatalog.js" as RuleCatalog
+.import "rules/RuleRegistry.js" as RuleRegistry
 
 function gomokuRuleLabel(app, rule) {
     if (rule === app.gomokuRuleStandard)
@@ -138,6 +139,13 @@ function ruleOption(app, labelKey, value, tipKey, groupKeys) {
     }
 }
 
+function ruleOptionFromRegistry(app, mode, groupKeys) {
+    var item = RuleRegistry.descriptor(mode)
+    if (!item)
+        return ruleOption(app, "gameRuleGomoku", mode, "gameRuleGomokuTip", groupKeys)
+    return ruleOption(app, item.textKey, item.id, item.tipKey, groupKeys)
+}
+
 function ruleGroup(labelKey, children) {
     return {
         "type": "group",
@@ -155,41 +163,41 @@ function ruleLeaf(option) {
 
 function gameRuleTree(app) {
     return [
-        ruleLeaf(ruleOption(app, "gameRuleGo", app.gameRuleGo, "gameRuleGoTip", [])),
-        ruleLeaf(ruleOption(app, "gameRuleGomoku", app.gameRuleGomoku, "gameRuleGomokuTip", [])),
+        ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_GO, [])),
+        ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_GOMOKU, [])),
         ruleGroup("ruleGroupGoVariants", [
-            ruleLeaf(ruleOption(app, "gameRuleTwoLibGo", app.gameRuleTwoLibGo,
-                                "gameRuleTwoLibGoTip", ["ruleGroupGoVariants"])),
-            ruleLeaf(ruleOption(app, "gameRuleTorusGo", app.gameRuleTorusGo,
-                                "gameRuleTorusGoTip", ["ruleGroupGoVariants"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_TWO_LIB_GO,
+                                       ["ruleGroupGoVariants"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_TORUS_GO,
+                                       ["ruleGroupGoVariants"])),
             ruleGroup("ruleGroupHexGo", [
-                ruleLeaf(ruleOption(app, "gameRuleHexGoParallelogram", app.gameRuleHexGoParallelogram,
-                                    "gameRuleHexGoParallelogramTip", ["ruleGroupGoVariants", "ruleGroupHexGo"])),
-                ruleLeaf(ruleOption(app, "gameRuleHexGoHexagon", app.gameRuleHexGoHexagon,
-                                    "gameRuleHexGoHexagonTip", ["ruleGroupGoVariants", "ruleGroupHexGo"])),
-                ruleLeaf(ruleOption(app, "gameRuleHexGoTriangle", app.gameRuleHexGoTriangle,
-                                    "gameRuleHexGoTriangleTip", ["ruleGroupGoVariants", "ruleGroupHexGo"]))
+                ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_HEX_GO_PARALLELOGRAM,
+                                           ["ruleGroupGoVariants", "ruleGroupHexGo"])),
+                ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_HEX_GO_HEXAGON,
+                                           ["ruleGroupGoVariants", "ruleGroupHexGo"])),
+                ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_HEX_GO_TRIANGLE,
+                                           ["ruleGroupGoVariants", "ruleGroupHexGo"]))
             ])
         ]),
         ruleGroup("ruleGroupGomokuVariants", [
-            ruleLeaf(ruleOption(app, "gameRuleConnect6", app.gameRuleConnect6,
-                                "gameRuleConnect6Tip", ["ruleGroupGomokuVariants"]))
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_CONNECT6,
+                                       ["ruleGroupGomokuVariants"]))
         ]),
         ruleGroup("ruleGroupCommonNewGames", [
-            ruleLeaf(ruleOption(app, "gameRuleHex", app.gameRuleHex,
-                                "gameRuleHexTip", ["ruleGroupCommonNewGames"])),
-            ruleLeaf(ruleOption(app, "gameRuleDotsAndBoxes", app.gameRuleDotsAndBoxes,
-                                "gameRuleDotsAndBoxesTip", ["ruleGroupCommonNewGames"])),
-            ruleLeaf(ruleOption(app, "gameRuleReversi", app.gameRuleReversi,
-                                "gameRuleReversiTip", ["ruleGroupCommonNewGames"])),
-            ruleLeaf(ruleOption(app, "gameRuleAtaxx", app.gameRuleAtaxx,
-                                "gameRuleAtaxxTip", ["ruleGroupCommonNewGames"])),
-            ruleLeaf(ruleOption(app, "gameRuleBreakthrough", app.gameRuleBreakthrough,
-                                "gameRuleBreakthroughTip", ["ruleGroupCommonNewGames"]))
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_HEX,
+                                       ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_DOTS_AND_BOXES,
+                                       ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_REVERSI,
+                                       ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_ATAXX,
+                                       ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_BREAKTHROUGH,
+                                       ["ruleGroupCommonNewGames"]))
         ]),
         ruleGroup("ruleGroupOther", [
-            ruleLeaf(ruleOption(app, "gameRuleSquareFree", app.gameRuleSquareFree,
-                                "gameRuleSquareFreeTip", ["ruleGroupOther"]))
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_SQUARE_FREE,
+                                       ["ruleGroupOther"]))
         ])
     ]
 }
@@ -205,34 +213,9 @@ function collectRuleOptions(nodes, options) {
 }
 
 function gameRuleTextForMode(app, mode) {
-    if (mode === app.gameRuleGo)
-        return app.trText("gameRuleGo")
-    if (mode === app.gameRuleGomoku)
-        return app.trText("gameRuleGomoku")
-    if (mode === app.gameRuleHex)
-        return app.trText("gameRuleHex")
-    if (mode === app.gameRuleSquareFree)
-        return app.trText("gameRuleSquareFree")
-    if (mode === app.gameRuleReversi)
-        return app.trText("gameRuleReversi")
-    if (mode === app.gameRuleConnect6)
-        return app.trText("gameRuleConnect6")
-    if (mode === app.gameRuleHexGoParallelogram)
-        return app.trText("gameRuleHexGoParallelogram")
-    if (mode === app.gameRuleHexGoHexagon)
-        return app.trText("gameRuleHexGoHexagon")
-    if (mode === app.gameRuleHexGoTriangle)
-        return app.trText("gameRuleHexGoTriangle")
-    if (mode === app.gameRuleTorusGo)
-        return app.trText("gameRuleTorusGo")
-    if (mode === app.gameRuleTwoLibGo)
-        return app.trText("gameRuleTwoLibGo")
-    if (mode === app.gameRuleDotsAndBoxes)
-        return app.trText("gameRuleDotsAndBoxes")
-    if (mode === app.gameRuleAtaxx)
-        return app.trText("gameRuleAtaxx")
-    if (mode === app.gameRuleBreakthrough)
-        return app.trText("gameRuleBreakthrough")
+    var item = RuleRegistry.descriptor(mode)
+    if (item)
+        return app.trText(item.textKey)
     return app.trText("gameRuleGomoku")
 }
 
@@ -256,39 +239,24 @@ function ruleModeTipForMode(app, mode) {
 }
 
 function validRuleMode(app, mode) {
-    var options = gameRuleOptions(app)
-    for (var i = 0; i < options.length; ++i) {
-        if (options[i].value === mode)
-            return true
-    }
-    return false
+    return RuleRegistry.validMode(mode)
 }
 
 function ruleUsesHexGrid(app, mode) {
-    return mode === app.gameRuleHex
-           || mode === app.gameRuleHexGoParallelogram
-           || mode === app.gameRuleHexGoHexagon
-           || mode === app.gameRuleHexGoTriangle
+    return RuleRegistry.hasCapability(mode, "hexGrid")
 }
 
 function ruleUsesGoCapture(app, mode) {
-    return mode === app.gameRuleGo
-           || mode === app.gameRuleTorusGo
-           || mode === app.gameRuleTwoLibGo
-           || mode === app.gameRuleHexGoParallelogram
-           || mode === app.gameRuleHexGoHexagon
-           || mode === app.gameRuleHexGoTriangle
+    return RuleRegistry.hasCapability(mode, "goCapture")
 }
 
 function ruleUsesSquareCells(app, mode) {
     return (mode === app.gameRuleGomoku && app.boardPresentationMode === app.boardPresentationCells)
-           || mode === app.gameRuleReversi
-           || mode === app.gameRuleAtaxx
-           || mode === app.gameRuleBreakthrough
+           || RuleRegistry.hasCapability(mode, "squareCells")
 }
 
 function ruleUsesDotsAndBoxes(app, mode) {
-    return mode === app.gameRuleDotsAndBoxes
+    return RuleRegistry.hasCapability(mode, "dotsAndBoxes")
 }
 
 function ruleUsesHexCellStyle(app, mode) {
@@ -296,11 +264,11 @@ function ruleUsesHexCellStyle(app, mode) {
 }
 
 function ruleAllowsOccupiedMoves(app, mode) {
-    return mode === app.gameRuleSquareFree
+    return RuleRegistry.hasCapability(mode, "allowsOccupiedMoves")
 }
 
 function ruleUsesMoveSource(app, mode) {
-    return mode === app.gameRuleAtaxx || mode === app.gameRuleBreakthrough
+    return RuleRegistry.hasCapability(mode, "moveSource")
 }
 
 function ruleHasBoardPresentation(app, mode) {
@@ -320,13 +288,11 @@ function ruleVisibilityKey(app, mode) {
 }
 
 function defaultCommonRuleOrder(app) {
-    return [app.gameRuleGo, app.gameRuleGomoku, app.gameRuleHex]
+    return [RuleRegistry.RULE_GO, RuleRegistry.RULE_GOMOKU, RuleRegistry.RULE_HEX]
 }
 
 function defaultRuleModeVisible(app, mode) {
-    return mode === app.gameRuleGo
-           || mode === app.gameRuleGomoku
-           || mode === app.gameRuleHex
+    return RuleRegistry.hasCapability(mode, "defaultVisible")
 }
 
 function normalizedRuleVisibilityMap(app, source) {
@@ -913,19 +879,14 @@ function requestRuleModeChange(app, mode, dialog) {
     applyRuleModeChange(app, mode)
 }
 
-function applyRuleModeChange(app, mode) {
+function activateRuleMode(app, mode) {
     if (!validRuleMode(app, mode))
-        return
+        return false
     if (!ruleModeAllowedForPackage(app, mode))
-        return
+        return false
     var previousKomiUsage = currentKomiUsage(app)
     app.gameRuleMode = mode
     app.adjustKomiForRuleChange(previousKomiUsage)
-    var requestedX = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeX
-    var requestedY = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeY
-    var adjusted = adjustedBoardDimensionsForRule(app, mode, requestedX, requestedY)
-    app.boardSizeX = adjusted.x
-    app.boardSizeY = adjusted.y
     if (mode === app.gameRuleHex)
         app.coordinateDisplayMode = app.coordinateDisplayHex
     app.boardPresentationMode = RuleCatalog.normalizeBoardPresentationMode(
@@ -937,6 +898,17 @@ function applyRuleModeChange(app, mode) {
     else if (mode === app.gameRuleTorusGo)
         app.torusGoBoardPresentationMode = app.boardPresentationMode
     normalizeGomokuRuleForCurrentMode(app)
+    return true
+}
+
+function applyRuleModeChange(app, mode) {
+    if (!activateRuleMode(app, mode))
+        return
+    var requestedX = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeX
+    var requestedY = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeY
+    var adjusted = adjustedBoardDimensionsForRule(app, mode, requestedX, requestedY)
+    app.boardSizeX = adjusted.x
+    app.boardSizeY = adjusted.y
     app.clearHover(true)
     app.resetGameTree()
     app.gameDirty = false
@@ -1104,7 +1076,6 @@ function applyPendingClearAction(app, loadSgfDialog) {
     }
     if (app.pendingClearAction === "openSgf") {
         clearPendingClearAction(app)
-        app.gameDirty = false
         loadSgfDialog.open()
         return
     }

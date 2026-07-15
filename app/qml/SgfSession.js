@@ -12,22 +12,11 @@ function parse(app, text) {
         "minBoardSize": app.minBoardSize,
         "maxBoardSize": app.maxBoardSize,
         "defaultRuleMode": app.gameRuleMode,
-        "ignoreRuleMode": true,
+        "ignoreRuleMode": false,
         "gameRuleGo": app.gameRuleGo,
         "gameRuleGomoku": app.gameRuleGomoku,
         "gameRuleHex": app.gameRuleHex
     })
-}
-
-function sgfGameIdNumber(value) {
-    var number = parseInt(String(value).trim(), 10)
-    return isNaN(number) ? -1 : number
-}
-
-function sgfGameIdMismatch(app, parsed) {
-    if (!parsed || parsed.gameId === undefined || String(parsed.gameId).trim() === "")
-        return false
-    return sgfGameIdNumber(parsed.gameId) !== SgfUtils.sgfGameInfo(app.gameRuleMode).gameId
 }
 
 function finalizeAnalysisCaches(app) {
@@ -57,7 +46,17 @@ function finalizeAnalysisCaches(app) {
 }
 
 function applyParsed(app, parsed, url) {
-    app.resetEngineSyncState()
+    var targetRuleMode = parsed.ruleMode === undefined || parsed.ruleMode === null
+                         ? app.gameRuleMode : Number(parsed.ruleMode)
+    var ruleMismatch = targetRuleMode !== Number(app.gameRuleMode)
+    if (ruleMismatch && !app.ruleModeAllowedForPackage(targetRuleMode)) {
+        app.statusMode = "message"
+        app.statusMessage = app.trText("sgfLoadFailed") + ": " + parsed.ruleName
+        var currentRule = SgfUtils.sgfGameInfo(app.gameRuleMode)
+        app.openSgfGameTypeWarning(parsed.gameId, currentRule.gameId,
+                                   parsed.ruleName, currentRule.ruleName)
+        return
+    }
     if (!app.boardDimensionsAllowedForPackage(parsed.boardSizeX, parsed.boardSizeY)) {
         app.statusMode = "message"
         app.statusMessage = app.trText("sgfLoadFailed") + ": "
@@ -65,15 +64,31 @@ function applyParsed(app, parsed, url) {
         app.focusBoardInput()
         return
     }
-    if (!app.boardDimensionsAllowedForRule(app.gameRuleMode, parsed.boardSizeX, parsed.boardSizeY)) {
+    if (!app.boardDimensionsAllowedForRule(targetRuleMode, parsed.boardSizeX, parsed.boardSizeY)) {
         app.statusMode = "message"
         app.statusMessage = app.trText("sgfLoadFailed") + ": "
-                            + app.ruleBoardSizeRejectText(app.gameRuleMode,
+                            + app.ruleBoardSizeRejectText(targetRuleMode,
                                                           parsed.boardSizeX,
                                                           parsed.boardSizeY)
         app.focusBoardInput()
         return
     }
+    var validation = app.validateParsedGame(parsed)
+    if (!validation.ok) {
+        app.statusMode = "message"
+        app.statusMessage = app.trText("sgfLoadFailed") + ": "
+                            + app.trText("invalidGameRecordNode") + " #"
+                            + validation.nodeId + ": " + validation.reason
+        app.focusBoardInput()
+        return
+    }
+    if (ruleMismatch && !app.activateRuleModeForSgf(targetRuleMode)) {
+        app.statusMode = "message"
+        app.statusMessage = app.trText("sgfLoadFailed") + ": " + parsed.ruleName
+        app.focusBoardInput()
+        return
+    }
+    app.resetEngineSyncState()
     app.boardSizeX = parsed.boardSizeX
     app.boardSizeY = parsed.boardSizeY
     app.gameTreeGeneration += 1
@@ -88,10 +103,7 @@ function applyParsed(app, parsed, url) {
     app.gameDirty = false
     app.statusMode = "message"
     app.statusMessage = app.trText("sgfLoaded") + ": " + url
-    if (sgfGameIdMismatch(app, parsed))
-        app.openSgfGameTypeWarning(parsed.gameId, SgfUtils.sgfGameInfo(app.gameRuleMode).gameId)
-    else
-        app.focusBoardInput()
+    app.focusBoardInput()
 }
 
 function saveToFile(app, fileIo, url) {
@@ -104,12 +116,7 @@ function saveToFile(app, fileIo, url) {
         app.statusMode = "message"
         app.statusMessage = app.trText("sgfSaveFailed") + ": " + fileIo.lastError
     }
-    if (app.saveDialogClosesApp) {
-        app.saveDialogClosesApp = false
-        app.suppressUnsavedPrompt = true
-        Qt.quit()
-    }
-    app.focusBoardInput()
+    return ok
 }
 
 function loadFromFile(app, fileIo, url) {

@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 
 FileIo::FileIo(QObject *parent)
     : QObject(parent)
@@ -53,14 +54,20 @@ bool FileIo::writeTextFile(const QUrl &url, const QString &text)
         return false;
     }
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    QSaveFile file(path);
+    file.setDirectWriteFallback(false);
+    if (!file.open(QIODevice::WriteOnly)) {
         setLastError(file.errorString());
         return false;
     }
 
     const QByteArray bytes = text.toUtf8();
     if (file.write(bytes) != bytes.size()) {
+        setLastError(file.errorString());
+        return false;
+    }
+
+    if (!file.commit()) {
         setLastError(file.errorString());
         return false;
     }
