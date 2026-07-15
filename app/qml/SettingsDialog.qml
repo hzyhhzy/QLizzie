@@ -22,8 +22,8 @@ AppDialog {
     }
 
     function syncFields() {
-        boardXSpin.value = app.boardSizeX
-        boardYSpin.value = app.boardSizeY
+        boardXSpin.value = app.logicalBoardDimensionForRule(app.gameRuleMode, app.boardSizeX)
+        boardYSpin.value = app.logicalBoardDimensionForRule(app.gameRuleMode, app.boardSizeY)
         backgroundColorField.text = colorToText(app.backgroundColor)
         boardColorField.text = colorToText(app.boardWoodColor)
         candidateFirstTextColorField.text = colorToText(app.candidateFirstLabelTextColor)
@@ -33,6 +33,12 @@ AppDialog {
     function chooseBoardPreset(size) {
         boardXSpin.value = size
         boardYSpin.value = size
+    }
+
+    function applyBoardSize() {
+        return app.requestBoardDimensionsChange(
+                    app.internalBoardDimensionForRule(app.gameRuleMode, boardXSpin.value),
+                    app.internalBoardDimensionForRule(app.gameRuleMode, boardYSpin.value))
     }
 
     function colorToText(colorValue) {
@@ -51,7 +57,7 @@ AppDialog {
 
     onOpened: syncFields()
     onClosed: {
-        app.requestBoardDimensionsChange(boardXSpin.value, boardYSpin.value)
+        applyBoardSize()
         app.onSettingsDialogClosed()
         app.focusBoardInput()
     }
@@ -132,7 +138,8 @@ AppDialog {
                             AppSpinBox {
                                 id: boardXSpin
                                 from: app.minBoardSize
-                                to: app.maxBoardSize
+                                to: app.gameRuleMode === app.gameRuleDotsAndBoxes
+                                    ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                                 enabled: app.customBoardSizeAllowed()
                                 editable: true
                                 Layout.preferredWidth: 84
@@ -143,7 +150,8 @@ AppDialog {
                             AppSpinBox {
                                 id: boardYSpin
                                 from: app.minBoardSize
-                                to: app.maxBoardSize
+                                to: app.gameRuleMode === app.gameRuleDotsAndBoxes
+                                    ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                                 enabled: app.customBoardSizeAllowed()
                                 editable: true
                                 Layout.preferredWidth: 84
@@ -154,7 +162,7 @@ AppDialog {
                             SavePromptButton {
                                 text: app.trText("apply")
                                 primary: true
-                                onClicked: app.requestBoardDimensionsChange(boardXSpin.value, boardYSpin.value)
+                                onClicked: settingsDialog.applyBoardSize()
                             }
                         }
                     }

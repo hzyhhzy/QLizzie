@@ -176,6 +176,20 @@ ColumnLayout {
             return ataxxPreviewConfig()
         if (app.gameRuleMode === app.gameRuleBreakthrough)
             return breakthroughPreviewConfig()
+        if (app.gameRuleMode === app.gameRuleDotsAndBoxes) {
+            return {
+                "boardSizeX": 7,
+                "boardSizeY": 7,
+                "stones": [
+                    previewStone(1, 0, 1, 1), previewStone(0, 1, 2, 2),
+                    previewStone(2, 1, 1, 3), previewStone(1, 2, 1, 4),
+                    previewStone(1, 1, 1, 4), previewStone(3, 2, 2, 5),
+                    previewStone(4, 3, 2, 6)
+                ],
+                "lastMoveNumber": 0,
+                "path": []
+            }
+        }
         return centerStoneConfig(3, 3)
     }
 
@@ -469,10 +483,12 @@ ColumnLayout {
                                 "stones": preview.stones
                             })
                             ruleSettingsPage.drawPreviewWinPath(ctx, state, geometry, preview.path)
-                            for (var i = 0; i < preview.stones.length; ++i)
-                                ruleSettingsPage.drawPreviewStoneOverlay(ctx, state, geometry,
-                                                                         preview.stones[i],
-                                                                         preview.lastMoveNumber)
+                            if (app.gameRuleMode !== app.gameRuleDotsAndBoxes) {
+                                for (var i = 0; i < preview.stones.length; ++i)
+                                    ruleSettingsPage.drawPreviewStoneOverlay(ctx, state, geometry,
+                                                                             preview.stones[i],
+                                                                             preview.lastMoveNumber)
+                            }
                         }
 
                         Connections {

@@ -178,6 +178,8 @@ function gameRuleTree(app) {
         ruleGroup("ruleGroupCommonNewGames", [
             ruleLeaf(ruleOption(app, "gameRuleHex", app.gameRuleHex,
                                 "gameRuleHexTip", ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOption(app, "gameRuleDotsAndBoxes", app.gameRuleDotsAndBoxes,
+                                "gameRuleDotsAndBoxesTip", ["ruleGroupCommonNewGames"])),
             ruleLeaf(ruleOption(app, "gameRuleReversi", app.gameRuleReversi,
                                 "gameRuleReversiTip", ["ruleGroupCommonNewGames"])),
             ruleLeaf(ruleOption(app, "gameRuleAtaxx", app.gameRuleAtaxx,
@@ -225,6 +227,8 @@ function gameRuleTextForMode(app, mode) {
         return app.trText("gameRuleTorusGo")
     if (mode === app.gameRuleTwoLibGo)
         return app.trText("gameRuleTwoLibGo")
+    if (mode === app.gameRuleDotsAndBoxes)
+        return app.trText("gameRuleDotsAndBoxes")
     if (mode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
     if (mode === app.gameRuleBreakthrough)
@@ -281,6 +285,10 @@ function ruleUsesSquareCells(app, mode) {
            || mode === app.gameRuleReversi
            || mode === app.gameRuleAtaxx
            || mode === app.gameRuleBreakthrough
+}
+
+function ruleUsesDotsAndBoxes(app, mode) {
+    return mode === app.gameRuleDotsAndBoxes
 }
 
 function ruleUsesHexCellStyle(app, mode) {
@@ -712,6 +720,8 @@ function komiUsageForRule(app, mode) {
             || mode === app.gameRuleHexGoTriangle
             || mode === app.gameRuleAtaxx)
         return app.komiUsageKomi
+    if (mode === app.gameRuleDotsAndBoxes)
+        return app.komiUsageKomi
     if (mode === app.gameRuleGomoku
             || mode === app.gameRuleConnect6)
         return app.komiUsageBlackAggression
@@ -826,6 +836,8 @@ function boardSizePresets(app) {
         return [5, 7, 9]
     if (app.gameRuleMode === app.gameRuleBreakthrough)
         return [6, 8, 10]
+    if (app.gameRuleMode === app.gameRuleDotsAndBoxes)
+        return [5, 6]
     return [9, 13, 19]
 }
 
@@ -909,7 +921,9 @@ function applyRuleModeChange(app, mode) {
     var previousKomiUsage = currentKomiUsage(app)
     app.gameRuleMode = mode
     app.adjustKomiForRuleChange(previousKomiUsage)
-    var adjusted = adjustedBoardDimensionsForRule(app, mode, app.boardSizeX, app.boardSizeY)
+    var requestedX = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeX
+    var requestedY = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeY
+    var adjusted = adjustedBoardDimensionsForRule(app, mode, requestedX, requestedY)
     app.boardSizeX = adjusted.x
     app.boardSizeY = adjusted.y
     if (mode === app.gameRuleHex)
@@ -937,6 +951,18 @@ function applyRuleModeChange(app, mode) {
         app.focusBoardInput()
 }
 
+function logicalBoardDimensionForRule(app, mode, internalSize) {
+    if (mode === app.gameRuleDotsAndBoxes)
+        return Math.max(1, Math.floor((Number(internalSize) - 1) / 2))
+    return Number(internalSize)
+}
+
+function internalBoardDimensionForRule(app, mode, logicalSize) {
+    if (mode === app.gameRuleDotsAndBoxes)
+        return Math.max(3, Math.round(Number(logicalSize)) * 2 + 1)
+    return Math.round(Number(logicalSize))
+}
+
 function adjustedBoardDimensionsForRule(app, mode, xSize, ySize) {
     var nextX = Math.round(app.clamp(xSize, app.minBoardSize, app.maxBoardSize))
     var nextY = Math.round(app.clamp(ySize, app.minBoardSize, app.maxBoardSize))
@@ -949,6 +975,11 @@ function adjustedBoardDimensionsForRule(app, mode, xSize, ySize) {
         nextY = nextX
     } else if (mode === app.gameRuleBreakthrough && nextY <= 3) {
         nextY = 4
+    } else if (mode === app.gameRuleDotsAndBoxes) {
+        if (nextX % 2 === 0)
+            nextX += 1
+        if (nextY % 2 === 0)
+            nextY += 1
     }
     return { "x": nextX, "y": nextY }
 }
@@ -960,6 +991,8 @@ function boardDimensionsAllowedForRule(app, mode, xSize, ySize) {
         return xSize === ySize
     if (mode === app.gameRuleBreakthrough)
         return ySize > 3
+    if (mode === app.gameRuleDotsAndBoxes)
+        return xSize >= 3 && ySize >= 3 && xSize % 2 === 1 && ySize % 2 === 1
     return true
 }
 

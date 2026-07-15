@@ -24,6 +24,7 @@ function stateFromApp(app, overrides) {
         "gameRuleHexGoTriangle": app.gameRuleHexGoTriangle,
         "gameRuleTorusGo": app.gameRuleTorusGo,
         "gameRuleTwoLibGo": app.gameRuleTwoLibGo,
+        "gameRuleDotsAndBoxes": app.gameRuleDotsAndBoxes,
         "gameRuleReversi": app.gameRuleReversi,
         "gameRuleAtaxx": app.gameRuleAtaxx,
         "gameRuleBreakthrough": app.gameRuleBreakthrough,
@@ -862,7 +863,18 @@ function drawGrid(ctx, state, geometry) {
     ctx.strokeStyle = hexCellStyle(state) ? "#0b3d73" : "#2d2114"
     ctx.globalAlpha = hexCellStyle(state) ? 1 : state.gridOpacity
     ctx.lineWidth = Math.max(1, state.gridLineWidth)
-    if (hexBoard(state)) {
+    if (state.gameRuleMode === state.gameRuleDotsAndBoxes) {
+        ctx.fillStyle = "#2b2118"
+        ctx.globalAlpha = 1
+        for (var dotY = 0; dotY < state.boardSizeY; dotY += 2) {
+            for (var dotX = 0; dotX < state.boardSizeX; dotX += 2) {
+                var dot = geometry.point(dotX, dotY)
+                ctx.beginPath()
+                ctx.arc(dot.x, dot.y, Math.max(2.5, cell * 0.09), 0, Math.PI * 2)
+                ctx.fill()
+            }
+        }
+    } else if (hexBoard(state)) {
         if (hexCellStyle(state)) {
             for (var cellY = 0; cellY < state.boardSizeY; ++cellY) {
                 for (var cellX = 0; cellX < state.boardSizeX; ++cellX) {
@@ -954,6 +966,87 @@ function drawGrid(ctx, state, geometry) {
             ctx.moveTo(geometry.boardLeft, py)
             ctx.lineTo(geometry.boardRight, py)
             ctx.stroke()
+        }
+    }
+    ctx.restore()
+}
+
+function drawDotsAndBoxesPosition(ctx, state, geometry, stones) {
+    if (state.gameRuleMode !== state.gameRuleDotsAndBoxes)
+        return
+    var cell = geometry.cellSize
+    var edgeWidth = Math.max(5, cell * 0.28)
+    var halfWidth = edgeWidth * 0.5
+    var boxRadius = cell * 0.7
+
+    function edgePath(point, horizontal) {
+        ctx.beginPath()
+        if (horizontal) {
+            ctx.moveTo(point.x - cell, point.y)
+            ctx.lineTo(point.x - cell + halfWidth, point.y - halfWidth)
+            ctx.lineTo(point.x + cell - halfWidth, point.y - halfWidth)
+            ctx.lineTo(point.x + cell, point.y)
+            ctx.lineTo(point.x + cell - halfWidth, point.y + halfWidth)
+            ctx.lineTo(point.x - cell + halfWidth, point.y + halfWidth)
+        } else {
+            ctx.moveTo(point.x, point.y - cell)
+            ctx.lineTo(point.x + halfWidth, point.y - cell + halfWidth)
+            ctx.lineTo(point.x + halfWidth, point.y + cell - halfWidth)
+            ctx.lineTo(point.x, point.y + cell)
+            ctx.lineTo(point.x - halfWidth, point.y + cell - halfWidth)
+            ctx.lineTo(point.x - halfWidth, point.y - cell + halfWidth)
+        }
+        ctx.closePath()
+    }
+
+    ctx.save()
+
+    // Claimed boxes sit below the edges so the board structure remains clear.
+    for (var i = 0; stones && i < stones.length; ++i) {
+        var stone = stones[i]
+        if (stone.x % 2 !== 1 || stone.y % 2 !== 1)
+            continue
+        var boxPoint = geometry.point(stone.x, stone.y)
+        var boxBlack = stone.player === 1
+        ctx.fillStyle = boxBlack ? "#15191d" : "#ffffff"
+        ctx.strokeStyle = boxBlack ? "#090b0d" : "#9ba7ae"
+        ctx.lineWidth = Math.max(1, cell * 0.04)
+        ctx.beginPath()
+        ctx.arc(boxPoint.x, boxPoint.y, boxRadius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+    }
+
+    for (var e = 0; stones && e < stones.length; ++e) {
+        var edge = stones[e]
+        var point = geometry.point(edge.x, edge.y)
+        var black = edge.player === 1
+        var horizontal = edge.x % 2 === 1
+        if (edge.x % 2 === edge.y % 2)
+            continue
+
+        edgePath(point, horizontal)
+        ctx.fillStyle = black ? "#11151a" : "#ffffff"
+        ctx.fill()
+        ctx.strokeStyle = black ? "#080a0d" : "#7f8b93"
+        ctx.lineWidth = Math.max(1, cell * 0.025)
+        ctx.stroke()
+
+        var moveText = String(Math.max(1, Math.round(Number(edge.moveNumber || 0))))
+        ctx.font = canvasFont(state, Math.max(9, cell * 0.27), true)
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillStyle = black ? "#ffffff" : "#111820"
+        ctx.fillText(moveText, point.x, point.y, cell * 1.45)
+    }
+
+    ctx.fillStyle = "#2b2118"
+    for (var dotY = 0; dotY < state.boardSizeY; dotY += 2) {
+        for (var dotX = 0; dotX < state.boardSizeX; dotX += 2) {
+            var dot = geometry.point(dotX, dotY)
+            ctx.beginPath()
+            ctx.arc(dot.x, dot.y, Math.max(2.5, cell * 0.09), 0, Math.PI * 2)
+            ctx.fill()
         }
     }
     ctx.restore()
@@ -1101,6 +1194,10 @@ function drawBoard(ctx, state, geometry, options) {
     var stones = opts.stones || []
     var radius = Math.max(8, geometry.cellSize * state.stoneScale * 0.5)
     drawTorusRepeatedStones(ctx, state, geometry, stones, radius)
-    for (var i = 0; i < stones.length; ++i)
-        drawStone(ctx, state, geometry, stones[i].x, stones[i].y, stones[i].player, radius)
+    if (state.gameRuleMode === state.gameRuleDotsAndBoxes) {
+        drawDotsAndBoxesPosition(ctx, state, geometry, stones)
+    } else {
+        for (var i = 0; i < stones.length; ++i)
+            drawStone(ctx, state, geometry, stones[i].x, stones[i].y, stones[i].player, radius)
+    }
 }

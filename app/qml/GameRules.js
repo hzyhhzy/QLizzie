@@ -13,6 +13,7 @@ var RULE_ATAXX = 9
 var RULE_BREAKTHROUGH = 10
 var RULE_TORUS_GO = 11
 var RULE_TWO_LIB_GO = 12
+var RULE_DOTS_AND_BOXES = 13
 
 var GOMOKU_RULE_FREESTYLE = 0
 var GOMOKU_RULE_STANDARD = 1
@@ -96,6 +97,55 @@ function pointInRuleBoard(dims, x, y, ruleMode) {
         return x + y >= dims.x - 1
     }
     return true
+}
+
+function dotsAndBoxesPointKind(x, y) {
+    if (x % 2 === 0 && y % 2 === 0)
+        return "dot"
+    if (x % 2 !== y % 2)
+        return "edge"
+    return "box"
+}
+
+function dotsAndBoxesCompletedBoxes(map, dims, edgeX, edgeY) {
+    var boxes = []
+    var candidates = edgeX % 2 === 0
+                     ? [{ "x": edgeX - 1, "y": edgeY }, { "x": edgeX + 1, "y": edgeY }]
+                     : [{ "x": edgeX, "y": edgeY - 1 }, { "x": edgeX, "y": edgeY + 1 }]
+    for (var i = 0; i < candidates.length; ++i) {
+        var box = candidates[i]
+        if (!pointInBoard(dims, box.x, box.y) || dotsAndBoxesPointKind(box.x, box.y) !== "box")
+            continue
+        var closed = stoneMapPlayerAt(map, box.x - 1, box.y) !== 0
+                     && stoneMapPlayerAt(map, box.x + 1, box.y) !== 0
+                     && stoneMapPlayerAt(map, box.x, box.y - 1) !== 0
+                     && stoneMapPlayerAt(map, box.x, box.y + 1) !== 0
+        if (closed && stoneMapPlayerAt(map, box.x, box.y) === 0)
+            boxes.push(box)
+    }
+    return boxes
+}
+
+function applyDotsAndBoxesMoveOnMap(map, dims, stoneItem) {
+    if (!pointInBoard(dims, stoneItem.x, stoneItem.y)
+            || dotsAndBoxesPointKind(stoneItem.x, stoneItem.y) !== "edge"
+            || stoneMapPlayerAt(map, stoneItem.x, stoneItem.y) !== 0)
+        return { "ok": false, "completedBoxes": [] }
+
+    map[stoneItem.key] = stoneItem
+    var completed = dotsAndBoxesCompletedBoxes(map, dims, stoneItem.x, stoneItem.y)
+    for (var i = 0; i < completed.length; ++i) {
+        var box = completed[i]
+        var key = keyFor(box.x, box.y)
+        map[key] = {
+            "x": box.x, "y": box.y, "key": key,
+            "player": stoneItem.player,
+            "moveNumber": stoneItem.moveNumber,
+            "nodeId": stoneItem.nodeId,
+            "derivedBox": true
+        }
+    }
+    return { "ok": true, "completedBoxes": completed }
 }
 
 function neighborOffsetsForRule(ruleMode) {
@@ -521,6 +571,8 @@ function pointLegalInMap(map, dims, x, y, player, activeKoLocKey, ruleMode, sour
 
     if (ruleMode === RULE_SQUARE_FREE)
         return true
+    if (ruleMode === RULE_DOTS_AND_BOXES)
+        return dotsAndBoxesPointKind(x, y) === "edge" && stoneMapPlayerAt(map, x, y) === 0
     if (ruleMode === RULE_ATAXX)
         return ataxxMoveKind(map, dims, x, y, player, source) !== ""
     if (ruleMode === RULE_BREAKTHROUGH)

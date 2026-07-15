@@ -177,6 +177,8 @@ function sgfGameInfo(ruleMode) {
         return { "gameId": 1, "ruleName": "QLizzie-TorusGo" }
     if (ruleMode === 12)
         return { "gameId": 1, "ruleName": "QLizzie-TwoLibGo" }
+    if (ruleMode === 13)
+        return { "gameId": 40, "ruleName": "QLizzie-DotsAndBoxes" }
     if (ruleMode === 4)
         return { "gameId": 2, "ruleName": "QLizzie-Reversi" }
     if (ruleMode === 9)

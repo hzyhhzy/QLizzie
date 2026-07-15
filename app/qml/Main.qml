@@ -144,6 +144,7 @@ ApplicationWindow {
     readonly property int gameRuleBreakthrough: 10
     readonly property int gameRuleTorusGo: 11
     readonly property int gameRuleTwoLibGo: 12
+    readonly property int gameRuleDotsAndBoxes: 13
     readonly property int gameRuleMoreOption: -1000000
     property int gameRuleMode: gameRuleGo
     property var ruleVisibilityMap: ({})
@@ -1608,20 +1609,48 @@ ApplicationWindow {
         return RuleSupport.ruleUsesMoveSource(root, gameRuleMode)
     }
 
+    function ruleUsesDotsAndBoxes() {
+        return RuleSupport.ruleUsesDotsAndBoxes(root, gameRuleMode)
+    }
+
     function infoPanelShowsGoCaptures() {
         return ruleUsesGoCapture()
     }
 
     function infoPanelShowsStoneCounts() {
         return gameRuleMode === gameRuleReversi || gameRuleMode === gameRuleAtaxx
+               || gameRuleMode === gameRuleDotsAndBoxes
     }
 
     function infoPanelSideText(player) {
         if (infoPanelShowsGoCaptures())
             return trText("captured") + ": " + (player === 1 ? blackCaptures : whiteCaptures)
         if (infoPanelShowsStoneCounts())
-            return String(stoneCountForPlayer(player))
+            return String(gameRuleMode === gameRuleDotsAndBoxes
+                          ? dotsAndBoxesClaimedCount(player) : stoneCountForPlayer(player))
         return ""
+    }
+
+    function dotsAndBoxesClaimedCount(player) {
+        var count = 0
+        for (var key in stones) {
+            var stone = stones[key]
+            if (stone && stone.player === player && stone.x % 2 === 1 && stone.y % 2 === 1)
+                count += 1
+        }
+        return count
+    }
+
+    function dotsAndBoxesBoardFull() {
+        if (gameRuleMode !== gameRuleDotsAndBoxes)
+            return false
+        for (var y = 0; y < boardSizeY; ++y) {
+            for (var x = 0; x < boardSizeX; ++x) {
+                if (x % 2 !== y % 2 && stoneAt(x, y) === 0)
+                    return false
+            }
+        }
+        return true
     }
 
     function infoPanelSideTextVisible() {
@@ -1730,6 +1759,8 @@ ApplicationWindow {
             return 2
 
         if (node && node.moveRole === "source")
+            return node.player
+        if (gameRuleMode === gameRuleDotsAndBoxes && node && node.extraTurn === true)
             return node.player
         if (gameRuleMode === gameRuleConnect6) {
             var moveNumber = node ? node.moveNumber : 0
@@ -1976,6 +2007,10 @@ ApplicationWindow {
                 }
                 pendingSource = null
                 ko = GameRules.emptyKoLoc()
+            } else if (gameRuleMode === gameRuleDotsAndBoxes) {
+                var dotsResult = GameRules.applyDotsAndBoxesMoveOnMap(map, boardDims(), item)
+                node.extraTurn = dotsResult.ok && dotsResult.completedBoxes.length > 0
+                ko = GameRules.emptyKoLoc()
             } else {
                 map[item.key] = item
                 ko = GameRules.emptyKoLoc()
@@ -2081,6 +2116,7 @@ ApplicationWindow {
             "isPass": isPass,
             "moveRole": moveRole,
             "gomokuForbidden": false,
+            "extraTurn": false,
             "capturedStones": capturedStones || [],
             "blackCaptures": blackCaptures,
             "whiteCaptures": whiteCaptures,
@@ -2172,6 +2208,13 @@ ApplicationWindow {
                 statusMessage = illegalPointMessage(x, y, "")
                 return false
             }
+        } else if (gameRuleMode === gameRuleDotsAndBoxes) {
+            var dotsResult = GameRules.applyDotsAndBoxesMoveOnMap(working, boardDims(), item)
+            if (!dotsResult.ok) {
+                statusMode = "message"
+                statusMessage = illegalPointMessage(x, y, "")
+                return false
+            }
         } else {
             working[item.key] = item
         }
@@ -2181,6 +2224,8 @@ ApplicationWindow {
         var node = addMoveNode(player, x, y, false, captured, ko, true, true)
         if (!node)
             return false
+        if (gameRuleMode === gameRuleDotsAndBoxes)
+            node.extraTurn = dotsResult.completedBoxes.length > 0
         node.gomokuForbidden = forbiddenMove
         applyIncrementalMovePosition(node, working, result ? result.captured : captured.length,
                                      ko, result ? (result.selfCaptured || 0) : 0)
@@ -2340,6 +2385,11 @@ ApplicationWindow {
         } else if (gameRuleMode === gameRuleBreakthrough && breakthroughWinInfo.player !== 0) {
             nextWinner = breakthroughWinInfo.player
             nextReason = trText("gameOverBreakthrough")
+        } else if (gameRuleMode === gameRuleDotsAndBoxes && dotsAndBoxesBoardFull()) {
+            var blackBoxes = dotsAndBoxesClaimedCount(1)
+            var whiteScore = dotsAndBoxesClaimedCount(2) + effectiveKomi()
+            nextWinner = blackBoxes > whiteScore ? 1 : whiteScore > blackBoxes ? 2 : 0
+            nextReason = trText("gameOverDotsAndBoxes") + ": " + blackBoxes + " - " + whiteScore
         }
 
         gameWinner = nextWinner
@@ -2844,6 +2894,14 @@ ApplicationWindow {
         return RuleSupport.boardSizePresetAllowed(root, size)
     }
 
+    function logicalBoardDimensionForRule(mode, internalSize) {
+        return RuleSupport.logicalBoardDimensionForRule(root, mode, internalSize)
+    }
+
+    function internalBoardDimensionForRule(mode, logicalSize) {
+        return RuleSupport.internalBoardDimensionForRule(root, mode, logicalSize)
+    }
+
     function boardDimensionsAllowedForPackage(xSize, ySize) {
         return RuleSupport.boardDimensionsAllowedForPackage(root, xSize, ySize)
     }
@@ -3198,8 +3256,10 @@ ApplicationWindow {
             goBoardPresentationMode = boardPresentationIntersections
             boardPresentationMode = goBoardPresentationMode
         }
+        var presetInternalX = internalBoardDimensionForRule(preset.ruleMode, preset.boardSizeX)
+        var presetInternalY = internalBoardDimensionForRule(preset.ruleMode, preset.boardSizeY)
         var adjusted = RuleSupport.adjustedBoardDimensionsForRule(root, preset.ruleMode,
-                                                                  preset.boardSizeX, preset.boardSizeY)
+                                                                  presetInternalX, presetInternalY)
         boardSizeX = adjusted.x
         boardSizeY = adjusted.y
         if (preset.ruleMode === gameRuleHex)

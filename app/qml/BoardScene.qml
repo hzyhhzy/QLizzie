@@ -278,6 +278,7 @@ Item {
 
             BoardRenderer.drawTorusRepeatedStones(ctx, renderState, renderGeometry,
                                                   app.stoneItems, stoneRadius)
+            BoardRenderer.drawDotsAndBoxesPosition(ctx, renderState, renderGeometry, app.stoneItems)
 
             for (var f = 0; f < app.gomokuForbiddenPointItems.length; ++f) {
                 var forbidden = app.gomokuForbiddenPointItems[f]
@@ -298,7 +299,8 @@ Item {
 
             for (var s = 0; s < app.stoneItems.length; ++s) {
                 var stone = app.stoneItems[s]
-                drawStone(ctx, stone.x, stone.y, stone.player, stoneRadius)
+                if (!app.ruleUsesDotsAndBoxes())
+                    drawStone(ctx, stone.x, stone.y, stone.player, stoneRadius)
             }
 
             var sourceNode = app.currentMoveSourceNode()
@@ -355,7 +357,7 @@ Item {
                 }
             }
 
-            if (!boardScene.variationPreviewActive) {
+            if (!boardScene.variationPreviewActive && !app.ruleUsesDotsAndBoxes()) {
                 for (var o = 0; o < app.stoneItems.length; ++o) {
                     var overlayStone = app.stoneItems[o]
                     var last = app.isLastMoveAt(overlayStone.x, overlayStone.y)
@@ -515,6 +517,12 @@ Item {
                     previewOpacity = app.defaultCandidateVariationPreviewOpacity
                 if (move.kind === "arrow") {
                     point = boardCanvas.drawVariationArrow(ctx, move, previewRadius, previewOpacity)
+                } else if (app.ruleUsesDotsAndBoxes()) {
+                    ctx.save()
+                    ctx.globalAlpha = Math.max(0, Math.min(1, previewOpacity))
+                    BoardRenderer.drawDotsAndBoxesPosition(ctx, boardScene.rendererState(),
+                                                           boardScene.rendererGeometry(), [move])
+                    ctx.restore()
                 } else {
                     ctx.save()
                     ctx.globalAlpha = Math.max(0, Math.min(1, previewOpacity))
@@ -525,12 +533,23 @@ Item {
                 if (i === 0 && activeCandidate) {
                     var labelPoint = boardScene.boardPointLocal(activeCandidate.x, activeCandidate.y)
                     ctx.save()
-                    app.drawCandidateLabelLines(ctx,
-                                                activeCandidate.labelLines || [],
-                                                labelPoint.x,
-                                                labelPoint.y,
-                                                previewRadius,
-                                                move.player === 1 ? "#ffffff" : "#000000")
+                    if (app.ruleUsesDotsAndBoxes()) {
+                        app.drawCandidateMarker(ctx, labelPoint.x, labelPoint.y, previewRadius,
+                                                activeCandidate.labelLines || [], {
+                                                    "fillColor": "#ffffff",
+                                                    "fillOpacity": 0.88,
+                                                    "drawOutline": true,
+                                                    "outlineOpacity": 1,
+                                                    "textColor": "#111111"
+                                                })
+                    } else {
+                        app.drawCandidateLabelLines(ctx,
+                                                    activeCandidate.labelLines || [],
+                                                    labelPoint.x,
+                                                    labelPoint.y,
+                                                    previewRadius,
+                                                    move.player === 1 ? "#ffffff" : "#000000")
+                    }
                     ctx.restore()
                     continue
                 }

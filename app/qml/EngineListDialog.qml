@@ -103,8 +103,13 @@ AppDialog {
         editorRuleMode = mode
         refreshEditorRuleOptions()
         ruleCombo.currentIndex = editorRuleCurrentIndex()
-        if (!syncingEditor && previousMode !== mode)
+        if (!syncingEditor && previousMode !== mode) {
             komiSpin.value = Math.round(EnginePresets.defaultKomiForRule(app, mode) * 2)
+            if (mode === app.gameRuleDotsAndBoxes) {
+                widthSpin.value = 5
+                heightSpin.value = 5
+            }
+        }
     }
 
     function openEditorRuleSelectionPopup() {
@@ -551,7 +556,8 @@ AppDialog {
                     AppSpinBox {
                         id: widthSpin
                         from: app.minBoardSize
-                        to: app.maxBoardSize
+                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
+                            ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
                         font.bold: true
@@ -562,7 +568,8 @@ AppDialog {
                     AppSpinBox {
                         id: heightSpin
                         from: app.minBoardSize
-                        to: app.maxBoardSize
+                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
+                            ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
                         font.bold: true

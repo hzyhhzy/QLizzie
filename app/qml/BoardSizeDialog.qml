@@ -15,12 +15,14 @@ AppDialog {
     width: Math.max(500, Math.min(640, app.width - 80))
 
     function showForCurrentBoard() {
-        selectedPreset = (app.boardSizeX === app.boardSizeY
-                          && app.boardSizePresetAllowed(app.boardSizeX))
-                         ? app.boardSizeX
+        var logicalX = app.logicalBoardDimensionForRule(app.gameRuleMode, app.boardSizeX)
+        var logicalY = app.logicalBoardDimensionForRule(app.gameRuleMode, app.boardSizeY)
+        selectedPreset = (logicalX === logicalY
+                          && app.boardSizePresetAllowed(logicalX))
+                         ? logicalX
                          : 0
-        sizeXSpin.value = app.boardSizeX
-        sizeYSpin.value = app.boardSizeY
+        sizeXSpin.value = logicalX
+        sizeYSpin.value = logicalY
         errorText = ""
         open()
     }
@@ -33,8 +35,8 @@ AppDialog {
     }
 
     function applySize() {
-        var xSize = sizeXSpin.value
-        var ySize = sizeYSpin.value
+        var xSize = app.internalBoardDimensionForRule(app.gameRuleMode, sizeXSpin.value)
+        var ySize = app.internalBoardDimensionForRule(app.gameRuleMode, sizeYSpin.value)
         if (app.requestBoardDimensionsChange(xSize, ySize)) {
             close()
             app.focusBoardInput()
@@ -97,7 +99,8 @@ AppDialog {
                 BoardSizeStepper {
                     id: sizeXSpin
                     from: app.minBoardSize
-                    to: app.maxBoardSize
+                    to: app.gameRuleMode === app.gameRuleDotsAndBoxes
+                        ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                     Layout.preferredWidth: 104
                     onValueModified: boardSizeDialog.selectedPreset = 0
                 }
@@ -111,7 +114,8 @@ AppDialog {
                 BoardSizeStepper {
                     id: sizeYSpin
                     from: app.minBoardSize
-                    to: app.maxBoardSize
+                    to: app.gameRuleMode === app.gameRuleDotsAndBoxes
+                        ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                     Layout.preferredWidth: 104
                     onValueModified: boardSizeDialog.selectedPreset = 0
                 }

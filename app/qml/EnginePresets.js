@@ -196,9 +196,16 @@ function normalizePreset(app, preset, index) {
     copy.boardSizeY = Math.round(app.clamp(numeric(copy.boardSizeY, copy.boardSizeX),
                                            app.minBoardSize,
                                            app.maxBoardSize))
-    var adjusted = app.adjustedBoardDimensionsForRule(copy.ruleMode, copy.boardSizeX, copy.boardSizeY)
-    copy.boardSizeX = adjusted.x
-    copy.boardSizeY = adjusted.y
+    if (copy.ruleMode === app.gameRuleDotsAndBoxes) {
+        var maxLogicalDotsSize = Math.floor((app.maxBoardSize - 1) / 2)
+        copy.boardSizeX = Math.min(copy.boardSizeX, maxLogicalDotsSize)
+        copy.boardSizeY = Math.min(copy.boardSizeY, maxLogicalDotsSize)
+    }
+    if (copy.ruleMode !== app.gameRuleDotsAndBoxes) {
+        var adjusted = app.adjustedBoardDimensionsForRule(copy.ruleMode, copy.boardSizeX, copy.boardSizeY)
+        copy.boardSizeX = adjusted.x
+        copy.boardSizeY = adjusted.y
+    }
     copy.komi = app.clampKomiSettingValue(numeric(copy.komi, defaultKomiForRule(app, copy.ruleMode)))
     copy.legacyHexEngineCoordinates = copy.legacyHexEngineCoordinates === true
     copy.boardPresentationMode = Math.round(app.clamp(numeric(copy.boardPresentationMode, 0),
@@ -258,13 +265,14 @@ function findById(presets, id) {
 function newPreset(app) {
     var now = Date.now ? Date.now() : Math.floor(Math.random() * 1000000000)
     var ruleMode = defaultRuleMode(app)
+    var defaultSize = ruleMode === app.gameRuleDotsAndBoxes ? 5 : 19
     var preset = makePreset("engine-" + now,
                             app.trText("newEngine"),
                             "",
                             ruleMode,
                             -1,
-                            19,
-                            19,
+                            defaultSize,
+                            defaultSize,
                             defaultKomiForRule(app, ruleMode),
                             false)
     preset.boardPresentationMode = app.boardPresentationIntersections
@@ -287,6 +295,8 @@ function defaultKomiForRule(app, mode) {
             || mode === app.gameRuleHexGoParallelogram
             || mode === app.gameRuleHexGoHexagon
             || mode === app.gameRuleHexGoTriangle)
+        return 6.5
+    if (mode === app.gameRuleDotsAndBoxes)
         return 6.5
     return 0.0
 }
@@ -314,6 +324,8 @@ function ruleText(app, preset) {
         return app.trText("gameRuleTorusGo")
     if (preset.ruleMode === app.gameRuleTwoLibGo)
         return app.trText("gameRuleTwoLibGo")
+    if (preset.ruleMode === app.gameRuleDotsAndBoxes)
+        return app.trText("gameRuleDotsAndBoxes")
     if (preset.ruleMode === app.gameRuleAtaxx)
         return app.trText("gameRuleAtaxx")
     if (preset.ruleMode === app.gameRuleBreakthrough)
