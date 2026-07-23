@@ -24,8 +24,18 @@ test("window geometry is initialized once instead of continuously recentered", (
     assert.doesNotMatch(appDialogSource, /^\s*x:\s*app\s*\?/m)
     assert.doesNotMatch(appDialogSource, /^\s*y:\s*app\s*\?/m)
     assert.match(appDialogSource, /onAboutToShow:\s*prepareWindowGeometry\(\)/)
-    assert.match(appDialogSource, /x\s*=\s*Math\.max\(minimumGlobalX/)
-    assert.match(appDialogSource, /y\s*=\s*Math\.max\(minimumGlobalY/)
+    assert.match(appDialogSource, /x\s*=\s*relativeX/)
+    assert.match(appDialogSource, /y\s*=\s*relativeY/)
+    assert.doesNotMatch(appDialogSource, /minimumGlobalX/)
+    assert.doesNotMatch(appDialogSource, /minimumGlobalY/)
+})
+
+test("screen geometry only uses properties exposed by the QML Screen type", () => {
+    assert.doesNotMatch(appDialogSource, /targetScreen\.availableGeometry/)
+    assert.match(appDialogSource, /targetScreen\.virtualX/)
+    assert.match(appDialogSource, /targetScreen\.virtualY/)
+    assert.match(appDialogSource, /targetScreen\.width/)
+    assert.match(appDialogSource, /targetScreen\.height/)
 })
 
 test("native popup windows enforce useful minimum sizes", () => {

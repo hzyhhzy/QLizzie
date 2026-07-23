@@ -12,6 +12,44 @@ TestCase {
     width: 1000
     height: 700
     property int nativeCloseRequests: 0
+    property var lateDialog: null
+
+    QtObject {
+        id: fakeScreen
+        property int virtualX: 0
+        property int virtualY: 0
+        property int width: 1920
+        property int height: 1080
+    }
+
+    QtObject {
+        id: fakeOwner
+        property int x: 0
+        property int y: 0
+        property var screen: fakeScreen
+    }
+
+    Component {
+        id: lateDialogComponent
+
+        Widgets.AppDialog {
+            app: testRoot
+            centerTarget: testRoot
+            owningWindow: testRoot.Window.window
+            modal: true
+            title: "Late geometry test"
+            preferredWidth: 760
+            preferredHeight: 500
+            dialogMinimumWidth: 640
+            dialogMinimumHeight: 400
+
+            contentItem: Rectangle {
+                implicitWidth: 300
+                implicitHeight: 200
+                color: "transparent"
+            }
+        }
+    }
 
     Widgets.AppDialog {
         id: dialog
@@ -41,6 +79,11 @@ TestCase {
 
     function cleanup() {
         dialog.close()
+        if (lateDialog) {
+            lateDialog.close()
+            lateDialog.destroy()
+            lateDialog = null
+        }
         wait(0)
     }
 
@@ -51,6 +94,10 @@ TestCase {
 
         compare(dialog.width, 760)
         compare(dialog.height, 500)
+        compare(dialog.hostWindow.width, 760)
+        compare(dialog.hostWindow.height, 500)
+        verify(dialog.availableScreenWidth > 0)
+        verify(dialog.availableScreenHeight > 0)
         verify(dialog.owningWindow !== null)
         verify(dialog.hostWindow !== null)
         verify(dialog.hostWindow !== dialog.owningWindow)
@@ -71,6 +118,26 @@ TestCase {
         compare(dialog.hostWindow.y, movedY)
         compare(dialog.width, 700)
         compare(dialog.height, 450)
+    }
+
+    function test_screenGeometryWhenOwnerScreenAlreadyExists() {
+        lateDialog = lateDialogComponent.createObject(
+                    testRoot, {"owningWindow": fakeOwner})
+        verify(lateDialog !== null)
+        compare(lateDialog.targetScreen, fakeScreen)
+        compare(lateDialog.availableScreenWidth, 1920)
+        compare(lateDialog.availableScreenHeight, 1080)
+
+        lateDialog.open()
+        tryCompare(lateDialog, "visible", true)
+        wait(20)
+
+        compare(lateDialog.width, 760)
+        compare(lateDialog.height, 500)
+        compare(lateDialog.hostWindow.width, 760)
+        compare(lateDialog.hostWindow.height, 500)
+        verify(lateDialog.hostWindow.x > lateDialog.availableScreenGeometry.x)
+        verify(lateDialog.hostWindow.y > lateDialog.availableScreenGeometry.y)
     }
 
     function test_nativeCloseIsDelegatedToTheDialog() {

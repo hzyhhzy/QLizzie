@@ -26,14 +26,16 @@ Basic.Dialog {
         owningWindow && owningWindow.screen ? owningWindow.screen
                                             : (hostWindow && hostWindow.screen ? hostWindow.screen : null)
     readonly property rect availableScreenGeometry:
-        targetScreen ? targetScreen.availableGeometry
-                     : Qt.rect(Screen.virtualX, Screen.virtualY,
-                               Screen.desktopAvailableWidth > 0
-                                   ? Screen.desktopAvailableWidth
-                                   : (app ? app.width : preferredWidth),
-                               Screen.desktopAvailableHeight > 0
-                                   ? Screen.desktopAvailableHeight
-                                   : (app ? app.height : preferredHeight))
+        targetScreen && targetScreen.width > 0 && targetScreen.height > 0
+            ? Qt.rect(targetScreen.virtualX, targetScreen.virtualY,
+                      targetScreen.width, targetScreen.height)
+            : Qt.rect(dialogHeader.Screen.virtualX, dialogHeader.Screen.virtualY,
+                      dialogHeader.Screen.width > 0
+                          ? dialogHeader.Screen.width
+                          : (app ? app.width : preferredWidth),
+                      dialogHeader.Screen.height > 0
+                          ? dialogHeader.Screen.height
+                          : (app ? app.height : preferredHeight))
     readonly property real availableScreenWidth:
         availableScreenGeometry.width
     readonly property real availableScreenHeight:
@@ -59,20 +61,10 @@ Basic.Dialog {
         var target = centerTarget
         var relativeX = target ? Math.round((target.width - width) / 2) : 0
         var relativeY = target ? Math.round((target.height - height) / 2) : 0
-        var ownerX = owningWindow && isFinite(Number(owningWindow.x))
-                   ? Number(owningWindow.x) : 0
-        var ownerY = owningWindow && isFinite(Number(owningWindow.y))
-                   ? Number(owningWindow.y) : 0
-        var minimumGlobalX = availableScreenGeometry.x + 12
-        var minimumGlobalY = availableScreenGeometry.y + 12
-        var maximumGlobalX = Math.max(minimumGlobalX,
-                                      availableScreenGeometry.x
-                                      + availableScreenGeometry.width - width - 12)
-        var maximumGlobalY = Math.max(minimumGlobalY,
-                                      availableScreenGeometry.y
-                                      + availableScreenGeometry.height - height - 12)
-        x = Math.max(minimumGlobalX, Math.min(ownerX + relativeX, maximumGlobalX)) - ownerX
-        y = Math.max(minimumGlobalY, Math.min(ownerY + relativeY, maximumGlobalY)) - ownerY
+        // Popup coordinates are parent-local. Qt maps them to the native screen
+        // and constrains Popup.Window to the real available screen geometry.
+        x = relativeX
+        y = relativeY
 
         var popupWindow = hostWindow
         if (separateWindow && popupWindow) {
