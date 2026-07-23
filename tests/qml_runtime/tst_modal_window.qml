@@ -13,6 +13,11 @@ TestCase {
     height: 700
     property int nativeCloseRequests: 0
     property var lateDialog: null
+    property var closingHostWindow: null
+    property bool observeClosingGeometry: false
+    property int closingWidth: 0
+    property int closingHeight: 0
+    property int closingGeometryChanges: 0
 
     QtObject {
         id: fakeScreen
@@ -77,7 +82,26 @@ TestCase {
         }
     }
 
+    Connections {
+        target: testRoot.closingHostWindow
+        ignoreUnknownSignals: true
+
+        function onWidthChanged() {
+            if (testRoot.observeClosingGeometry
+                    && Math.round(testRoot.closingHostWindow.width) !== testRoot.closingWidth)
+                testRoot.closingGeometryChanges += 1
+        }
+
+        function onHeightChanged() {
+            if (testRoot.observeClosingGeometry
+                    && Math.round(testRoot.closingHostWindow.height) !== testRoot.closingHeight)
+                testRoot.closingGeometryChanges += 1
+        }
+    }
+
     function cleanup() {
+        observeClosingGeometry = false
+        closingHostWindow = null
         dialog.close()
         if (lateDialog) {
             lateDialog.close()
@@ -118,6 +142,32 @@ TestCase {
         compare(dialog.hostWindow.y, movedY)
         compare(dialog.width, 700)
         compare(dialog.height, 450)
+    }
+
+    function test_closeKeepsNativeWindowGeometryStable() {
+        if (Qt.platform.pluginName !== "windows")
+            skip("Native close geometry is a Windows window-system regression")
+
+        dialog.open()
+        tryCompare(dialog, "visible", true)
+        wait(20)
+
+        dialog.hostWindow.width = 700
+        dialog.hostWindow.height = 450
+        wait(20)
+
+        closingHostWindow = dialog.hostWindow
+        closingWidth = Math.round(closingHostWindow.width)
+        closingHeight = Math.round(closingHostWindow.height)
+        closingGeometryChanges = 0
+        observeClosingGeometry = true
+
+        dialog.close()
+        tryCompare(dialog, "visible", false)
+        wait(20)
+
+        observeClosingGeometry = false
+        compare(closingGeometryChanges, 0)
     }
 
     function test_screenGeometryWhenOwnerScreenAlreadyExists() {

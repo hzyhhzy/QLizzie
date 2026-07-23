@@ -51,6 +51,14 @@ test("native window close requests can be guarded by application dialogs", () =>
     assert.match(engineListSource, /onNativeCloseRequested:\s*requestClose\(\)/)
 })
 
+test("native dialog geometry is frozen while the popup is closing", () => {
+    assert.match(appDialogSource, /onAboutToHide:\s*freezeWindowGeometry\(\)/)
+    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*currentWidth/)
+    assert.match(appDialogSource, /popupWindow\.maximumHeight\s*=\s*currentHeight/)
+    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*unconstrainedWindowMaximum/)
+    assert.match(appDialogSource, /popupWindow\.maximumHeight\s*=\s*unconstrainedWindowMaximum/)
+})
+
 test("large dialog bodies scroll instead of clipping on short screens", () => {
     assert.match(engineListSource, /contentItem:\s*Flickable\s*\{/)
     assert.match(engineListSource, /contentHeight:\s*dialogContent\.height/)

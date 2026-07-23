@@ -21,6 +21,7 @@ Basic.Dialog {
     property real dialogMinimumWidth: Math.min(preferredWidth, 320)
     property real dialogMinimumHeight: Math.min(preferredHeight, 140)
     property bool blockNativeClose: closePolicy === Popup.NoAutoClose
+    readonly property int unconstrainedWindowMaximum: 16777215
     signal nativeCloseRequested()
     readonly property var targetScreen:
         owningWindow && owningWindow.screen ? owningWindow.screen
@@ -53,6 +54,16 @@ Basic.Dialog {
     }
 
     function prepareWindowGeometry() {
+        var popupWindow = hostWindow
+        if (separateWindow && popupWindow) {
+            // A previous close freezes the native geometry until the window is
+            // hidden. Restore normal constraints before sizing the next open.
+            popupWindow.maximumWidth = unconstrainedWindowMaximum
+            popupWindow.maximumHeight = unconstrainedWindowMaximum
+            popupWindow.minimumWidth = 0
+            popupWindow.minimumHeight = 0
+        }
+
         var nextWidth = Math.max(dialogMinimumWidth, preferredWidth)
         var nextHeight = Math.max(dialogMinimumHeight, preferredHeight)
         width = Math.min(nextWidth, Math.max(dialogMinimumWidth, availableScreenWidth - 24))
@@ -66,11 +77,23 @@ Basic.Dialog {
         x = relativeX
         y = relativeY
 
-        var popupWindow = hostWindow
         if (separateWindow && popupWindow) {
             popupWindow.minimumWidth = Math.ceil(dialogMinimumWidth)
             popupWindow.minimumHeight = Math.ceil(dialogMinimumHeight)
         }
+    }
+
+    function freezeWindowGeometry() {
+        var popupWindow = hostWindow
+        if (!separateWindow || !popupWindow)
+            return
+
+        var currentWidth = Math.max(1, Math.round(popupWindow.width))
+        var currentHeight = Math.max(1, Math.round(popupWindow.height))
+        popupWindow.minimumWidth = currentWidth
+        popupWindow.maximumWidth = currentWidth
+        popupWindow.minimumHeight = currentHeight
+        popupWindow.maximumHeight = currentHeight
     }
 
     function panelColor() {
@@ -117,6 +140,7 @@ Basic.Dialog {
     popupType: windowed ? Popup.Window : Popup.Item
     closePolicy: Popup.CloseOnEscape
     onAboutToShow: prepareWindowGeometry()
+    onAboutToHide: freezeWindowGeometry()
 
     Connections {
         target: appDialog.separateWindow ? appDialog.hostWindow : null
