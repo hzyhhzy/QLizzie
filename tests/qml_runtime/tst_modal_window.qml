@@ -18,6 +18,11 @@ TestCase {
     property int closingWidth: 0
     property int closingHeight: 0
     property int closingGeometryChanges: 0
+    property var openingHostWindow: null
+    property bool observeOpeningVisibility: false
+    property int openingVisibleCount: 0
+    property int openingWidthWhenShown: 0
+    property int openingHeightWhenShown: 0
 
     QtObject {
         id: fakeScreen
@@ -88,20 +93,44 @@ TestCase {
 
         function onWidthChanged() {
             if (testRoot.observeClosingGeometry
+                    && testRoot.closingHostWindow.visible
                     && Math.round(testRoot.closingHostWindow.width) !== testRoot.closingWidth)
                 testRoot.closingGeometryChanges += 1
         }
 
         function onHeightChanged() {
             if (testRoot.observeClosingGeometry
+                    && testRoot.closingHostWindow.visible
                     && Math.round(testRoot.closingHostWindow.height) !== testRoot.closingHeight)
                 testRoot.closingGeometryChanges += 1
+        }
+    }
+
+    Connections {
+        target: testRoot.openingHostWindow
+        ignoreUnknownSignals: true
+
+        function onVisibleChanged() {
+            if (!testRoot.observeOpeningVisibility
+                    || !testRoot.openingHostWindow.visible)
+                return
+
+            testRoot.openingVisibleCount += 1
+            if (testRoot.openingVisibleCount !== 1)
+                return
+
+            testRoot.openingWidthWhenShown =
+                    Math.round(testRoot.openingHostWindow.width)
+            testRoot.openingHeightWhenShown =
+                    Math.round(testRoot.openingHostWindow.height)
         }
     }
 
     function cleanup() {
         observeClosingGeometry = false
         closingHostWindow = null
+        observeOpeningVisibility = false
+        openingHostWindow = null
         dialog.close()
         if (lateDialog) {
             lateDialog.close()
@@ -168,6 +197,38 @@ TestCase {
 
         observeClosingGeometry = false
         compare(closingGeometryChanges, 0)
+    }
+
+    function test_reopenUsesPreferredGeometryOnFirstFrame() {
+        dialog.open()
+        tryCompare(dialog, "visible", true)
+        wait(20)
+
+        dialog.hostWindow.width = 700
+        dialog.hostWindow.height = 450
+        wait(20)
+        openingHostWindow = dialog.hostWindow
+        dialog.close()
+        tryCompare(dialog, "visible", false)
+
+        verify(openingHostWindow !== null)
+        tryCompare(openingHostWindow, "minimumWidth", 760)
+        tryCompare(openingHostWindow, "maximumWidth", 760)
+        tryCompare(openingHostWindow, "minimumHeight", 500)
+        tryCompare(openingHostWindow, "maximumHeight", 500)
+
+        openingVisibleCount = 0
+        openingWidthWhenShown = 0
+        openingHeightWhenShown = 0
+        observeOpeningVisibility = true
+
+        dialog.open()
+        tryCompare(dialog, "visible", true)
+        observeOpeningVisibility = false
+
+        compare(openingVisibleCount, 1)
+        compare(openingWidthWhenShown, 760)
+        compare(openingHeightWhenShown, 500)
     }
 
     function test_screenGeometryWhenOwnerScreenAlreadyExists() {

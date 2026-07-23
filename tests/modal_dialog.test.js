@@ -59,6 +59,15 @@ test("native dialog geometry is frozen while the popup is closing", () => {
     assert.match(appDialogSource, /popupWindow\.maximumHeight\s*=\s*unconstrainedWindowMaximum/)
 })
 
+test("hidden native dialogs are sized before their next visible frame", () => {
+    assert.match(appDialogSource, /property var retainedHostWindow:\s*null/)
+    assert.match(appDialogSource, /function onClosed\(\)\s*\{\s*appDialog\.prepareHiddenWindowForNextOpen\(\)/)
+    assert.match(appDialogSource, /popupWindow\.width\s*=\s*nextWidth/)
+    assert.match(appDialogSource, /popupWindow\.height\s*=\s*nextHeight/)
+    assert.match(appDialogSource, /popupWindow\.minimumWidth\s*=\s*nextWidth/)
+    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*nextWidth/)
+})
+
 test("large dialog bodies scroll instead of clipping on short screens", () => {
     assert.match(engineListSource, /contentItem:\s*Flickable\s*\{/)
     assert.match(engineListSource, /contentHeight:\s*dialogContent\.height/)

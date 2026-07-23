@@ -22,6 +22,7 @@ Basic.Dialog {
     property real dialogMinimumHeight: Math.min(preferredHeight, 140)
     property bool blockNativeClose: closePolicy === Popup.NoAutoClose
     readonly property int unconstrainedWindowMaximum: 16777215
+    property var retainedHostWindow: null
     signal nativeCloseRequested()
     readonly property var targetScreen:
         owningWindow && owningWindow.screen ? owningWindow.screen
@@ -53,21 +54,21 @@ Basic.Dialog {
         return Math.max(1, Math.min(maximumHeight, availableScreenHeight - screenMargin))
     }
 
-    function prepareWindowGeometry() {
-        var popupWindow = hostWindow
-        if (separateWindow && popupWindow) {
-            // A previous close freezes the native geometry until the window is
-            // hidden. Restore normal constraints before sizing the next open.
-            popupWindow.maximumWidth = unconstrainedWindowMaximum
-            popupWindow.maximumHeight = unconstrainedWindowMaximum
-            popupWindow.minimumWidth = 0
-            popupWindow.minimumHeight = 0
-        }
-
+    function preferredGeometryWidth() {
         var nextWidth = Math.max(dialogMinimumWidth, preferredWidth)
+        return Math.min(nextWidth,
+                        Math.max(dialogMinimumWidth, availableScreenWidth - 24))
+    }
+
+    function preferredGeometryHeight() {
         var nextHeight = Math.max(dialogMinimumHeight, preferredHeight)
-        width = Math.min(nextWidth, Math.max(dialogMinimumWidth, availableScreenWidth - 24))
-        height = Math.min(nextHeight, Math.max(dialogMinimumHeight, availableScreenHeight - 24))
+        return Math.min(nextHeight,
+                        Math.max(dialogMinimumHeight, availableScreenHeight - 24))
+    }
+
+    function applyPreferredGeometry() {
+        width = preferredGeometryWidth()
+        height = preferredGeometryHeight()
 
         var target = centerTarget
         var relativeX = target ? Math.round((target.width - width) / 2) : 0
@@ -76,7 +77,21 @@ Basic.Dialog {
         // and constrains Popup.Window to the real available screen geometry.
         x = relativeX
         y = relativeY
+    }
 
+    function resetWindowConstraints(popupWindow) {
+        popupWindow.maximumWidth = unconstrainedWindowMaximum
+        popupWindow.maximumHeight = unconstrainedWindowMaximum
+        popupWindow.minimumWidth = 0
+        popupWindow.minimumHeight = 0
+    }
+
+    function prepareWindowGeometry() {
+        var popupWindow = hostWindow
+        if (separateWindow && popupWindow)
+            resetWindowConstraints(popupWindow)
+
+        applyPreferredGeometry()
         if (separateWindow && popupWindow) {
             popupWindow.minimumWidth = Math.ceil(dialogMinimumWidth)
             popupWindow.minimumHeight = Math.ceil(dialogMinimumHeight)
@@ -88,12 +103,34 @@ Basic.Dialog {
         if (!separateWindow || !popupWindow)
             return
 
+        retainedHostWindow = popupWindow
         var currentWidth = Math.max(1, Math.round(popupWindow.width))
         var currentHeight = Math.max(1, Math.round(popupWindow.height))
         popupWindow.minimumWidth = currentWidth
         popupWindow.maximumWidth = currentWidth
         popupWindow.minimumHeight = currentHeight
         popupWindow.maximumHeight = currentHeight
+    }
+
+    function prepareHiddenWindowForNextOpen() {
+        var popupWindow = retainedHostWindow
+        if (!windowed || !popupWindow || popupWindow === owningWindow)
+            return
+
+        // QQuickPopupWindow is reused and becomes visible before aboutToShow.
+        // Size and lock it while hidden so its first mapped frame is already
+        // the preferred size. aboutToShow restores normal resize constraints.
+        resetWindowConstraints(popupWindow)
+        applyPreferredGeometry()
+
+        var nextWidth = Math.max(1, Math.ceil(preferredGeometryWidth()))
+        var nextHeight = Math.max(1, Math.ceil(preferredGeometryHeight()))
+        popupWindow.width = nextWidth
+        popupWindow.height = nextHeight
+        popupWindow.minimumWidth = nextWidth
+        popupWindow.maximumWidth = nextWidth
+        popupWindow.minimumHeight = nextHeight
+        popupWindow.maximumHeight = nextHeight
     }
 
     function panelColor() {
@@ -141,6 +178,18 @@ Basic.Dialog {
     closePolicy: Popup.CloseOnEscape
     onAboutToShow: prepareWindowGeometry()
     onAboutToHide: freezeWindowGeometry()
+    onHostWindowChanged: {
+        if (windowed && hostWindow && hostWindow !== owningWindow)
+            retainedHostWindow = hostWindow
+    }
+
+    Connections {
+        target: appDialog
+
+        function onClosed() {
+            appDialog.prepareHiddenWindowForNextOpen()
+        }
+    }
 
     Connections {
         target: appDialog.separateWindow ? appDialog.hostWindow : null
