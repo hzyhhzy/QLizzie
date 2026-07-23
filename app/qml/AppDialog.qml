@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 
@@ -10,6 +11,75 @@ Basic.Dialog {
     property int dialogRadius: 10
     property int headerHeight: 52
     property int titlePixelSize: 17
+    // Modal dialogs use a dedicated popup window so they can leave the main
+    // window bounds while keeping the application blocked.
+    property bool windowed: modal
+    property var centerTarget: app
+    property var owningWindow: app
+    property real preferredWidth: Math.max(implicitWidth, 320)
+    property real preferredHeight: Math.max(implicitHeight, 140)
+    property real dialogMinimumWidth: Math.min(preferredWidth, 320)
+    property real dialogMinimumHeight: Math.min(preferredHeight, 140)
+    property bool blockNativeClose: closePolicy === Popup.NoAutoClose
+    signal nativeCloseRequested()
+    readonly property var targetScreen:
+        owningWindow && owningWindow.screen ? owningWindow.screen
+                                            : (hostWindow && hostWindow.screen ? hostWindow.screen : null)
+    readonly property rect availableScreenGeometry:
+        targetScreen ? targetScreen.availableGeometry
+                     : Qt.rect(Screen.virtualX, Screen.virtualY,
+                               Screen.desktopAvailableWidth > 0
+                                   ? Screen.desktopAvailableWidth
+                                   : (app ? app.width : preferredWidth),
+                               Screen.desktopAvailableHeight > 0
+                                   ? Screen.desktopAvailableHeight
+                                   : (app ? app.height : preferredHeight))
+    readonly property real availableScreenWidth:
+        availableScreenGeometry.width
+    readonly property real availableScreenHeight:
+        availableScreenGeometry.height
+    readonly property var hostWindow: dialogHeader.popupHostWindow
+    readonly property bool separateWindow:
+        windowed && !!hostWindow && hostWindow !== owningWindow
+
+    function boundedPreferredWidth(maximumWidth, screenMargin) {
+        return Math.max(1, Math.min(maximumWidth, availableScreenWidth - screenMargin))
+    }
+
+    function boundedPreferredHeight(maximumHeight, screenMargin) {
+        return Math.max(1, Math.min(maximumHeight, availableScreenHeight - screenMargin))
+    }
+
+    function prepareWindowGeometry() {
+        var nextWidth = Math.max(dialogMinimumWidth, preferredWidth)
+        var nextHeight = Math.max(dialogMinimumHeight, preferredHeight)
+        width = Math.min(nextWidth, Math.max(dialogMinimumWidth, availableScreenWidth - 24))
+        height = Math.min(nextHeight, Math.max(dialogMinimumHeight, availableScreenHeight - 24))
+
+        var target = centerTarget
+        var relativeX = target ? Math.round((target.width - width) / 2) : 0
+        var relativeY = target ? Math.round((target.height - height) / 2) : 0
+        var ownerX = owningWindow && isFinite(Number(owningWindow.x))
+                   ? Number(owningWindow.x) : 0
+        var ownerY = owningWindow && isFinite(Number(owningWindow.y))
+                   ? Number(owningWindow.y) : 0
+        var minimumGlobalX = availableScreenGeometry.x + 12
+        var minimumGlobalY = availableScreenGeometry.y + 12
+        var maximumGlobalX = Math.max(minimumGlobalX,
+                                      availableScreenGeometry.x
+                                      + availableScreenGeometry.width - width - 12)
+        var maximumGlobalY = Math.max(minimumGlobalY,
+                                      availableScreenGeometry.y
+                                      + availableScreenGeometry.height - height - 12)
+        x = Math.max(minimumGlobalX, Math.min(ownerX + relativeX, maximumGlobalX)) - ownerX
+        y = Math.max(minimumGlobalY, Math.min(ownerY + relativeY, maximumGlobalY)) - ownerY
+
+        var popupWindow = hostWindow
+        if (separateWindow && popupWindow) {
+            popupWindow.minimumWidth = Math.ceil(dialogMinimumWidth)
+            popupWindow.minimumHeight = Math.ceil(dialogMinimumHeight)
+        }
+    }
 
     function panelColor() {
         if (tone === "error")
@@ -52,9 +122,21 @@ Basic.Dialog {
     }
 
     padding: 18
+    popupType: windowed ? Popup.Window : Popup.Item
     closePolicy: Popup.CloseOnEscape
-    x: app ? Math.round((app.width - width) / 2) : 0
-    y: app ? Math.round((app.height - height) / 2) : 0
+    onAboutToShow: prepareWindowGeometry()
+
+    Connections {
+        target: appDialog.separateWindow ? appDialog.hostWindow : null
+        ignoreUnknownSignals: true
+
+        function onClosing(closeEvent) {
+            if (!appDialog.blockNativeClose)
+                return
+            closeEvent.accepted = false
+            appDialog.nativeCloseRequested()
+        }
+    }
 
     background: Rectangle {
         radius: appDialog.dialogRadius
@@ -64,7 +146,11 @@ Basic.Dialog {
     }
 
     header: Item {
-        height: appDialog.headerHeight
+        id: dialogHeader
+        readonly property var popupHostWindow: Window.window
+        implicitHeight: appDialog.separateWindow ? 0 : appDialog.headerHeight
+        height: implicitHeight
+        visible: !appDialog.separateWindow
 
         Rectangle {
             id: headerPanel

@@ -12,8 +12,10 @@ AppDialog {
     modal: true
     title: app.trText("settingsDialogTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(820, app.width - 70)
-    height: Math.min(680, app.height - 70)
+    preferredWidth: boundedPreferredWidth(820, 70)
+    preferredHeight: boundedPreferredHeight(680, 70)
+    dialogMinimumWidth: Math.min(720, preferredWidth)
+    dialogMinimumHeight: Math.min(520, preferredHeight)
 
     function openPage(pageIndex) {
         currentPage = app.clamp(Math.round(pageIndex), 0, 3)
@@ -222,7 +224,7 @@ AppDialog {
                             }
 
                             AppSpinBox {
-                                from: 0
+                                from: 1
                                 to: app.maxLargeIntegerSetting
                                 editable: true
                                 value: app.analysisIntervalCentiseconds
@@ -1062,32 +1064,38 @@ AppDialog {
         }
     }
 
-    component PageButton: Rectangle {
+    component PageButton: Basic.Button {
         id: pageButton
         required property int page
-        property string text: ""
         readonly property bool selected: settingsDialog.currentPage === page
 
         Layout.fillWidth: true
         Layout.preferredHeight: 36
-        radius: 5
-        color: selected ? "#d8e9f1" : pageMouse.containsMouse ? "#f3f8fb" : "#ffffff"
-        border.color: selected ? "#2e8eb0" : "#c7d4dc"
-        border.width: selected ? 2 : 1
+        hoverEnabled: true
+        checkable: true
+        checked: selected
+        Accessible.role: Accessible.PageTab
+        Accessible.checked: selected
+        onClicked: settingsDialog.currentPage = pageButton.page
 
-        Text {
-            anchors.centerIn: parent
+        contentItem: Text {
             text: pageButton.text
             color: "#1b2d36"
             font.pixelSize: 14
             font.bold: pageButton.selected
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
 
-        MouseArea {
-            id: pageMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: settingsDialog.currentPage = pageButton.page
+        background: Rectangle {
+            radius: 5
+            color: pageButton.selected ? "#d8e9f1"
+                 : pageButton.pressed ? "#e1ebf0"
+                 : pageButton.hovered ? "#f3f8fb" : "#ffffff"
+            border.color: pageButton.visualFocus ? "#0f5f8f"
+                         : pageButton.selected ? "#2e8eb0" : "#c7d4dc"
+            border.width: pageButton.selected || pageButton.activeFocus ? 2 : 1
         }
     }
 
@@ -1126,35 +1134,38 @@ AppDialog {
         }
     }
 
-    component SmallModeButton: Rectangle {
+    component SmallModeButton: Basic.Button {
         id: modeButton
-        property string text: ""
         property bool selected: false
-        signal clicked()
 
-        Layout.preferredWidth: Math.max(62, label.implicitWidth + 22)
+        Layout.preferredWidth: Math.max(62, modeLabel.implicitWidth + 22)
         Layout.preferredHeight: 30
-        radius: 4
-        opacity: enabled ? 1 : 0.45
-        color: selected ? "#d8e9f1" : modeMouse.containsMouse ? "#eef5f8" : "#ffffff"
-        border.color: selected ? "#2e8eb0" : "#b5c2c9"
-        border.width: selected ? 2 : 1
+        hoverEnabled: true
+        checkable: true
+        checked: selected
+        Accessible.role: Accessible.RadioButton
+        Accessible.checked: selected
 
-        Text {
-            id: label
-            anchors.centerIn: parent
+        contentItem: Text {
+            id: modeLabel
             text: modeButton.text
             color: "#26333b"
             font.pixelSize: 13
             font.bold: modeButton.selected
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
 
-        MouseArea {
-            id: modeMouse
-            anchors.fill: parent
-            enabled: modeButton.enabled
-            hoverEnabled: true
-            onClicked: modeButton.clicked()
+        background: Rectangle {
+            radius: 4
+            opacity: modeButton.enabled ? 1 : 0.45
+            color: modeButton.selected ? "#d8e9f1"
+                 : modeButton.pressed ? "#dce7ec"
+                 : modeButton.hovered ? "#eef5f8" : "#ffffff"
+            border.color: modeButton.visualFocus ? "#0f5f8f"
+                         : modeButton.selected ? "#2e8eb0" : "#b5c2c9"
+            border.width: modeButton.selected || modeButton.activeFocus ? 2 : 1
         }
     }
 

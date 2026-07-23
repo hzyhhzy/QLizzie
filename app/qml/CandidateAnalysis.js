@@ -472,15 +472,88 @@ function pvMoves(candidate) {
     return moves
 }
 
+function specialMoveKind(move) {
+    var normalized = String(move === undefined || move === null ? "" : move).trim().toLowerCase()
+    if (normalized === "pass" || normalized === "resign")
+        return normalized
+    return ""
+}
+
+function specialMoveText(app, moveKind) {
+    if (moveKind === "pass")
+        return app.trText("passMove")
+    if (moveKind === "resign")
+        return app.trText("resignMove")
+    return ""
+}
+
+function candidateMoveText(app, candidate) {
+    if (!candidate)
+        return ""
+
+    var moveKind = specialMoveKind(candidate.specialMove || candidate.move)
+    if (moveKind !== "")
+        return specialMoveText(app, moveKind)
+
+    var point = null
+    if (candidate.boardPoint === true && candidate.x !== undefined && candidate.y !== undefined) {
+        point = { "x": Number(candidate.x), "y": Number(candidate.y) }
+    } else {
+        point = app.parseEngineCoordinate(candidate.move)
+    }
+    if (point)
+        return app.coordinateText(point.x, point.y)
+    return String(candidate.move === undefined || candidate.move === null ? "" : candidate.move)
+}
+
+function playCandidate(app, candidate) {
+    if (!candidate)
+        return false
+
+    var moveKind = specialMoveKind(candidate.specialMove || candidate.move)
+    if (moveKind === "pass") {
+        app.passMove()
+        return true
+    }
+    if (moveKind === "resign") {
+        app.statusMode = "message"
+        app.statusMessage = app.trText("engineSuggestsResign")
+        return true
+    }
+
+    var point = null
+    if (candidate.boardPoint === true && candidate.x !== undefined && candidate.y !== undefined) {
+        point = { "x": Number(candidate.x), "y": Number(candidate.y) }
+    } else {
+        point = app.parseEngineCoordinate(candidate.move)
+    }
+    return !!point && app.placeStone(point.x, point.y) !== false
+}
+
+function playBestCandidate(app, candidates) {
+    if (!candidates || candidates.length <= 0)
+        return false
+    return playCandidate(app, candidates[0])
+}
+
 function buildCandidateItems(app, candidates) {
     var sorted = []
-    for (var s = 0; s < candidates.length; ++s)
+    var needsSort = false
+    var previousOrder = -Infinity
+    for (var s = 0; s < candidates.length; ++s) {
         sorted.push(candidates[s])
-    sorted.sort(function(left, right) {
-        var lo = left.order === undefined ? 0 : Number(left.order)
-        var ro = right.order === undefined ? 0 : Number(right.order)
-        return lo - ro
-    })
+        var currentOrder = candidates[s].order === undefined ? 0 : Number(candidates[s].order)
+        if (currentOrder < previousOrder)
+            needsSort = true
+        previousOrder = currentOrder
+    }
+    if (needsSort) {
+        sorted.sort(function(left, right) {
+            var lo = left.order === undefined ? 0 : Number(left.order)
+            var ro = right.order === undefined ? 0 : Number(right.order)
+            return lo - ro
+        })
+    }
 
     var maxVisits = 0
     for (var m = 0; m < sorted.length; ++m)
@@ -494,26 +567,30 @@ function buildCandidateItems(app, candidates) {
     var table = []
     for (var c = 0; c < sorted.length; ++c) {
         var candidate = sorted[c]
-        var point = app.parseEngineCoordinate(candidate.move)
-        if (point) {
+        var moveKind = specialMoveKind(candidate.move)
+        var point = moveKind === "" ? app.parseEngineCoordinate(candidate.move) : null
+        if (point || moveKind !== "") {
+            var boardPoint = !!point
             var visits = visitCount(candidate)
             var visitRatio = maxVisits > 0 ? app.clamp(visits / maxVisits, 0, 1) : 1
             var rawWinrate = winrateValue(app, candidate)
             var qualified = c < limit && (maxVisits <= 0 || visits >= threshold)
             var item = {
-                "x": point.x,
-                "y": point.y,
-                "key": app.keyFor(point.x, point.y),
+                "x": boardPoint ? point.x : -1,
+                "y": boardPoint ? point.y : -1,
+                "key": boardPoint ? app.keyFor(point.x, point.y) : moveKind,
                 "move": candidate.move,
+                "specialMove": moveKind,
+                "boardPoint": boardPoint,
                 "order": candidate.order,
                 "displayIndex": c + 1,
                 "visits": visits,
                 "visitRatio": visitRatio,
                 "qualified": qualified,
-                "boardVisible": qualified || app.candidateShowFilteredMarkers,
-                "opacity": markerOpacity(app, c + 1, visitRatio),
-                "color": markerColor(app, c + 1, visitRatio),
-                "outlineOpacity": markerOutlineOpacity(app, visitRatio),
+                "boardVisible": boardPoint && (qualified || app.candidateShowFilteredMarkers),
+                "opacity": boardPoint ? markerOpacity(app, c + 1, visitRatio) : 0,
+                "color": boardPoint ? markerColor(app, c + 1, visitRatio) : "transparent",
+                "outlineOpacity": boardPoint ? markerOutlineOpacity(app, visitRatio) : 0,
                 "winrate": rawWinrate,
                 "winrateText": winrateText(app, candidate),
                 "scoreMean": scoreValue(app, candidate),
@@ -521,12 +598,13 @@ function buildCandidateItems(app, candidates) {
                 "pv": pvMoves(candidate),
                 "labelLines": labelLines(app, candidate)
             }
+            item.displayMoveText = candidateMoveText(app, item)
             items.push(item)
             itemMap[item.key] = item
             table.push({
                 "row": c + 1,
                 "key": item.key,
-                "coordinate": app.coordinateText(point.x, point.y),
+                "coordinate": item.displayMoveText,
                 "winrateText": item.winrateText,
                 "scoreText": item.scoreText,
                 "visitsText": visits > 0 ? formatVisitCount(visits) : ""
@@ -560,7 +638,9 @@ function resetDisplay(app) {
 }
 
 function setDisplay(app, candidates, fromCache, revision) {
-    app.engineCandidates = cloneCandidateList(candidates)
+    // Candidate snapshots are immutable after capture, so the node cache and the
+    // current display can safely share one list instead of cloning it again.
+    app.engineCandidates = candidates || []
     app.engineCandidatesFromCache = fromCache === true
     if (revision === undefined)
         app.engineCandidateRevision += 1
@@ -599,11 +679,10 @@ function cacheAnalysisCandidatesForNode(app, node, candidates, boardSignature, k
     if (!node || !candidates || candidates.length <= 0)
         return false
 
-    node.analysisCandidates = cloneCandidateList(candidates)
+    node.analysisCandidates = candidates
     node.analysisCandidateBoardSignature = boardSignature || app.engineBoardSignature()
     node.analysisCandidateKomiSignature = komiSignature || app.engineKomiSignature()
     recordAnalysisWinrateForNode(app, node, node.analysisCandidates, app.playerToMoveAfterNode(node))
-    app.gameNodes = app.gameNodes.slice()
     return true
 }
 

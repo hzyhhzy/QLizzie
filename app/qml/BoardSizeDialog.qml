@@ -12,7 +12,9 @@ AppDialog {
     modal: true
     title: app.trText("boardSizeDialogTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.max(500, Math.min(640, app.width - 80))
+    preferredWidth: Math.max(500, boundedPreferredWidth(640, 80))
+    dialogMinimumWidth: Math.min(500, preferredWidth)
+    dialogMinimumHeight: Math.min(240, preferredHeight)
 
     function showForCurrentBoard() {
         var logicalX = app.logicalBoardDimensionForRule(app.gameRuleMode, app.boardSizeX)

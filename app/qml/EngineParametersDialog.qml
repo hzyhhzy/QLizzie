@@ -11,7 +11,9 @@ AppDialog {
     modal: true
     title: app.trText("engineParameters")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(720, app.width - 80)
+    preferredWidth: boundedPreferredWidth(720, 80)
+    dialogMinimumWidth: Math.min(600, preferredWidth)
+    dialogMinimumHeight: Math.min(320, preferredHeight)
 
     function openForCurrentEngine() {
         engineCommandEdit.text = controller ? controller.command : ""

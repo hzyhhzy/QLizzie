@@ -11,8 +11,10 @@ AppDialog {
     modal: true
     title: app.trText("hiddenSettingsTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(760, app.width - 70)
-    height: Math.min(640, app.height - 70)
+    preferredWidth: boundedPreferredWidth(760, 70)
+    preferredHeight: boundedPreferredHeight(640, 70)
+    dialogMinimumWidth: Math.min(620, preferredWidth)
+    dialogMinimumHeight: Math.min(480, preferredHeight)
 
     function openDialog() {
         syncFields()

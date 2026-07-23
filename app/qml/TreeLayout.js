@@ -11,6 +11,31 @@ function nodeAt(nodes, x, y) {
     return -1
 }
 
+function nodeVisibleInViewport(node, left, top, width, height, padding) {
+    if (!node)
+        return false
+    var pad = Math.max(0, Number(padding) || 0)
+    var radius = Math.max(0, Number(node.radius) || 0) + pad
+    var right = left + Math.max(0, width)
+    var bottom = top + Math.max(0, height)
+    return node.x + radius >= left
+           && node.x - radius <= right
+           && node.y + radius >= top
+           && node.y - radius <= bottom
+}
+
+function edgeVisibleInViewport(edge, left, top, width, height, padding) {
+    if (!edge)
+        return false
+    var pad = Math.max(0, Number(padding) || 0)
+    var right = left + Math.max(0, width)
+    var bottom = top + Math.max(0, height)
+    return Math.max(edge.x1, edge.x2) + pad >= left
+           && Math.min(edge.x1, edge.x2) - pad <= right
+           && Math.max(edge.y1, edge.y2) + pad >= top
+           && Math.min(edge.y1, edge.y2) - pad <= bottom
+}
+
 function rebuild(app) {
     var rowHeight = 38
     var columnWidth = 42

@@ -1,6 +1,4 @@
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
 
 Rectangle {
     id: commandToolbar
@@ -36,23 +34,19 @@ Rectangle {
                     width: Math.round((modelData.width || 52) * (app.compactLayout ? 0.94 : 1.0))
                     height: commandToolbarRow.height
 
-                    Button {
+                    AppButton {
                         visible: modelData.type === "button"
                         enabled: app.toolbarActionEnabled(modelData.action || "")
+                        compact: app.compactLayout
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         height: parent.height - (app.compactLayout ? 6 : 8)
                         text: app.language === "zh" ? modelData.zh : modelData.en
-                        font.pixelSize: app.compactLayout ? 12 : 13
-                        leftPadding: 4
-                        rightPadding: 4
-                        topPadding: 2
-                        bottomPadding: 2
                         onClicked: app.runToolbarAction(modelData.action || "")
                     }
 
-                    TextField {
+                    AppTextField {
                         id: moveNumberInput
                         visible: modelData.type === "moveInput"
                         property bool committingMoveNumber: false

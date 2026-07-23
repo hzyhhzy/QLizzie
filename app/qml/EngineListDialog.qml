@@ -30,11 +30,14 @@ AppDialog {
     modal: true
     title: readOnlyMode ? app.trText("loadEngineTitle") : app.trText("engineSettingsTitle")
     closePolicy: Popup.NoAutoClose
+    onNativeCloseRequested: requestClose()
     padding: 8
     headerHeight: 48
-    width: Math.min(1180, app.width - 36)
-    height: readOnlyMode ? Math.min(430, app.height - 80)
-                         : Math.min(820, app.height - 36)
+    preferredWidth: boundedPreferredWidth(1180, 36)
+    preferredHeight: readOnlyMode ? boundedPreferredHeight(430, 80)
+                                  : boundedPreferredHeight(820, 36)
+    dialogMinimumWidth: Math.min(readOnlyMode ? 620 : 900, preferredWidth)
+    dialogMinimumHeight: Math.min(readOnlyMode ? 360 : 680, preferredHeight)
 
     function ensureSelection() {
         if (!app.enginePresets || app.enginePresets.length <= 0) {
@@ -456,55 +459,68 @@ AppDialog {
         app.focusBoardInput()
     }
 
-    contentItem: ColumnLayout {
-        id: dialogContent
-
+    contentItem: Flickable {
+        id: dialogFlick
         implicitWidth: 1160
         implicitHeight: 720
-        spacing: 8
+        contentWidth: width
+        contentHeight: dialogContent.height
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
 
-        Label {
-            visible: engineListDialog.readOnlyMode
-            Layout.fillWidth: true
-            text: engineListDialog.startupMode ? app.trText("engineStartupManualHint")
-                                                : app.trText("enginePickerHint")
-            color: "#4e626e"
-            font.pixelSize: 14
-            wrapMode: Text.WordWrap
+        ScrollBar.vertical: AppScrollBar {
+            policy: dialogFlick.contentHeight > dialogFlick.height
+                    ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
         }
 
-        Rectangle {
-            visible: !engineListDialog.readOnlyMode
-            Layout.fillWidth: true
-            Layout.preferredHeight: 470
-            color: "#f6fafc"
-            clip: true
+        ColumnLayout {
+            id: dialogContent
+            width: dialogFlick.width
+            height: Math.max(dialogFlick.height, implicitHeight)
+            spacing: 8
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 10
-                spacing: 8
+            Label {
+                visible: engineListDialog.readOnlyMode
+                Layout.fillWidth: true
+                text: engineListDialog.startupMode ? app.trText("engineStartupManualHint")
+                                                    : app.trText("enginePickerHint")
+                color: "#4e626e"
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+            }
 
-                Label {
-                    text: app.trText("engineSettingIndex").replace("%1", Math.max(1, engineListDialog.selectedIndex + 1))
-                    color: "#2b53ff"
-                    font.pixelSize: 15
-                    font.bold: true
-                }
+            Rectangle {
+                visible: !engineListDialog.readOnlyMode
+                Layout.fillWidth: true
+                Layout.preferredHeight: 470
+                color: "#f6fafc"
+                clip: true
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
 
-                    FieldLabel { text: app.trText("engineName") }
-                    Basic.TextField {
-                        id: nameEdit
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        selectByMouse: true
-                        enabled: engineListDialog.selectedPreset() !== null
+                    Label {
+                        text: app.trText("engineSettingIndex").replace("%1", Math.max(1, engineListDialog.selectedIndex + 1))
+                        color: "#2b53ff"
+                        font.pixelSize: 15
+                        font.bold: true
                     }
-                }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        FieldLabel { text: app.trText("engineName") }
+                        Basic.TextField {
+                            id: nameEdit
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            selectByMouse: true
+                            enabled: engineListDialog.selectedPreset() !== null
+                        }
+                    }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -880,6 +896,7 @@ AppDialog {
                 }
             }
         }
+        }
     }
 
     footer: AppDialogFooter {
@@ -943,13 +960,27 @@ AppDialog {
     AppDialog {
         id: unsavedEngineDialog
 
+        property bool explicitClose: false
+
+        parent: engineListDialog.contentItem
         app: engineListDialog.app
+        centerTarget: engineListDialog.contentItem
+        owningWindow: engineListDialog.hostWindow
         modal: true
         title: app.trText("unsavedEngineTitle")
         closePolicy: Popup.CloseOnEscape
-        width: Math.max(380, Math.min(480, engineListDialog.width - 80))
-        x: Math.round((engineListDialog.width - width) / 2)
-        y: Math.round((engineListDialog.height - height) / 2)
+        preferredWidth: Math.max(380, Math.min(480, engineListDialog.width - 80))
+        dialogMinimumWidth: Math.min(380, preferredWidth)
+        dialogMinimumHeight: Math.min(220, preferredHeight)
+
+        onOpened: explicitClose = false
+        onClosed: {
+            if (explicitClose) {
+                explicitClose = false
+                return
+            }
+            engineListDialog.pendingUnsavedAction = null
+        }
 
         contentItem: Rectangle {
             implicitWidth: 440
@@ -972,13 +1003,14 @@ AppDialog {
         }
 
         footer: AppDialogFooter {
-            tone: confirmDeleteEngineDialog.tone
+            tone: unsavedEngineDialog.tone
             Item { Layout.fillWidth: true }
 
             SavePromptButton {
                 text: app.trText("save")
                 primary: true
                 onClicked: {
+                    unsavedEngineDialog.explicitClose = true
                     unsavedEngineDialog.close()
                     engineListDialog.runPendingUnsavedAction(true)
                 }
@@ -987,6 +1019,7 @@ AppDialog {
             SavePromptButton {
                 text: app.trText("dontSave")
                 onClicked: {
+                    unsavedEngineDialog.explicitClose = true
                     unsavedEngineDialog.close()
                     engineListDialog.runPendingUnsavedAction(false)
                 }
@@ -1005,14 +1038,17 @@ AppDialog {
     AppDialog {
         id: confirmDeleteEngineDialog
 
+        parent: engineListDialog.contentItem
         app: engineListDialog.app
+        centerTarget: engineListDialog.contentItem
+        owningWindow: engineListDialog.hostWindow
         modal: true
         tone: "warning"
         title: app.trText("confirmDeleteEngineTitle")
         closePolicy: Popup.CloseOnEscape
-        width: Math.max(360, Math.min(460, engineListDialog.width - 80))
-        x: Math.round((engineListDialog.width - width) / 2)
-        y: Math.round((engineListDialog.height - height) / 2)
+        preferredWidth: Math.max(360, Math.min(460, engineListDialog.width - 80))
+        dialogMinimumWidth: Math.min(360, preferredWidth)
+        dialogMinimumHeight: Math.min(210, preferredHeight)
 
         contentItem: Rectangle {
             implicitWidth: 420
@@ -1037,6 +1073,7 @@ AppDialog {
         }
 
         footer: AppDialogFooter {
+            tone: confirmDeleteEngineDialog.tone
             Item { Layout.fillWidth: true }
 
             SavePromptButton {
@@ -1057,7 +1094,10 @@ AppDialog {
 
     GoRuleDialog {
         id: engineGoRuleDialog
+        parent: engineListDialog.contentItem
         app: engineListDialog.app
+        centerTarget: engineListDialog.contentItem
+        owningWindow: engineListDialog.hostWindow
         onRulesAccepted: function(scoringRule, koRule, suicideAllowed,
                                   taxRule, handicapBonus, buttonRule) {
             engineListDialog.setEditorGoRules(scoringRule, koRule, suicideAllowed,
@@ -1067,7 +1107,10 @@ AppDialog {
 
     GomokuRuleDialog {
         id: engineGomokuRuleDialog
+        parent: engineListDialog.contentItem
         app: engineListDialog.app
+        centerTarget: engineListDialog.contentItem
+        owningWindow: engineListDialog.hostWindow
         onRulesAccepted: function(ruleMode, maxMoves, vcnRule, firstPassWin) {
             engineListDialog.setEditorGomokuRules(ruleMode, maxMoves, vcnRule, firstPassWin)
         }
@@ -1075,7 +1118,10 @@ AppDialog {
 
     NoRuleVariantDialog {
         id: engineNoRuleVariantDialog
+        parent: engineListDialog.contentItem
         app: engineListDialog.app
+        centerTarget: engineListDialog.contentItem
+        owningWindow: engineListDialog.hostWindow
     }
 
     AppPopup {

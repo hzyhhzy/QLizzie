@@ -9,8 +9,10 @@ AppDialog {
     modal: true
     title: app.trText("helpKeysTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(640, app.width - 70)
-    height: Math.min(620, app.height - 70)
+    preferredWidth: boundedPreferredWidth(640, 70)
+    preferredHeight: boundedPreferredHeight(620, 70)
+    dialogMinimumWidth: Math.min(520, preferredWidth)
+    dialogMinimumHeight: Math.min(420, preferredHeight)
 
     property var helpRows: [
         { "keys": "Space", "textKey": "helpKeyPauseEngineDesc" },

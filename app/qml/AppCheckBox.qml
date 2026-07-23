@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 
 Basic.CheckBox {
@@ -9,6 +8,9 @@ Basic.CheckBox {
     readonly property int indicatorSize: compact ? 18 : 20
 
     spacing: compact ? 6 : 8
+    Accessible.name: text
+    Accessible.role: Accessible.CheckBox
+    Accessible.checked: checked
 
     indicator: Rectangle {
         implicitWidth: appCheckBox.indicatorSize
@@ -19,10 +21,11 @@ Basic.CheckBox {
         color: appCheckBox.checkState === Qt.Checked || appCheckBox.checkState === Qt.PartiallyChecked
                ? "#0f6fbf"
                : appCheckBox.hovered ? "#eef7fa" : "#ffffff"
-        border.color: appCheckBox.checkState === Qt.Checked || appCheckBox.checkState === Qt.PartiallyChecked
+        border.color: appCheckBox.visualFocus ? "#0f5f8f"
+                      : appCheckBox.checkState === Qt.Checked || appCheckBox.checkState === Qt.PartiallyChecked
                       ? "#0f6fbf"
                       : appCheckBox.hovered ? "#5c8da6" : "#7f8b92"
-        border.width: 1
+        border.width: appCheckBox.visualFocus ? 2 : 1
 
         AppCheckMark {
             anchors.fill: parent

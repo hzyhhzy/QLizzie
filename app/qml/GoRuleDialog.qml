@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 AppDialog {
@@ -20,8 +19,10 @@ AppDialog {
     modal: true
     title: app.trText("goRuleDialogTitle")
     padding: 16
-    width: Math.min(780, app.width - 42)
-    height: Math.min(430, app.height - 42)
+    preferredWidth: boundedPreferredWidth(780, 42)
+    preferredHeight: boundedPreferredHeight(460, 42)
+    dialogMinimumWidth: Math.min(660, preferredWidth)
+    dialogMinimumHeight: Math.min(430, preferredHeight)
 
     function openWithCurrent() {
         applyToApp = true
@@ -115,87 +116,20 @@ AppDialog {
         Layout.preferredWidth: 116
     }
 
-    component PresetButton: Basic.Button {
-        id: presetButton
-
-        property bool selected: false
-        property bool primary: false
-
+    component PresetButton: AppButton {
+        property bool selectionButton: false
+        compact: goRuleDialog.app.compactLayout
         implicitHeight: 32
         implicitWidth: 126
-
-        contentItem: Text {
-            text: presetButton.text
-            color: presetButton.primary ? "#ffffff" : "#17212a"
-            font.pixelSize: goRuleDialog.app.compactLayout ? 12 : 13
-            font.bold: presetButton.selected || presetButton.primary
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            radius: 5
-            color: presetButton.primary ? (presetButton.pressed ? "#1f6f8d" : "#2b8cc4")
-                 : presetButton.pressed ? "#dcecf3"
-                 : presetButton.selected ? "#e1f2f8"
-                 : presetButton.hovered ? "#eef7fa" : "#f8fbfd"
-            border.color: presetButton.primary ? "#1f6f8d"
-                         : presetButton.selected ? "#2e8eb0"
-                         : presetButton.activeFocus ? "#2a91c9" : "#a8bac5"
-            border.width: presetButton.selected || presetButton.activeFocus ? 2 : 1
-        }
+        Accessible.role: selectionButton ? Accessible.RadioButton : Accessible.Button
+        Accessible.checked: selectionButton && selected
     }
 
-    component RuleChoice: Item {
-        id: ruleChoice
-
-        property string text: ""
-        property bool checked: false
-        signal clicked()
-
+    component RuleChoice: AppRadioChoice {
         implicitWidth: 150
         implicitHeight: 32
-
-        RowLayout {
-            anchors.fill: parent
-            spacing: 8
-
-            Rectangle {
-                Layout.preferredWidth: 24
-                Layout.preferredHeight: 24
-                radius: 12
-                color: "#ffffff"
-                border.color: ruleChoice.checked ? "#2e8eb0"
-                             : choiceMouse.containsMouse ? "#6f9dad" : "#9fa8ad"
-                border.width: ruleChoice.checked ? 2 : 1
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    visible: ruleChoice.checked
-                    width: 14
-                    height: 14
-                    radius: 7
-                    color: "#000000"
-                }
-            }
-
-            Text {
-                text: ruleChoice.text
-                color: "#24313a"
-                font.pixelSize: goRuleDialog.app.compactLayout ? 12 : 13
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-        }
-
-        MouseArea {
-            id: choiceMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: ruleChoice.clicked()
-        }
+        compact: goRuleDialog.app.compactLayout
+        textPixelSize: goRuleDialog.app.compactLayout ? 12 : 13
     }
 
     contentItem: ColumnLayout {
@@ -208,24 +142,28 @@ AppDialog {
             FieldLabel { text: goRuleDialog.app.trText("classicRules") }
             PresetButton {
                 text: goRuleDialog.app.trText("goRuleChinese")
+                selectionButton: true
                 selected: goRuleDialog.isChineseRules()
                 Layout.preferredWidth: 126
                 onClicked: goRuleDialog.setChineseRules()
             }
             PresetButton {
                 text: goRuleDialog.app.trText("goRuleJapanese")
+                selectionButton: true
                 selected: goRuleDialog.isJapaneseRules()
                 Layout.preferredWidth: 126
                 onClicked: goRuleDialog.setJapaneseRules()
             }
             PresetButton {
                 text: goRuleDialog.app.trText("goRuleChineseAncient")
+                selectionButton: true
                 selected: goRuleDialog.isChineseAncientRules()
                 Layout.preferredWidth: 126
                 onClicked: goRuleDialog.setChineseAncientRules()
             }
             PresetButton {
                 text: goRuleDialog.app.trText("goRuleTrompTaylor")
+                selectionButton: true
                 selected: goRuleDialog.isTrompTaylorRules()
                 Layout.preferredWidth: 164
                 onClicked: goRuleDialog.setTrompTaylorRules()

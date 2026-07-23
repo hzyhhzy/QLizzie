@@ -6,6 +6,34 @@ import QtQuick.Layouts
 Rectangle {
     id: toolbar
     required property var app
+    readonly property int horizontalPadding: app.compactLayout ? 8 : 12
+    readonly property int scrollButtonWidth: 24
+    readonly property bool contentOverflows:
+        toolbarContent.implicitWidth + horizontalPadding * 2 > width
+
+    function maximumContentX() {
+        return Math.max(0, toolbarFlick.contentWidth - toolbarFlick.width)
+    }
+
+    function setContentXClamped(value) {
+        toolbarFlick.contentX = Math.max(0, Math.min(maximumContentX(), value))
+    }
+
+    function scrollBy(delta) {
+        setContentXClamped(toolbarFlick.contentX + delta)
+    }
+
+    function ensureItemVisible(item) {
+        if (!contentOverflows || !item || !item.activeFocus)
+            return
+        var position = item.mapToItem(toolbarFlick.contentItem, 0, 0)
+        var itemLeft = position.x
+        var itemRight = itemLeft + item.width
+        if (itemLeft < toolbarFlick.contentX)
+            setContentXClamped(itemLeft - horizontalPadding)
+        else if (itemRight > toolbarFlick.contentX + toolbarFlick.width)
+            setContentXClamped(itemRight - toolbarFlick.width + horizontalPadding)
+    }
 
     anchors.left: parent.left
     anchors.right: parent.right
@@ -14,15 +42,48 @@ Rectangle {
     color: "#e7ecef"
     border.color: "#c4cdd2"
 
-    RowLayout {
+    Flickable {
+        id: toolbarFlick
         anchors.fill: parent
-        anchors.leftMargin: app.compactLayout ? 8 : 12
-        anchors.rightMargin: app.compactLayout ? 8 : 12
-        spacing: app.compactLayout ? 7 : 11
+        anchors.leftMargin: toolbar.contentOverflows ? toolbar.scrollButtonWidth : 0
+        anchors.rightMargin: toolbar.contentOverflows ? toolbar.scrollButtonWidth : 0
+        contentWidth: Math.max(width, toolbarContent.implicitWidth + toolbar.horizontalPadding * 2)
+        contentHeight: height
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.HorizontalFlick
+        interactive: toolbar.contentOverflows
+        pixelAligned: true
+        clip: true
 
-        RuleSettingsButton {
-            visible: app.toolbarRuleSettingsVisible()
+        onContentWidthChanged: toolbar.setContentXClamped(contentX)
+        onWidthChanged: toolbar.setContentXClamped(contentX)
+
+        WheelHandler {
+            enabled: toolbar.contentOverflows
+            target: null
+            onWheel: function(event) {
+                var pixelDelta = Math.abs(event.pixelDelta.x) > Math.abs(event.pixelDelta.y)
+                               ? event.pixelDelta.x : event.pixelDelta.y
+                var angleDelta = Math.abs(event.angleDelta.x) > Math.abs(event.angleDelta.y)
+                               ? event.angleDelta.x : event.angleDelta.y
+                var delta = pixelDelta !== 0 ? pixelDelta : angleDelta
+                if (delta === 0)
+                    return
+                toolbar.setContentXClamped(toolbarFlick.contentX - delta)
+                event.accepted = true
+            }
         }
+
+        RowLayout {
+            id: toolbarContent
+            x: toolbar.horizontalPadding
+            width: implicitWidth
+            height: toolbarFlick.height
+            spacing: app.compactLayout ? 7 : 11
+
+            RuleSettingsButton {
+                visible: app.toolbarRuleSettingsVisible()
+            }
 
         Rectangle {
             visible: app.toolbarRuleSettingsVisible()
@@ -48,6 +109,10 @@ Rectangle {
             currentIndex: app.boardPresentationCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 134 : 178
             implicitHeight: app.compactLayout ? 28 : 32
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             onPicked: function(index) {
                 app.setBoardPresentationFromIndex(index)
                 app.focusBoardInput()
@@ -69,6 +134,10 @@ Rectangle {
             currentIndex: app.hexBoardStyleCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 116 : 150
             implicitHeight: app.compactLayout ? 28 : 32
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             onPicked: function(index) {
                 app.setHexBoardStyleFromIndex(index)
                 app.focusBoardInput()
@@ -90,6 +159,10 @@ Rectangle {
             currentIndex: app.hexBoardRotationCurrentIndex()
             Layout.preferredWidth: app.compactLayout ? 132 : 178
             implicitHeight: app.compactLayout ? 28 : 32
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             onPicked: function(index) {
                 app.setHexBoardRotationFromIndex(index)
                 app.focusBoardInput()
@@ -126,6 +199,10 @@ Rectangle {
             Layout.preferredHeight: app.compactLayout ? 28 : 32
             font.pixelSize: app.compactLayout ? 15 : 17
             font.bold: true
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             textFromValue: function(value) { return (value / 10).toFixed(1) }
             valueFromText: function(text) {
                 var number = Number(text)
@@ -154,6 +231,10 @@ Rectangle {
             topPadding: 0
             bottomPadding: 0
             onToggled: app.setAnalysisWideRootNoiseEnabled(checked)
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
 
             indicator: Rectangle {
                 x: Math.round((wideRootNoiseEnabledBox.width - width) / 2)
@@ -213,6 +294,10 @@ Rectangle {
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             background: Rectangle {
                 radius: 4
                 color: !wideRootNoiseField.enabled ? "#e7eef2"
@@ -348,6 +433,10 @@ Rectangle {
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
             background: Rectangle {
                 radius: 4
                 color: secondsField.enabled ? (secondsField.activeFocus ? "#ffffff" : "#f9fbfc") : "#e2e8eb"
@@ -388,24 +477,80 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
         }
 
-        Item { Layout.fillWidth: true }
+        }
     }
 
-    component RuleSettingsButton: Rectangle {
+    component ToolbarScrollButton: Basic.Button {
+        id: scrollButton
+
+        property int direction: 1
+
+        visible: toolbar.contentOverflows
+        enabled: direction < 0 ? toolbarFlick.contentX > 0.5
+                               : toolbarFlick.contentX < toolbar.maximumContentX() - 0.5
+        width: toolbar.scrollButtonWidth
+        height: toolbar.height
+        padding: 0
+        focusPolicy: Qt.TabFocus
+        z: 2
+        opacity: enabled ? 1 : 0.42
+        Accessible.name: direction < 0
+                         ? (app.language === "zh" ? "向左滚动工具栏" : "Scroll toolbar left")
+                         : (app.language === "zh" ? "向右滚动工具栏" : "Scroll toolbar right")
+        Accessible.role: Accessible.Button
+
+        onClicked: toolbar.scrollBy(direction * Math.max(140, toolbarFlick.width * 0.65))
+
+        contentItem: Text {
+            text: scrollButton.direction < 0 ? "\u25c0" : "\u25b6"
+            color: scrollButton.enabled ? "#26333b" : "#829099"
+            font.pixelSize: app.compactLayout ? 10 : 11
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        background: Rectangle {
+            color: scrollButton.down ? "#cad8df"
+                  : scrollButton.hovered || scrollButton.activeFocus ? "#f4f8fa"
+                  : "#e7ecef"
+            border.color: scrollButton.activeFocus ? "#2a91c9" : "#aab9c1"
+            border.width: scrollButton.activeFocus ? 2 : 1
+        }
+    }
+
+    ToolbarScrollButton {
+        anchors.left: parent.left
+        anchors.top: parent.top
+        direction: -1
+    }
+
+    ToolbarScrollButton {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        direction: 1
+    }
+
+    component RuleSettingsButton: Basic.Button {
         id: ruleSettingsButton
 
+        text: app.trText("ruleSettingsButton")
         Layout.preferredWidth: app.compactLayout ? 84 : 104
         Layout.preferredHeight: app.compactLayout ? 28 : 32
-        radius: 4
-        color: ruleSettingsMouse.pressed ? "#d5e1e8"
-             : ruleSettingsMouse.containsMouse ? "#eef5f8" : "#f8fafb"
-        border.color: "#2e8eb0"
-        border.width: 1
+        padding: 0
+        focusPolicy: Qt.TabFocus
+        Accessible.name: text + ": " + app.ruleVariantText()
+        Accessible.role: Accessible.Button
+        ToolTip.visible: hovered
+        ToolTip.text: app.ruleVariantText()
 
-        Text {
-            anchors.centerIn: parent
-            width: parent.width - 10
-            text: app.trText("ruleSettingsButton")
+        onActiveFocusChanged: {
+            if (activeFocus)
+                toolbar.ensureItemVisible(this)
+        }
+        onClicked: app.openRuleVariantDialog()
+
+        contentItem: Text {
+            text: ruleSettingsButton.text
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 12 : 13
             font.bold: true
@@ -414,53 +559,17 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        ToolTip.visible: ruleSettingsMouse.containsMouse
-        ToolTip.text: app.ruleVariantText()
-
-        MouseArea {
-            id: ruleSettingsMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: {
-                app.openRuleVariantDialog()
-                app.focusBoardInput()
-            }
+        background: Rectangle {
+            radius: 4
+            color: ruleSettingsButton.down ? "#d5e1e8"
+                 : ruleSettingsButton.hovered || ruleSettingsButton.activeFocus ? "#eef5f8"
+                 : "#f8fafb"
+            border.color: ruleSettingsButton.activeFocus ? "#0f6f9f" : "#2e8eb0"
+            border.width: ruleSettingsButton.activeFocus ? 2 : 1
         }
     }
 
-    component StepButton: Rectangle {
-        id: stepButton
-        signal clicked()
-        property string text: ""
-
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        radius: 2
-        opacity: enabled ? 1 : 0.48
-        color: stepMouse.pressed ? "#cfdbe1" : stepMouse.containsMouse ? "#dde6eb" : "#f7fafb"
-        border.color: "#aebbc2"
-
-        Text {
-            anchors.centerIn: parent
-            text: stepButton.text
-            color: "#26333b"
-            font.pixelSize: app.compactLayout ? 9 : 10
-            font.bold: true
-        }
-
-        MouseArea {
-            id: stepMouse
-            anchors.fill: parent
-            enabled: stepButton.enabled
-            hoverEnabled: true
-            onClicked: {
-                stepButton.clicked()
-                app.focusBoardInput()
-            }
-        }
-    }
-
-    component StoneColorButton: Rectangle {
+    component StoneColorButton: Basic.Button {
         id: colorButton
         property int mode: 0
         property string tip: ""
@@ -468,13 +577,24 @@ Rectangle {
 
         Layout.preferredWidth: app.compactLayout ? 34 : 38
         Layout.preferredHeight: app.compactLayout ? 28 : 32
-        radius: 4
-        color: selected ? "#d8e9f1" : colorMouse.containsMouse ? "#eef5f8" : "#f8fafb"
-        border.color: selected ? "#2e8eb0" : "#b5c2c9"
-        border.width: selected ? 2 : 1
+        padding: 0
+        focusPolicy: Qt.TabFocus
+        Accessible.name: tip
+        Accessible.role: Accessible.RadioButton
+        Accessible.checked: selected
+        ToolTip.visible: hovered
+        ToolTip.text: tip
 
-        Item {
-            anchors.fill: parent
+        onActiveFocusChanged: {
+            if (activeFocus)
+                toolbar.ensureItemVisible(this)
+        }
+        onClicked: {
+            app.setStoneColorMode(colorButton.mode)
+            app.focusBoardInput()
+        }
+
+        contentItem: Item {
 
             Rectangle {
                 visible: colorButton.mode === app.stoneColorModeAuto
@@ -519,70 +639,85 @@ Rectangle {
             }
         }
 
-        ToolTip.visible: colorMouse.containsMouse
-        ToolTip.text: tip
-
-        MouseArea {
-            id: colorMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: {
-                app.setStoneColorMode(colorButton.mode)
-                app.focusBoardInput()
-            }
+        background: Rectangle {
+            radius: 4
+            color: colorButton.selected ? "#d8e9f1"
+                 : colorButton.down ? "#d5e1e8"
+                 : colorButton.hovered || colorButton.activeFocus ? "#eef5f8"
+                 : "#f8fafb"
+            border.color: colorButton.activeFocus ? "#0f6f9f"
+                          : colorButton.selected ? "#2e8eb0" : "#b5c2c9"
+            border.width: colorButton.activeFocus || colorButton.selected ? 2 : 1
         }
     }
 
-    component PassButton: Rectangle {
+    component PassButton: Basic.Button {
         id: passButton
 
+        text: app.trText("passMove")
         Layout.preferredWidth: app.compactLayout ? 44 : 52
         Layout.preferredHeight: app.compactLayout ? 28 : 32
-        radius: 4
-        color: passMouse.pressed ? "#d5e1e8" : passMouse.containsMouse ? "#eef5f8" : "#f8fafb"
-        border.color: "#b5c2c9"
-        border.width: 1
+        padding: 0
+        focusPolicy: Qt.TabFocus
+        Accessible.name: app.trText("passMoveTooltip")
+        Accessible.role: Accessible.Button
+        ToolTip.visible: hovered
+        ToolTip.text: app.trText("passMoveTooltip")
 
-        Text {
-            anchors.centerIn: parent
-            text: app.trText("passMove")
+        onActiveFocusChanged: {
+            if (activeFocus)
+                toolbar.ensureItemVisible(this)
+        }
+        onClicked: {
+            app.passMove()
+            app.focusBoardInput()
+        }
+
+        contentItem: Text {
+            text: passButton.text
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 11 : 12
             font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
 
-        ToolTip.visible: passMouse.containsMouse
-        ToolTip.text: app.trText("passMoveTooltip")
-
-        MouseArea {
-            id: passMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: {
-                app.passMove()
-                app.focusBoardInput()
-            }
+        background: Rectangle {
+            radius: 4
+            color: passButton.down ? "#d5e1e8"
+                 : passButton.hovered || passButton.activeFocus ? "#eef5f8"
+                 : "#f8fafb"
+            border.color: passButton.activeFocus ? "#0f6f9f" : "#b5c2c9"
+            border.width: passButton.activeFocus ? 2 : 1
         }
     }
 
-    component PlayModeButton: Rectangle {
+    component PlayModeButton: Basic.Button {
         id: modeButton
         property int mode: 0
-        property string text: ""
         readonly property bool selected: app.playMode === mode
 
         enabled: app.engineReadyForPlayMode()
         Layout.preferredWidth: app.compactLayout ? 54 : 68
         Layout.preferredHeight: app.compactLayout ? 28 : 32
-        radius: 4
+        padding: 0
+        focusPolicy: Qt.TabFocus
         opacity: enabled ? 1 : 0.48
-        color: selected ? "#d8e9f1" : modeMouse.containsMouse ? "#eef5f8" : "#f8fafb"
-        border.color: selected ? "#2e8eb0" : "#b5c2c9"
-        border.width: selected ? 2 : 1
+        Accessible.name: text
+        Accessible.role: Accessible.RadioButton
+        Accessible.checked: selected
 
-        Text {
-            anchors.centerIn: parent
-            width: parent.width - 6
+        onActiveFocusChanged: {
+            if (activeFocus)
+                toolbar.ensureItemVisible(this)
+        }
+        onClicked: {
+            app.setPlayMode(modeButton.mode)
+            app.focusBoardInput()
+        }
+
+        contentItem: Text {
             text: modeButton.text
             color: "#26333b"
             font.pixelSize: app.compactLayout ? 10 : 12
@@ -592,47 +727,15 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        MouseArea {
-            id: modeMouse
-            anchors.fill: parent
-            enabled: modeButton.enabled
-            hoverEnabled: true
-            onClicked: {
-                app.setPlayMode(modeButton.mode)
-                app.focusBoardInput()
-            }
-        }
-    }
-
-    component RuleButton: Rectangle {
-        id: ruleButton
-        property int mode: 0
-        property string text: ""
-        readonly property bool selected: app.gameRuleMode === mode
-
-        Layout.preferredWidth: app.compactLayout ? 44 : 56
-        Layout.preferredHeight: app.compactLayout ? 28 : 32
-        radius: 4
-        color: selected ? "#d8e9f1" : ruleMouse.containsMouse ? "#eef5f8" : "#f8fafb"
-        border.color: selected ? "#2e8eb0" : "#b5c2c9"
-        border.width: selected ? 2 : 1
-
-        Text {
-            anchors.centerIn: parent
-            text: ruleButton.text
-            color: "#26333b"
-            font.pixelSize: app.compactLayout ? 12 : 14
-            font.bold: ruleButton.selected
-        }
-
-        MouseArea {
-            id: ruleMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: {
-                app.requestRuleModeChange(ruleButton.mode)
-                app.focusBoardInput()
-            }
+        background: Rectangle {
+            radius: 4
+            color: modeButton.selected ? "#d8e9f1"
+                 : modeButton.down ? "#d5e1e8"
+                 : modeButton.hovered || modeButton.activeFocus ? "#eef5f8"
+                 : "#f8fafb"
+            border.color: modeButton.activeFocus ? "#0f6f9f"
+                          : modeButton.selected ? "#2e8eb0" : "#b5c2c9"
+            border.width: modeButton.activeFocus || modeButton.selected ? 2 : 1
         }
     }
 

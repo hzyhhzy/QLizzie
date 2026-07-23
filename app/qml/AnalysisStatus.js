@@ -57,7 +57,10 @@ function engineCandidateSummaryText(app) {
     if (app.engineCandidateItems.length <= 0)
         return app.trText("engineNoCandidates")
     var best = app.engineCandidateItems[0]
-    return app.trText("engineBestMove") + ": " + app.coordinateText(best.x, best.y) + " " + best.winrateText
+    var moveText = best.displayMoveText === undefined
+                 ? app.coordinateText(best.x, best.y)
+                 : String(best.displayMoveText)
+    return app.trText("engineBestMove") + ": " + moveText + " " + best.winrateText
 }
 
 function engineDotColor(app, engineController) {

@@ -255,22 +255,13 @@ Window {
             Layout.fillWidth: true
             spacing: 8
 
-            Basic.TextField {
+            AppTextField {
                 id: engineCommunicationCommandField
-                selectByMouse: true
                 font.family: "Consolas"
                 font.pixelSize: app.compactLayout ? 12 : 13
-                color: "#13232d"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
                 onAccepted: engineCommunicationDialog.submitCommand()
-
-                background: Rectangle {
-                    radius: 5
-                    color: "#ffffff"
-                    border.color: engineCommunicationCommandField.activeFocus ? "#2388b8" : "#b7c5cc"
-                    border.width: 1
-                }
             }
 
             SavePromptButton {

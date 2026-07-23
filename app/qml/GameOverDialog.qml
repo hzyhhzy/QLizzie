@@ -9,7 +9,7 @@ AppDialog {
     modal: false
     title: app.trText("gameOverTitle")
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    width: Math.min(360, app.width - 80)
+    preferredWidth: Math.min(360, app.width - 80)
 
     contentItem: ColumnLayout {
         spacing: 16

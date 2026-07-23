@@ -8,8 +8,10 @@ AppDialog {
 
     modal: true
     title: app.trText("noRuleVariantTitle")
-    width: Math.min(420, app.width - 42)
-    height: Math.min(210, app.height - 42)
+    preferredWidth: boundedPreferredWidth(420, 42)
+    preferredHeight: boundedPreferredHeight(210, 42)
+    dialogMinimumWidth: Math.min(360, preferredWidth)
+    dialogMinimumHeight: Math.min(180, preferredHeight)
 
     contentItem: Label {
         text: app.trText("noRuleVariantBody")

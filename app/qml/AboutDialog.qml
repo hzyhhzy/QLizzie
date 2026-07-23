@@ -11,8 +11,10 @@ AppDialog {
     modal: true
     title: app.trText("aboutTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(560, app.width - 70)
-    height: Math.min(360, app.height - 70)
+    preferredWidth: boundedPreferredWidth(560, 70)
+    preferredHeight: boundedPreferredHeight(360, 70)
+    dialogMinimumWidth: Math.min(460, preferredWidth)
+    dialogMinimumHeight: Math.min(300, preferredHeight)
 
     function link(url, label) {
         return "<a href=\"" + url + "\">" + label + "</a>"

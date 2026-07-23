@@ -451,9 +451,40 @@ Rectangle {
             }
         }
 
+        function updateCandidateRow(index, nextRow) {
+            var currentRow = candidateRows.get(index)
+            var changed = false
+            if (Number(currentRow.row) !== nextRow.row) {
+                candidateRows.setProperty(index, "row", nextRow.row)
+                changed = true
+            }
+            if (String(currentRow.key) !== nextRow.key) {
+                candidateRows.setProperty(index, "key", nextRow.key)
+                changed = true
+            }
+            if (String(currentRow.coordinate) !== nextRow.coordinate) {
+                candidateRows.setProperty(index, "coordinate", nextRow.coordinate)
+                changed = true
+            }
+            if (String(currentRow.winrateText) !== nextRow.winrateText) {
+                candidateRows.setProperty(index, "winrateText", nextRow.winrateText)
+                changed = true
+            }
+            if (String(currentRow.scoreText) !== nextRow.scoreText) {
+                candidateRows.setProperty(index, "scoreText", nextRow.scoreText)
+                changed = true
+            }
+            if (String(currentRow.visitsText) !== nextRow.visitsText) {
+                candidateRows.setProperty(index, "visitsText", nextRow.visitsText)
+                changed = true
+            }
+            return changed
+        }
+
         function syncCandidateRows() {
             var rows = app.engineCandidateTableItems || []
             var userControlled = candidateList.userControlsScroll()
+            var previousCount = candidateRows.count
             if (userControlled)
                 candidateList.saveUserScrollPosition()
 
@@ -461,7 +492,7 @@ Rectangle {
             for (var i = 0; i < rows.length; ++i) {
                 var rowObject = candidateRowObject(rows[i])
                 if (i < candidateRows.count)
-                    candidateRows.set(i, rowObject)
+                    updateCandidateRow(i, rowObject)
                 else
                     candidateRows.append(rowObject)
             }
@@ -471,7 +502,7 @@ Rectangle {
             candidateList.syncingRows = false
             if (userControlled) {
                 Qt.callLater(function() { candidateList.saveUserScrollPosition() })
-            } else {
+            } else if (candidateRows.count !== previousCount) {
                 Qt.callLater(function() { candidateList.restorePreservedScroll() })
             }
         }

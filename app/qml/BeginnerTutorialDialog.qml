@@ -375,10 +375,13 @@ Window {
 
         parent: tutorialRoot
         app: tutorialRoot
+        owningWindow: tutorialDialog
         modal: true
         title: tutorialDialog.app.trText("skipTutorialTitle")
         closePolicy: Popup.NoAutoClose
-        width: Math.min(560, tutorialRoot.width - 80)
+        preferredWidth: Math.min(560, tutorialRoot.width - 80)
+        dialogMinimumWidth: Math.min(440, preferredWidth)
+        dialogMinimumHeight: Math.min(200, preferredHeight)
 
         contentItem: Rectangle {
             implicitWidth: 524

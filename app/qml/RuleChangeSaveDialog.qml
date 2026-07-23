@@ -10,7 +10,9 @@ AppDialog {
     modal: true
     title: app.pendingClearTitle()
     closePolicy: Popup.CloseOnEscape
-    width: Math.max(400, Math.min(480, app.width - 80))
+    preferredWidth: Math.max(400, boundedPreferredWidth(480, 80))
+    dialogMinimumWidth: Math.min(400, preferredWidth)
+    dialogMinimumHeight: Math.min(230, preferredHeight)
 
     onOpened: explicitClose = false
     onClosed: {

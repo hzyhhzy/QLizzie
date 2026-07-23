@@ -7,6 +7,8 @@ Item {
     default property alias contentData: footerRow.data
     property string tone: "normal"
     property int contentMargins: 18
+    property int horizontalMargins: contentMargins
+    property int verticalMargins: 12
     property int dialogRadius: 10
 
     function footerColor() {
@@ -25,7 +27,7 @@ Item {
         return "#d7e1e7"
     }
 
-    implicitHeight: 64
+    implicitHeight: footerRow.implicitHeight + verticalMargins * 2
 
     Rectangle {
         id: footerPanel
@@ -59,7 +61,10 @@ Item {
     RowLayout {
         id: footerRow
         anchors.fill: footerPanel
-        anchors.margins: appDialogFooter.contentMargins
+        anchors.leftMargin: appDialogFooter.horizontalMargins
+        anchors.rightMargin: appDialogFooter.horizontalMargins
+        anchors.topMargin: appDialogFooter.verticalMargins
+        anchors.bottomMargin: appDialogFooter.verticalMargins
         spacing: 10
     }
 }

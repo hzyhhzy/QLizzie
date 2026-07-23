@@ -1040,15 +1040,6 @@ function drawDotsAndBoxesPosition(ctx, state, geometry, stones) {
         ctx.fillText(moveText, point.x, point.y, cell * 1.45)
     }
 
-    ctx.fillStyle = "#2b2118"
-    for (var dotY = 0; dotY < state.boardSizeY; dotY += 2) {
-        for (var dotX = 0; dotX < state.boardSizeX; dotX += 2) {
-            var dot = geometry.point(dotX, dotY)
-            ctx.beginPath()
-            ctx.arc(dot.x, dot.y, Math.max(2.5, cell * 0.09), 0, Math.PI * 2)
-            ctx.fill()
-        }
-    }
     ctx.restore()
 }
 

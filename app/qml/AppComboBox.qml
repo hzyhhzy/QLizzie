@@ -7,6 +7,8 @@ Basic.ComboBox {
 
     property bool compact: false
     property int textHorizontalAlignment: Text.AlignLeft
+    property string placeholderText: ""
+    property int textPixelSize: compact ? 13 : 15
 
     implicitHeight: compact ? 30 : 38
 
@@ -21,9 +23,10 @@ Basic.ComboBox {
     contentItem: Text {
         leftPadding: appComboBox.compact ? 8 : 12
         rightPadding: appComboBox.compact ? 24 : 32
-        text: appComboBox.displayText
+        text: appComboBox.displayText.length > 0
+              ? appComboBox.displayText : appComboBox.placeholderText
         color: appComboBox.enabled ? "#14242e" : "#7d8e98"
-        font.pixelSize: appComboBox.compact ? 13 : 15
+        font.pixelSize: appComboBox.textPixelSize
         font.bold: appComboBox.activeFocus
         verticalAlignment: Text.AlignVCenter
         horizontalAlignment: appComboBox.textHorizontalAlignment
@@ -56,7 +59,7 @@ Basic.ComboBox {
         contentItem: Text {
             text: appComboBox.textFor(modelData)
             color: "#14242e"
-            font.pixelSize: appComboBox.compact ? 13 : 14
+            font.pixelSize: appComboBox.textPixelSize
             font.bold: appComboBox.currentIndex === index
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: appComboBox.textHorizontalAlignment
@@ -77,12 +80,14 @@ Basic.ComboBox {
         padding: 1
 
         contentItem: ListView {
+            id: popupList
             clip: true
             implicitHeight: contentHeight
             model: appComboBox.popup.visible ? appComboBox.delegateModel : null
             currentIndex: appComboBox.highlightedIndex
             ScrollBar.vertical: AppScrollBar {
-                policy: parent.contentHeight > parent.height ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
+                policy: popupList.contentHeight > popupList.height
+                        ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
             }
         }
 

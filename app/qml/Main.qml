@@ -364,6 +364,7 @@ ApplicationWindow {
     }
 
     onCoordinateDisplayModeChanged: refreshCoordinateDisplayText()
+    onLanguageChanged: rebuildEngineCandidateItems()
     onCandidateDisplayCountChanged: rebuildEngineCandidateItems()
     onCandidateMinVisitRatioChanged: rebuildEngineCandidateItems()
     onCandidateShowFilteredMarkersChanged: rebuildEngineCandidateItems()
@@ -1869,7 +1870,8 @@ ApplicationWindow {
     function pointIsEngineCandidateKey(key) {
         if (!key || key.length <= 0)
             return false
-        return engineCandidateItemMap[key] !== undefined
+        var candidate = engineCandidateItemMap[key]
+        return candidate !== undefined && candidate.boardPoint === true
     }
 
     function clampCoordinateInput(text, size) {
@@ -2712,30 +2714,6 @@ ApplicationWindow {
         return RuleSupport.ruleGroupHasMutableVisibility(root, modes)
     }
 
-    function goRuleOptions() {
-        return RuleSupport.goRuleOptions(root)
-    }
-
-    function gomokuRuleOptions() {
-        return RuleSupport.gomokuRuleOptions(root)
-    }
-
-    function ruleVariantOptions() {
-        return RuleSupport.ruleVariantOptions(root)
-    }
-
-    function ruleVariantCurrentIndex() {
-        return RuleSupport.ruleVariantCurrentIndex(root)
-    }
-
-    function ruleVariantCurrentTip() {
-        return RuleSupport.ruleVariantCurrentTip(root)
-    }
-
-    function setRuleVariantFromIndex(index) {
-        RuleSupport.setRuleVariantFromIndex(root, index)
-    }
-
     function ruleVariantText() {
         return RuleSupport.ruleVariantText(root)
     }
@@ -2773,14 +2751,6 @@ ApplicationWindow {
         scheduleAutoAnalysis()
         if (persistentSettingsLoaded)
             savePersistentSettings()
-    }
-
-    function ruleModeButtonsVisible() {
-        return RuleSupport.ruleModeButtonsVisible(root)
-    }
-
-    function ruleVariantComboVisible() {
-        return RuleSupport.ruleVariantComboVisible(root)
     }
 
     function toolbarRuleSettingsVisible() {
@@ -3830,14 +3800,6 @@ ApplicationWindow {
         return CandidateAnalysis.formatVisitCount(value)
     }
 
-    function cloneEngineCandidate(candidate) {
-        return CandidateAnalysis.cloneCandidate(candidate)
-    }
-
-    function cloneEngineCandidateList(candidates) {
-        return CandidateAnalysis.cloneCandidateList(candidates)
-    }
-
     function resetEngineCandidateDisplay() {
         CandidateAnalysis.resetDisplay(root)
     }
@@ -3896,7 +3858,7 @@ ApplicationWindow {
             return
         }
         var best = items[0]
-        if (!best || best.displayIndex !== 1) {
+        if (!best || best.displayIndex !== 1 || best.boardPoint !== true) {
             bestCandidateRingVisible = false
             bestCandidateRingKey = ""
             return
@@ -3954,15 +3916,19 @@ ApplicationWindow {
         }
         if (!candidate)
             return
+        if (candidate.boardPoint !== true) {
+            clearHover(true)
+            statusMode = "message"
+            statusMessage = trText("engineBestMove") + ": " + candidate.displayMoveText
+            focusBoardInput()
+            return
+        }
         setSelectedPoint(candidate.x, candidate.y, true, true)
         focusBoardInput()
     }
 
     function playBestEngineMove() {
-        if (engineCandidateItems.length <= 0)
-            return
-        var best = engineCandidateItems[0]
-        placeStone(best.x, best.y)
+        CandidateAnalysis.playBestCandidate(root, engineCandidateItems)
     }
 
     function recordCurrentAnalysisFromCandidates() {

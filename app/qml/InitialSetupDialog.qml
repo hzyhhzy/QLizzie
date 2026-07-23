@@ -9,7 +9,9 @@ AppDialog {
     modal: true
     title: app.trText("initialSetupTitle")
     closePolicy: Popup.NoAutoClose
-    width: Math.min(440, app.width - 70)
+    preferredWidth: boundedPreferredWidth(440, 70)
+    dialogMinimumWidth: Math.min(400, preferredWidth)
+    dialogMinimumHeight: Math.min(250, preferredHeight)
 
     contentItem: ColumnLayout {
         implicitWidth: 404

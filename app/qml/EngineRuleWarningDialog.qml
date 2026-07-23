@@ -11,7 +11,9 @@ AppDialog {
     tone: "warning"
     title: app.trText("engineRuleMismatchTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.min(520, app.width - 80)
+    preferredWidth: boundedPreferredWidth(520, 80)
+    dialogMinimumWidth: Math.min(420, preferredWidth)
+    dialogMinimumHeight: Math.min(220, preferredHeight)
 
     function openForPreset(preset) {
         title = app.trText("engineRuleMismatchTitle")
@@ -44,16 +46,24 @@ AppDialog {
         open()
     }
 
-    contentItem: Rectangle {
+    contentItem: Flickable {
+        id: warningFlick
         implicitWidth: 484
-        implicitHeight: Math.max(72, warningMessage.implicitHeight + 6)
-        color: "transparent"
+        implicitHeight: Math.min(320, Math.max(72, warningMessage.implicitHeight + 6))
+        contentWidth: width
+        contentHeight: Math.max(height, warningMessage.implicitHeight)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        ScrollBar.vertical: AppScrollBar {
+            policy: warningFlick.contentHeight > warningFlick.height
+                    ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        }
 
         Label {
             id: warningMessage
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            width: warningFlick.width
+            y: Math.max(0, Math.round((warningFlick.height - implicitHeight) / 2))
             text: warningDialog.messageText
             color: "#342414"
             font.pixelSize: 14

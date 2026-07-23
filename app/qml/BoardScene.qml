@@ -89,6 +89,8 @@ Item {
     readonly property real boardRight: boardLeft + gridWidth
     readonly property real boardBottom: boardTop + gridHeight
     readonly property bool variationPreviewActive: app.activeCandidateVariationPreviewActive()
+    readonly property bool hoverCandidateActive: app.hoverKey !== ""
+                                                  && app.pointIsEngineCandidateKey(app.hoverKey)
 
     function hexDisplayCoordForBoard(x, y) {
         return hexTransposed ? Qt.point(y, x) : Qt.point(x, y)
@@ -186,6 +188,38 @@ Item {
     }
 
     Canvas {
+        id: boardBaseCanvas
+        anchors.fill: parent
+
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            BoardRenderer.drawBoardBase(ctx,
+                                        boardScene.rendererState(),
+                                        boardScene.rendererGeometry())
+        }
+
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+
+        Connections {
+            target: app
+            function onGameRuleModeChanged() { boardBaseCanvas.requestPaint() }
+            function onBoardPresentationModeChanged() { boardBaseCanvas.requestPaint() }
+            function onHexBoardStyleChanged() { boardBaseCanvas.requestPaint() }
+            function onHexBoardRotationChanged() { boardBaseCanvas.requestPaint() }
+            function onBoardSizeXChanged() { boardBaseCanvas.requestPaint() }
+            function onBoardSizeYChanged() { boardBaseCanvas.requestPaint() }
+            function onStoneScaleChanged() { boardBaseCanvas.requestPaint() }
+            function onGridOpacityChanged() { boardBaseCanvas.requestPaint() }
+            function onGridLineWidthChanged() { boardBaseCanvas.requestPaint() }
+            function onCoordinateDisplayModeChanged() { boardBaseCanvas.requestPaint() }
+            function onCoordinateFontFamilyChanged() { boardBaseCanvas.requestPaint() }
+            function onCompactLayoutChanged() { boardBaseCanvas.requestPaint() }
+        }
+    }
+
+    Canvas {
         id: boardCanvas
         anchors.fill: parent
         property var renderState: null
@@ -271,10 +305,7 @@ Item {
             renderState = boardScene.rendererState()
             renderGeometry = boardScene.rendererGeometry()
 
-            BoardRenderer.drawBoardBase(ctx, renderState, renderGeometry)
-
             var stoneRadius = Math.max(8, cell * app.stoneScale * 0.5)
-            var candidateRadius = stoneRadius
 
             BoardRenderer.drawTorusRepeatedStones(ctx, renderState, renderGeometry,
                                                   app.stoneItems, stoneRadius)
@@ -387,6 +418,56 @@ Item {
                 }
             }
 
+            renderState = null
+            renderGeometry = null
+        }
+
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+
+        Connections {
+            target: app
+            function onBoardRevisionChanged() { boardCanvas.requestPaint() }
+            function onGameRuleModeChanged() { boardCanvas.requestPaint() }
+            function onBoardPresentationModeChanged() { boardCanvas.requestPaint() }
+            function onHexBoardStyleChanged() { boardCanvas.requestPaint() }
+            function onHexBoardRotationChanged() { boardCanvas.requestPaint() }
+            function onBoardSizeXChanged() { boardCanvas.requestPaint() }
+            function onBoardSizeYChanged() { boardCanvas.requestPaint() }
+            function onGomokuWinLineItemsChanged() { boardCanvas.requestPaint() }
+            function onGomokuForbiddenPointItemsChanged() { boardCanvas.requestPaint() }
+            function onHexWinPathItemsChanged() { boardCanvas.requestPaint() }
+            function onStoneScaleChanged() { boardCanvas.requestPaint() }
+            function onSelectedPointScaleChanged() { boardCanvas.requestPaint() }
+            function onMoveNumberLabelScaleChanged() { boardCanvas.requestPaint() }
+            function onMoveNumberDisplayModeChanged() { boardCanvas.requestPaint() }
+            function onCoordinateDisplayModeChanged() { boardCanvas.requestPaint() }
+            function onCoordinateFontFamilyChanged() { boardCanvas.requestPaint() }
+            function onCompactLayoutChanged() { boardCanvas.requestPaint() }
+        }
+    }
+
+    Canvas {
+        id: candidateCanvas
+        anchors.fill: parent
+        visible: (!boardScene.variationPreviewActive && app.engineCandidateItems.length > 0)
+                 || app.koLocKey !== ""
+                 || app.koLocKey2 !== ""
+
+        function requestVisiblePaint() {
+            if (visible)
+                requestPaint()
+        }
+
+        onPaint: {
+            if (!visible)
+                return
+
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            var cell = boardScene.cellSize
+            var candidateRadius = Math.max(8, cell * app.stoneScale * 0.5)
+
             if (!boardScene.variationPreviewActive) {
                 for (var c = app.engineCandidateItems.length - 1; c >= 0; --c) {
                     var candidate = app.engineCandidateItems[c]
@@ -435,68 +516,78 @@ Item {
                 drawKoMark(app.koLocX, app.koLocY)
             if (app.koLocKey2 !== "" && app.stoneAt(app.koLocX2, app.koLocY2) === 0)
                 drawKoMark(app.koLocX2, app.koLocY2)
-
-            renderState = null
-            renderGeometry = null
         }
 
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        onVisibleChanged: requestVisiblePaint()
+        onWidthChanged: requestVisiblePaint()
+        onHeightChanged: requestVisiblePaint()
 
         Connections {
             target: app
-            function onBoardRevisionChanged() { boardCanvas.requestPaint() }
-            function onGameRuleModeChanged() { boardCanvas.requestPaint() }
-            function onBoardPresentationModeChanged() { boardCanvas.requestPaint() }
-            function onHexBoardStyleChanged() { boardCanvas.requestPaint() }
-            function onHexBoardRotationChanged() { boardCanvas.requestPaint() }
-            function onBoardSizeXChanged() { boardCanvas.requestPaint() }
-            function onBoardSizeYChanged() { boardCanvas.requestPaint() }
-            function onEngineCandidateItemsChanged() { boardCanvas.requestPaint() }
-            function onBestCandidateRingVisibleChanged() { boardCanvas.requestPaint() }
-            function onGomokuWinLineItemsChanged() { boardCanvas.requestPaint() }
-            function onGomokuForbiddenPointItemsChanged() { boardCanvas.requestPaint() }
-            function onHexWinPathItemsChanged() { boardCanvas.requestPaint() }
-            function onStoneScaleChanged() { boardCanvas.requestPaint() }
-            function onGridOpacityChanged() { boardCanvas.requestPaint() }
-            function onGridLineWidthChanged() { boardCanvas.requestPaint() }
-            function onSelectedPointScaleChanged() { boardCanvas.requestPaint() }
-            function onMoveNumberLabelScaleChanged() { boardCanvas.requestPaint() }
-            function onMoveNumberDisplayModeChanged() { boardCanvas.requestPaint() }
-            function onCoordinateDisplayModeChanged() { boardCanvas.requestPaint() }
-            function onBackgroundColorChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateLabelVisibleChanged() { boardCanvas.requestPaint() }
-            function onCandidateVisitsLabelVisibleChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreLabelVisibleChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateFontSizeChanged() { boardCanvas.requestPaint() }
-            function onCandidateVisitsFontSizeChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreFontSizeChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateBoldChanged() { boardCanvas.requestPaint() }
-            function onCandidateVisitsBoldChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreBoldChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateOffsetYChanged() { boardCanvas.requestPaint() }
-            function onCandidateVisitsOffsetYChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreOffsetYChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateDecimalsChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreDecimalsChanged() { boardCanvas.requestPaint() }
-            function onCandidateWinrateShowPercentChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreShowPercentChanged() { boardCanvas.requestPaint() }
-            function onCandidateScoreTitleModeChanged() { boardCanvas.requestPaint() }
-            function onCandidateRingVisibleChanged() { boardCanvas.requestPaint() }
-            function onCandidateRingLineWidthChanged() { boardCanvas.requestPaint() }
-            function onCandidateRankLabelVisibleChanged() { boardCanvas.requestPaint() }
-            function onCandidateFirstLabelTextColorChanged() { boardCanvas.requestPaint() }
-            function onCandidateLabelTextColorChanged() { boardCanvas.requestPaint() }
+            function onEngineCandidateItemsChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBoardRevisionChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBestCandidateRingVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBestCandidateRingKeyChanged() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocKeyChanged() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocXChanged() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocYChanged() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocKey2Changed() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocX2Changed() { candidateCanvas.requestVisiblePaint() }
+            function onKoLocY2Changed() { candidateCanvas.requestVisiblePaint() }
+            function onGameRuleModeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBoardPresentationModeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onHexBoardStyleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onHexBoardRotationChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBoardSizeXChanged() { candidateCanvas.requestVisiblePaint() }
+            function onBoardSizeYChanged() { candidateCanvas.requestVisiblePaint() }
+            function onStoneScaleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCoordinateDisplayModeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateLabelVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateVisitsLabelVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreLabelVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateFontSizeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateVisitsFontSizeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreFontSizeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateBoldChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateVisitsBoldChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreBoldChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateOffsetYChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateVisitsOffsetYChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreOffsetYChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateDecimalsChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreDecimalsChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateWinrateShowPercentChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreShowPercentChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateScoreTitleModeChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateRingVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateRingLineWidthChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateRankLabelVisibleChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateFirstLabelTextColorChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCandidateLabelTextColorChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCoordinateFontFamilyChanged() { candidateCanvas.requestVisiblePaint() }
+            function onCompactLayoutChanged() { candidateCanvas.requestVisiblePaint() }
         }
     }
 
-    onVariationPreviewActiveChanged: boardCanvas.requestPaint()
+    onVariationPreviewActiveChanged: {
+        boardCanvas.requestPaint()
+        candidateCanvas.requestVisiblePaint()
+    }
 
     Canvas {
         id: variationPreviewCanvas
         anchors.fill: parent
+        visible: boardScene.variationPreviewActive
+
+        function requestVisiblePaint() {
+            if (visible)
+                requestPaint()
+        }
 
         onPaint: {
+            if (!visible)
+                return
+
             var ctx = getContext("2d")
             ctx.clearRect(0, 0, width, height)
 
@@ -508,6 +599,8 @@ Item {
             var cell = boardScene.cellSize
             var stoneRadius = Math.max(8, cell * app.stoneScale * 0.5)
             var previewRadius = stoneRadius * 0.92
+            var previewState = boardScene.rendererState()
+            var previewGeometry = boardScene.rendererGeometry()
 
             for (var i = 0; i < variation.length; ++i) {
                 var move = variation[i]
@@ -520,13 +613,13 @@ Item {
                 } else if (app.ruleUsesDotsAndBoxes()) {
                     ctx.save()
                     ctx.globalAlpha = Math.max(0, Math.min(1, previewOpacity))
-                    BoardRenderer.drawDotsAndBoxesPosition(ctx, boardScene.rendererState(),
-                                                           boardScene.rendererGeometry(), [move])
+                    BoardRenderer.drawDotsAndBoxesPosition(ctx, previewState, previewGeometry, [move])
                     ctx.restore()
                 } else {
                     ctx.save()
                     ctx.globalAlpha = Math.max(0, Math.min(1, previewOpacity))
-                    boardCanvas.drawStone(ctx, move.x, move.y, move.player, previewRadius)
+                    BoardRenderer.drawStone(ctx, previewState, previewGeometry,
+                                            move.x, move.y, move.player, previewRadius)
                     ctx.restore()
                 }
 
@@ -567,36 +660,52 @@ Item {
             }
         }
 
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        onVisibleChanged: requestVisiblePaint()
+        onWidthChanged: requestVisiblePaint()
+        onHeightChanged: requestVisiblePaint()
 
         Connections {
             target: app
-            function onCandidateVariationPreviewVisibleChanged() { variationPreviewCanvas.requestPaint() }
-            function onCandidateVariationPreviewMaxMovesChanged() { variationPreviewCanvas.requestPaint() }
-            function onCandidateVariationPreviewOpacityChanged() { variationPreviewCanvas.requestPaint() }
-            function onHoverKeyChanged() { variationPreviewCanvas.requestPaint() }
-            function onSelectedPointLockedChanged() { variationPreviewCanvas.requestPaint() }
-            function onSelectedPointFromCandidateListChanged() { variationPreviewCanvas.requestPaint() }
-            function onEngineCandidateItemsChanged() { variationPreviewCanvas.requestPaint() }
-            function onBoardRevisionChanged() { variationPreviewCanvas.requestPaint() }
-            function onGameRuleModeChanged() { variationPreviewCanvas.requestPaint() }
-            function onBoardPresentationModeChanged() { variationPreviewCanvas.requestPaint() }
-            function onHexBoardStyleChanged() { variationPreviewCanvas.requestPaint() }
-            function onHexBoardRotationChanged() { variationPreviewCanvas.requestPaint() }
-            function onBoardSizeXChanged() { variationPreviewCanvas.requestPaint() }
-            function onBoardSizeYChanged() { variationPreviewCanvas.requestPaint() }
-            function onStoneScaleChanged() { variationPreviewCanvas.requestPaint() }
-            function onMoveNumberDisplayModeChanged() { variationPreviewCanvas.requestPaint() }
-            function onMoveNumberLabelScaleChanged() { variationPreviewCanvas.requestPaint() }
+            function onCandidateVariationPreviewVisibleChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCandidateVariationPreviewMaxMovesChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCandidateVariationPreviewOpacityChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onHoverKeyChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onSelectedPointLockedChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onSelectedPointFromCandidateListChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onEngineCandidateItemsChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onBoardRevisionChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onGameRuleModeChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onBoardPresentationModeChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onHexBoardStyleChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onHexBoardRotationChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onBoardSizeXChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onBoardSizeYChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onStoneScaleChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onMoveNumberDisplayModeChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onMoveNumberLabelScaleChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCoordinateDisplayModeChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCoordinateFontFamilyChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCandidateWinrateOffsetYChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCandidateVisitsOffsetYChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCandidateScoreOffsetYChanged() { variationPreviewCanvas.requestVisiblePaint() }
+            function onCompactLayoutChanged() { variationPreviewCanvas.requestVisiblePaint() }
         }
     }
 
     Canvas {
         id: hoverOverlayCanvas
         anchors.fill: parent
+        visible: boardScene.hoverCandidateActive
+
+        function requestVisiblePaint() {
+            if (visible)
+                requestPaint()
+        }
 
         onPaint: {
+            if (!visible)
+                return
+
             var ctx = getContext("2d")
             ctx.clearRect(0, 0, width, height)
 
@@ -642,28 +751,33 @@ Item {
             ctx.restore()
         }
 
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        onVisibleChanged: requestVisiblePaint()
+        onWidthChanged: requestVisiblePaint()
+        onHeightChanged: requestVisiblePaint()
 
         Connections {
             target: app
-            function onHoverKeyChanged() { hoverOverlayCanvas.requestPaint() }
-            function onSelectedPointLockedChanged() { hoverOverlayCanvas.requestPaint() }
-            function onSelectedPointFromCandidateListChanged() { hoverOverlayCanvas.requestPaint() }
-            function onEngineCandidateItemsChanged() { hoverOverlayCanvas.requestPaint() }
-            function onBoardRevisionChanged() { hoverOverlayCanvas.requestPaint() }
-            function onGameRuleModeChanged() { hoverOverlayCanvas.requestPaint() }
-            function onBoardPresentationModeChanged() { hoverOverlayCanvas.requestPaint() }
-            function onHexBoardStyleChanged() { hoverOverlayCanvas.requestPaint() }
-            function onHexBoardRotationChanged() { hoverOverlayCanvas.requestPaint() }
-            function onBoardSizeXChanged() { hoverOverlayCanvas.requestPaint() }
-            function onBoardSizeYChanged() { hoverOverlayCanvas.requestPaint() }
-            function onStoneScaleChanged() { hoverOverlayCanvas.requestPaint() }
-            function onCandidateWinrateOffsetYChanged() { hoverOverlayCanvas.requestPaint() }
-            function onCandidateVisitsOffsetYChanged() { hoverOverlayCanvas.requestPaint() }
-            function onCandidateScoreOffsetYChanged() { hoverOverlayCanvas.requestPaint() }
-            function onCandidateRingLineWidthChanged() { hoverOverlayCanvas.requestPaint() }
-            function onCandidateRankLabelVisibleChanged() { hoverOverlayCanvas.requestPaint() }
+            function onHoverKeyChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onSelectedPointLockedChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onSelectedPointFromCandidateListChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onEngineCandidateItemsChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onBoardRevisionChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onGameRuleModeChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onBoardPresentationModeChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onHexBoardStyleChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onHexBoardRotationChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onBoardSizeXChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onBoardSizeYChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onStoneScaleChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCoordinateDisplayModeChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateWinrateOffsetYChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateVisitsOffsetYChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateScoreOffsetYChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateRingLineWidthChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateRankLabelVisibleChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCandidateFirstLabelTextColorChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCoordinateFontFamilyChanged() { hoverOverlayCanvas.requestVisiblePaint() }
+            function onCompactLayoutChanged() { hoverOverlayCanvas.requestVisiblePaint() }
         }
     }
 }

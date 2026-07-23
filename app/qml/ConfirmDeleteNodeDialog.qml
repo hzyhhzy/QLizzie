@@ -10,7 +10,9 @@ AppDialog {
     title: app.trText("deleteNodeTitle")
     closePolicy: Popup.CloseOnEscape
     padding: 0
-    width: Math.min(520, Math.max(360, app.width - 80))
+    preferredWidth: Math.max(400, boundedPreferredWidth(520, 80))
+    dialogMinimumWidth: Math.min(360, preferredWidth)
+    dialogMinimumHeight: Math.min(270, preferredHeight)
 
     function descendantCountForNode(id) {
         var node = app.nodeById(id)

@@ -590,66 +590,6 @@ function setVisibleGameRuleFromIndex(app, index) {
     app.requestRuleModeChange(options[index].value)
 }
 
-function goRuleOptions(app) {
-    return [{ "label": goRuleLabel(app), "value": -1, "tip": app.trText("goRuleTrompTaylorTip") }]
-}
-
-function gomokuRuleOptions(app) {
-    return [
-        { "label": gomokuRuleLabel(app, app.gomokuRuleFreestyle), "value": app.gomokuRuleFreestyle, "tip": gomokuRuleTip(app, app.gomokuRuleFreestyle) },
-        { "label": gomokuRuleLabel(app, app.gomokuRuleStandard), "value": app.gomokuRuleStandard, "tip": gomokuRuleTip(app, app.gomokuRuleStandard) },
-        { "label": gomokuRuleLabel(app, app.gomokuRuleRenju), "value": app.gomokuRuleRenju, "tip": gomokuRuleTip(app, app.gomokuRuleRenju) },
-        { "label": gomokuRuleLabel(app, app.gomokuRuleCaro), "value": app.gomokuRuleCaro, "tip": gomokuRuleTip(app, app.gomokuRuleCaro) },
-        { "label": gomokuRuleLabel(app, app.gomokuRuleCaroNoSix), "value": app.gomokuRuleCaroNoSix, "tip": gomokuRuleTip(app, app.gomokuRuleCaroNoSix) },
-        { "label": gomokuRuleLabel(app, app.gomokuRuleDirectFour), "value": app.gomokuRuleDirectFour, "tip": gomokuRuleTip(app, app.gomokuRuleDirectFour) }
-    ]
-}
-
-function ruleVariantOptions(app) {
-    if (app.gameRuleMode === app.gameRuleGomoku)
-        return gomokuRuleOptions(app)
-    if (app.gameRuleMode === app.gameRuleGo)
-        return goRuleOptions(app)
-    return [{ "label": gameRuleText(app), "value": -1, "tip": "" }]
-}
-
-function ruleVariantCurrentIndex(app) {
-    var options = ruleVariantOptions(app)
-    if (app.gameRuleMode === app.gameRuleGo)
-        return 0
-    for (var i = 0; i < options.length; ++i) {
-        if (options[i].value === app.gomokuRuleMode)
-            return i
-    }
-    return 0
-}
-
-function ruleVariantCurrentTip(app) {
-    var options = ruleVariantOptions(app)
-    var index = ruleVariantCurrentIndex(app)
-    return index >= 0 && index < options.length ? options[index].tip : ""
-}
-
-function setRuleVariantFromIndex(app, index) {
-    var options = ruleVariantOptions(app)
-    if (index < 0 || index >= options.length)
-        return
-    if (app.gameRuleMode === app.gameRuleGomoku) {
-        app.gomokuRuleMode = normalizedGomokuRuleMode(app, options[index].value)
-        app.rebuildPositionFromNode(app.currentNodeId)
-        app.resetEngineSyncState()
-        app.scheduleAutoAnalysis()
-    }
-}
-
-function ruleModeButtonsVisible(app) {
-    return false
-}
-
-function ruleVariantComboVisible(app) {
-    return true
-}
-
 function toolbarRuleSettingsVisible(app) {
     return app.gameRuleMode === app.gameRuleGo
            || app.gameRuleMode === app.gameRuleGomoku

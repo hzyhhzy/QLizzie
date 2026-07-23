@@ -83,7 +83,6 @@ qt_add_qml_module(qlizzie
         qml/RuleSupport.js
         qml/RuleChangeSaveDialog.qml
         qml/RuleSettingsPage.qml
-        qml/RuleVariantComboBox.qml
         qml/SavePromptButton.qml
         qml/SettingsDialog.qml
         qml/SettingsStore.js

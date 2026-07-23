@@ -8,7 +8,9 @@ AppDialog {
     modal: true
     title: app.trText("unsavedGameTitle")
     closePolicy: Popup.CloseOnEscape
-    width: Math.max(380, Math.min(460, app.width - 80))
+    preferredWidth: Math.max(380, boundedPreferredWidth(460, 80))
+    dialogMinimumWidth: Math.min(380, preferredWidth)
+    dialogMinimumHeight: Math.min(220, preferredHeight)
 
     contentItem: Rectangle {
         implicitWidth: 424
