@@ -3,6 +3,8 @@ import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 
+// Lightweight dialogs stay inside their owning window. Content-heavy dialogs
+// use AppWindowDialog instead so they can be moved beyond the main window.
 Basic.Dialog {
     id: appDialog
 
@@ -11,9 +13,7 @@ Basic.Dialog {
     property int dialogRadius: 10
     property int headerHeight: 52
     property int titlePixelSize: 17
-    // Modal dialogs use a dedicated popup window so they can leave the main
-    // window bounds while keeping the application blocked.
-    property bool windowed: modal
+    property bool windowed: false
     property var centerTarget: app
     property var owningWindow: app
     property real preferredWidth: Math.max(implicitWidth, 320)
@@ -21,30 +21,27 @@ Basic.Dialog {
     property real dialogMinimumWidth: Math.min(preferredWidth, 320)
     property real dialogMinimumHeight: Math.min(preferredHeight, 140)
     property bool blockNativeClose: closePolicy === Popup.NoAutoClose
-    readonly property int unconstrainedWindowMaximum: 16777215
-    property var retainedHostWindow: null
     signal nativeCloseRequested()
+
+    readonly property var hostWindow: dialogHeader.containingWindow
+    readonly property bool separateWindow: false
     readonly property var targetScreen:
         owningWindow && owningWindow.screen ? owningWindow.screen
                                             : (hostWindow && hostWindow.screen ? hostWindow.screen : null)
     readonly property rect availableScreenGeometry:
-        targetScreen && targetScreen.width > 0 && targetScreen.height > 0
-            ? Qt.rect(targetScreen.virtualX, targetScreen.virtualY,
-                      targetScreen.width, targetScreen.height)
+        targetScreen && targetScreen.availableGeometry
+                     && targetScreen.availableGeometry.width > 0
+                     && targetScreen.availableGeometry.height > 0
+            ? targetScreen.availableGeometry
             : Qt.rect(dialogHeader.Screen.virtualX, dialogHeader.Screen.virtualY,
-                      dialogHeader.Screen.width > 0
-                          ? dialogHeader.Screen.width
+                      dialogHeader.Screen.desktopAvailableWidth > 0
+                          ? dialogHeader.Screen.desktopAvailableWidth
                           : (app ? app.width : preferredWidth),
-                      dialogHeader.Screen.height > 0
-                          ? dialogHeader.Screen.height
+                      dialogHeader.Screen.desktopAvailableHeight > 0
+                          ? dialogHeader.Screen.desktopAvailableHeight
                           : (app ? app.height : preferredHeight))
-    readonly property real availableScreenWidth:
-        availableScreenGeometry.width
-    readonly property real availableScreenHeight:
-        availableScreenGeometry.height
-    readonly property var hostWindow: dialogHeader.popupHostWindow
-    readonly property bool separateWindow:
-        windowed && !!hostWindow && hostWindow !== owningWindow
+    readonly property real availableScreenWidth: availableScreenGeometry.width
+    readonly property real availableScreenHeight: availableScreenGeometry.height
 
     function boundedPreferredWidth(maximumWidth, screenMargin) {
         return Math.max(1, Math.min(maximumWidth, availableScreenWidth - screenMargin))
@@ -71,66 +68,8 @@ Basic.Dialog {
         height = preferredGeometryHeight()
 
         var target = centerTarget
-        var relativeX = target ? Math.round((target.width - width) / 2) : 0
-        var relativeY = target ? Math.round((target.height - height) / 2) : 0
-        // Popup coordinates are parent-local. Qt maps them to the native screen
-        // and constrains Popup.Window to the real available screen geometry.
-        x = relativeX
-        y = relativeY
-    }
-
-    function resetWindowConstraints(popupWindow) {
-        popupWindow.maximumWidth = unconstrainedWindowMaximum
-        popupWindow.maximumHeight = unconstrainedWindowMaximum
-        popupWindow.minimumWidth = 0
-        popupWindow.minimumHeight = 0
-    }
-
-    function prepareWindowGeometry() {
-        var popupWindow = hostWindow
-        if (separateWindow && popupWindow)
-            resetWindowConstraints(popupWindow)
-
-        applyPreferredGeometry()
-        if (separateWindow && popupWindow) {
-            popupWindow.minimumWidth = Math.ceil(dialogMinimumWidth)
-            popupWindow.minimumHeight = Math.ceil(dialogMinimumHeight)
-        }
-    }
-
-    function freezeWindowGeometry() {
-        var popupWindow = hostWindow
-        if (!separateWindow || !popupWindow)
-            return
-
-        retainedHostWindow = popupWindow
-        var currentWidth = Math.max(1, Math.round(popupWindow.width))
-        var currentHeight = Math.max(1, Math.round(popupWindow.height))
-        popupWindow.minimumWidth = currentWidth
-        popupWindow.maximumWidth = currentWidth
-        popupWindow.minimumHeight = currentHeight
-        popupWindow.maximumHeight = currentHeight
-    }
-
-    function prepareHiddenWindowForNextOpen() {
-        var popupWindow = retainedHostWindow
-        if (!windowed || !popupWindow || popupWindow === owningWindow)
-            return
-
-        // QQuickPopupWindow is reused and becomes visible before aboutToShow.
-        // Size and lock it while hidden so its first mapped frame is already
-        // the preferred size. aboutToShow restores normal resize constraints.
-        resetWindowConstraints(popupWindow)
-        applyPreferredGeometry()
-
-        var nextWidth = Math.max(1, Math.ceil(preferredGeometryWidth()))
-        var nextHeight = Math.max(1, Math.ceil(preferredGeometryHeight()))
-        popupWindow.width = nextWidth
-        popupWindow.height = nextHeight
-        popupWindow.minimumWidth = nextWidth
-        popupWindow.maximumWidth = nextWidth
-        popupWindow.minimumHeight = nextHeight
-        popupWindow.maximumHeight = nextHeight
+        x = target ? Math.round((target.width - width) / 2) : 0
+        y = target ? Math.round((target.height - height) / 2) : 0
     }
 
     function panelColor() {
@@ -174,34 +113,9 @@ Basic.Dialog {
     }
 
     padding: 18
-    popupType: windowed ? Popup.Window : Popup.Item
+    popupType: Popup.Item
     closePolicy: Popup.CloseOnEscape
-    onAboutToShow: prepareWindowGeometry()
-    onAboutToHide: freezeWindowGeometry()
-    onHostWindowChanged: {
-        if (windowed && hostWindow && hostWindow !== owningWindow)
-            retainedHostWindow = hostWindow
-    }
-
-    Connections {
-        target: appDialog
-
-        function onClosed() {
-            appDialog.prepareHiddenWindowForNextOpen()
-        }
-    }
-
-    Connections {
-        target: appDialog.separateWindow ? appDialog.hostWindow : null
-        ignoreUnknownSignals: true
-
-        function onClosing(closeEvent) {
-            if (!appDialog.blockNativeClose)
-                return
-            closeEvent.accepted = false
-            appDialog.nativeCloseRequested()
-        }
-    }
+    onAboutToShow: applyPreferredGeometry()
 
     background: Rectangle {
         radius: appDialog.dialogRadius
@@ -212,13 +126,11 @@ Basic.Dialog {
 
     header: Item {
         id: dialogHeader
-        readonly property var popupHostWindow: Window.window
-        implicitHeight: appDialog.separateWindow ? 0 : appDialog.headerHeight
+        readonly property var containingWindow: Window.window
+        implicitHeight: appDialog.headerHeight
         height: implicitHeight
-        visible: !appDialog.separateWindow
 
         Rectangle {
-            id: headerPanel
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top

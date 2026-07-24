@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 
 Item {
     id: inputLayer
@@ -11,7 +12,18 @@ Item {
     property int pressedButton: 0
     property bool boardPressBlocked: false
 
+    function ownsKeyboardFocus() {
+        var hostWindow = inputLayer.Window.window
+        return inputLayer.activeFocus
+               && (!hostWindow
+                   || (hostWindow.active
+                       && hostWindow.activeFocusItem === inputLayer))
+    }
+
     Keys.onPressed: function(event) {
+        if (!inputLayer.ownsKeyboardFocus())
+            return
+
         if (event.modifiers & Qt.ControlModifier)
             return
 
@@ -23,16 +35,14 @@ Item {
                 app.toggleEnginePause()
             event.accepted = true
         } else if (event.key === Qt.Key_Comma) {
-            if (!event.isAutoRepeat)
-                app.playBestEngineMove()
+            app.playBestEngineMove()
             event.accepted = true
         } else if (event.key === Qt.Key_P) {
             if (!event.isAutoRepeat)
                 app.passMove()
             event.accepted = true
         } else if (event.key === Qt.Key_Backspace) {
-            if (!event.isAutoRepeat)
-                app.requestDeleteCurrentNode()
+            app.requestDeleteCurrentNode()
             event.accepted = true
         } else if (event.key === Qt.Key_M) {
             if (!event.isAutoRepeat)

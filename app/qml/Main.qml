@@ -615,8 +615,27 @@ ApplicationWindow {
             width: root.compactLayout ? 520 : 600
             font.pixelSize: root.compactLayout ? 14 : 16
 
+            Action {
+                text: root.trText("engineAddAndConfigure")
+                onTriggered: engineListDialog.openManage()
+            }
+
+            Action {
+                text: root.trText("engineRestartCurrent")
+                enabled: root.activeEnginePreset() !== null
+                onTriggered: root.restartEngine()
+            }
+
+            Action {
+                text: root.trText("engineCloseCurrent")
+                enabled: !root.engineDisabled
+                onTriggered: root.stopEngine()
+            }
+
+            MenuSeparator { }
+
             Instantiator {
-                model: Math.min(20, root.enginePresets.length)
+                model: Math.min(10, root.enginePresets.length)
 
                 delegate: MenuItem {
                     width: engineMenu.width
@@ -634,7 +653,7 @@ ApplicationWindow {
                 }
 
                 onObjectAdded: function(index, object) {
-                    engineMenu.insertItem(index, object)
+                    engineMenu.insertItem(index + 4, object)
                 }
 
                 onObjectRemoved: function(index, object) {
@@ -642,30 +661,9 @@ ApplicationWindow {
                 }
             }
 
-            MenuSeparator { visible: root.enginePresets.length > 0 }
-
             Action {
                 text: root.trText("moreEngines")
                 onTriggered: engineListDialog.openPicker()
-            }
-
-            Action {
-                text: root.trText("engineAddAndConfigure")
-                onTriggered: engineListDialog.openManage()
-            }
-
-            MenuSeparator { }
-
-            Action {
-                text: root.trText("engineRestartCurrent")
-                enabled: root.activeEnginePreset() !== null
-                onTriggered: root.restartEngine()
-            }
-
-            Action {
-                text: root.trText("engineCloseCurrent")
-                enabled: !root.engineDisabled
-                onTriggered: root.stopEngine()
             }
         }
     }
@@ -3079,9 +3077,9 @@ ApplicationWindow {
 
     function addEnginePreset(preset) {
         var next = EnginePresets.cloneList(enginePresets)
-        next.push(EnginePresets.normalizePreset(root, preset || EnginePresets.newPreset(root), next.length))
+        next.unshift(EnginePresets.normalizePreset(root, preset || EnginePresets.newPreset(root), next.length))
         setEnginePresetList(next)
-        return next.length - 1
+        return 0
     }
 
     function removeEnginePreset(index) {
@@ -4233,8 +4231,8 @@ ApplicationWindow {
         engineCommunicationWindow.openWindow()
     }
 
-    function openEngineListDialog() {
-        engineListDialog.openManage()
+    function openEngineListDialog(ownerWindow) {
+        engineListDialog.openManage(ownerWindow)
     }
 
     function openSaveSgfDialog(continuation) {

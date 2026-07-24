@@ -7,72 +7,88 @@ const test = require("node:test")
 
 const qmlRoot = path.join(__dirname, "..", "app", "qml")
 const appDialogSource = fs.readFileSync(path.join(qmlRoot, "AppDialog.qml"), "utf8")
+const appWindowDialogSource = fs.readFileSync(path.join(qmlRoot, "AppWindowDialog.qml"), "utf8")
 const appDialogFooterSource = fs.readFileSync(path.join(qmlRoot, "AppDialogFooter.qml"), "utf8")
 const engineListSource = fs.readFileSync(path.join(qmlRoot, "EngineListDialog.qml"), "utf8")
-const engineFailureSource = fs.readFileSync(path.join(qmlRoot, "EngineFailureDialog.qml"), "utf8")
-const engineRuleWarningSource = fs.readFileSync(path.join(qmlRoot, "EngineRuleWarningDialog.qml"), "utf8")
+const engineParametersSource = fs.readFileSync(path.join(qmlRoot, "EngineParametersDialog.qml"), "utf8")
 const gameOverSource = fs.readFileSync(path.join(qmlRoot, "GameOverDialog.qml"), "utf8")
 const settingsSource = fs.readFileSync(path.join(qmlRoot, "SettingsDialog.qml"), "utf8")
+const hiddenSettingsSource = fs.readFileSync(path.join(qmlRoot, "HiddenSettingsDialog.qml"), "utf8")
+const helpKeysSource = fs.readFileSync(path.join(qmlRoot, "HelpKeysDialog.qml"), "utf8")
 
-test("modal application dialogs use independently movable popup windows", () => {
-    assert.match(appDialogSource, /property bool windowed:\s*modal/)
-    assert.match(appDialogSource, /popupType:\s*windowed\s*\?\s*Popup\.Window\s*:\s*Popup\.Item/)
-    assert.match(appDialogSource, /onAboutToShow:\s*prepareWindowGeometry\(\)/)
+test("lightweight application dialogs always stay inside their owning window", () => {
+    assert.match(appDialogSource, /\bBasic\.Dialog\s*\{/)
+    assert.match(appDialogSource, /popupType:\s*Popup\.Item/)
+    assert.doesNotMatch(appDialogSource, /Popup\.Window/)
 })
 
-test("window geometry is initialized once instead of continuously recentered", () => {
-    assert.doesNotMatch(appDialogSource, /^\s*x:\s*app\s*\?/m)
-    assert.doesNotMatch(appDialogSource, /^\s*y:\s*app\s*\?/m)
-    assert.match(appDialogSource, /onAboutToShow:\s*prepareWindowGeometry\(\)/)
-    assert.match(appDialogSource, /x\s*=\s*relativeX/)
-    assert.match(appDialogSource, /y\s*=\s*relativeY/)
-    assert.doesNotMatch(appDialogSource, /minimumGlobalX/)
-    assert.doesNotMatch(appDialogSource, /minimumGlobalY/)
+test("content-heavy dialogs use a real transient modal window", () => {
+    assert.match(appWindowDialogSource, /\bWindow\s*\{/)
+    assert.doesNotMatch(appWindowDialogSource, /\bBasic\.Dialog\s*\{/)
+    assert.match(appWindowDialogSource, /flags:\s*Qt\.Dialog/)
+    assert.match(appWindowDialogSource, /modality:\s*modal\s*\?\s*Qt\.WindowModal\s*:\s*Qt\.NonModal/)
+    assert.match(
+        appWindowDialogSource,
+        /transientParent:\s*owningWindow\s*&&\s*owningWindow\s*!==\s*appWindowDialog\s*\?\s*owningWindow\s*:\s*null/
+    )
+    assert.match(appWindowDialogSource, /readonly property bool separateWindow:\s*true/)
+    assert.match(appWindowDialogSource, /readonly property var hostWindow:\s*appWindowDialog/)
 })
 
-test("screen geometry only uses properties exposed by the QML Screen type", () => {
-    assert.doesNotMatch(appDialogSource, /targetScreen\.availableGeometry/)
-    assert.match(appDialogSource, /targetScreen\.virtualX/)
-    assert.match(appDialogSource, /targetScreen\.virtualY/)
-    assert.match(appDialogSource, /targetScreen\.width/)
-    assert.match(appDialogSource, /targetScreen\.height/)
+test("real dialog geometry is applied once before the window becomes visible", () => {
+    const openFunction = appWindowDialogSource.match(
+        /function open\(\)\s*\{[\s\S]*?(?=\n\s*function closeDialog)/
+    )
+    assert.ok(openFunction, "AppWindowDialog must expose an open() helper")
+    assert.match(openFunction[0], /applyPreferredGeometry\(\)/)
+    assert.match(openFunction[0], /visible\s*=\s*true/)
+    assert.ok(
+        openFunction[0].indexOf("applyPreferredGeometry()")
+            < openFunction[0].indexOf("visible = true"),
+        "geometry must be finalized while the native window is hidden"
+    )
+    assert.doesNotMatch(appWindowDialogSource, /^\s*x:\s*.*centerTarget/m)
+    assert.doesNotMatch(appWindowDialogSource, /^\s*y:\s*.*centerTarget/m)
 })
 
-test("native popup windows enforce useful minimum sizes", () => {
-    assert.match(appDialogSource, /popupWindow\.minimumWidth\s*=/)
-    assert.match(appDialogSource, /popupWindow\.minimumHeight\s*=/)
+test("real dialog windows enforce useful minimum sizes", () => {
+    assert.match(appWindowDialogSource, /minimumWidth:\s*Math\.max\(1,\s*Math\.ceil\(dialogMinimumWidth\)\)/)
+    assert.match(appWindowDialogSource, /minimumHeight:\s*Math\.max\(1,\s*Math\.ceil\(dialogMinimumHeight\)\)/)
     assert.match(engineListSource, /dialogMinimumWidth:\s*Math\.min\(readOnlyMode\s*\?\s*620\s*:\s*900/)
     assert.match(settingsSource, /dialogMinimumWidth:\s*Math\.min\(720,\s*preferredWidth\)/)
 })
 
-test("native window close requests can be guarded by application dialogs", () => {
-    assert.match(appDialogSource, /property bool blockNativeClose:\s*closePolicy\s*===\s*Popup\.NoAutoClose/)
-    assert.match(appDialogSource, /closeEvent\.accepted\s*=\s*false/)
+test("native close requests can be guarded by content-heavy dialogs", () => {
+    assert.match(
+        appWindowDialogSource,
+        /property bool blockNativeClose:\s*closePolicy\s*===\s*Popup\.NoAutoClose/
+    )
+    assert.match(appWindowDialogSource, /onClosing:\s*function\(closeEvent\)/)
+    assert.match(appWindowDialogSource, /if\s*\(blockNativeClose\)\s*\{[\s\S]*?closeEvent\.accepted\s*=\s*false/)
+    assert.match(appWindowDialogSource, /appWindowDialog\.nativeCloseRequested\(\)/)
     assert.match(engineListSource, /onNativeCloseRequested:\s*requestClose\(\)/)
 })
 
-test("native dialog geometry is frozen while the popup is closing", () => {
-    assert.match(appDialogSource, /onAboutToHide:\s*freezeWindowGeometry\(\)/)
-    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*currentWidth/)
-    assert.match(appDialogSource, /popupWindow\.maximumHeight\s*=\s*currentHeight/)
-    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*unconstrainedWindowMaximum/)
-    assert.match(appDialogSource, /popupWindow\.maximumHeight\s*=\s*unconstrainedWindowMaximum/)
+test("Escape is handled after focused controls and their popups", () => {
+    assert.doesNotMatch(appWindowDialogSource, /\bShortcut\s*\{/)
+    assert.match(appWindowDialogSource, /\bFocusScope\s*\{/)
+    assert.match(appWindowDialogSource, /Keys\.priority:\s*Keys\.AfterItem/)
+    assert.match(appWindowDialogSource, /Keys\.onEscapePressed:\s*function\(event\)/)
 })
 
-test("hidden native dialogs are sized before their next visible frame", () => {
-    assert.match(appDialogSource, /property var retainedHostWindow:\s*null/)
-    assert.match(appDialogSource, /function onClosed\(\)\s*\{\s*appDialog\.prepareHiddenWindowForNextOpen\(\)/)
-    assert.match(appDialogSource, /popupWindow\.width\s*=\s*nextWidth/)
-    assert.match(appDialogSource, /popupWindow\.height\s*=\s*nextHeight/)
-    assert.match(appDialogSource, /popupWindow\.minimumWidth\s*=\s*nextWidth/)
-    assert.match(appDialogSource, /popupWindow\.maximumWidth\s*=\s*nextWidth/)
-})
-
-test("large dialog bodies scroll instead of clipping on short screens", () => {
-    assert.match(engineListSource, /contentItem:\s*Flickable\s*\{/)
+test("selected content-heavy dialogs use the real-window body API", () => {
+    for (const [name, source] of [
+        ["SettingsDialog", settingsSource],
+        ["HiddenSettingsDialog", hiddenSettingsSource],
+        ["HelpKeysDialog", helpKeysSource],
+        ["EngineListDialog", engineListSource]
+    ]) {
+        assert.match(source, /\bAppWindowDialog\s*\{/, `${name} should use AppWindowDialog`)
+        assert.match(source, /\bdialogBody:\s*/, `${name} should provide dialogBody`)
+    }
+    assert.match(engineListSource, /\bdialogBody:\s*Flickable\s*\{/)
+    assert.match(engineListSource, /\bdialogFooter:\s*AppDialogFooter\s*\{/)
     assert.match(engineListSource, /contentHeight:\s*dialogContent\.height/)
-    assert.match(engineFailureSource, /contentItem:\s*Flickable\s*\{/)
-    assert.match(engineRuleWarningSource, /contentItem:\s*Flickable\s*\{/)
 })
 
 test("engine-list child dialogs use the parent dialog window and viewport", () => {
@@ -81,14 +97,14 @@ test("engine-list child dialogs use the parent dialog window and viewport", () =
     assert.match(engineListSource, /owningWindow:\s*engineListDialog\.hostWindow/)
 })
 
-test("windowed dialogs use the native title bar and report correct implicit footer size", () => {
-    assert.match(appDialogSource, /property var owningWindow:\s*app/)
-    assert.match(appDialogSource, /windowed\s*&&\s*!!hostWindow\s*&&\s*hostWindow\s*!==\s*owningWindow/)
-    assert.match(appDialogSource, /implicitHeight:\s*appDialog\.separateWindow\s*\?\s*0\s*:\s*appDialog\.headerHeight/)
-    assert.match(appDialogSource, /visible:\s*!appDialog\.separateWindow/)
+test("dialog footers still report their full implicit size", () => {
     assert.match(appDialogFooterSource, /implicitHeight:\s*footerRow\.implicitHeight\s*\+\s*verticalMargins\s*\*\s*2/)
 })
 
-test("the intentionally modeless game-over notice stays inside the main window", () => {
+test("small engine-parameter and game-over dialogs remain lightweight popups", () => {
+    assert.match(engineParametersSource, /\bAppDialog\s*\{/)
+    assert.doesNotMatch(engineParametersSource, /\bAppWindowDialog\s*\{/)
+    assert.match(gameOverSource, /\bAppDialog\s*\{/)
+    assert.doesNotMatch(gameOverSource, /\bAppWindowDialog\s*\{/)
     assert.match(gameOverSource, /modal:\s*false/)
 })

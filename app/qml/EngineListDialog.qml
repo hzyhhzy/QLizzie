@@ -4,12 +4,14 @@ import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 import "EnginePresets.js" as EnginePresets
 
-AppDialog {
+AppWindowDialog {
     id: engineListDialog
 
     required property var controller
-    property bool startupMode: false
-    property bool pickerMode: false
+    readonly property int manageMode: 0
+    readonly property int startupSelectionMode: 1
+    readonly property int pickerSelectionMode: 2
+    property int dialogMode: manageMode
     property int selectedIndex: -1
     property bool syncingEditor: false
     property string listTooltipText: ""
@@ -23,16 +25,18 @@ AppDialog {
     property var engineRuleCollapsedGroups: ({})
     property var editorRuleOptionsModel: []
     property var pendingUnsavedAction: null
-    readonly property bool readOnlyMode: startupMode || pickerMode
+    readonly property bool startupMode: dialogMode === startupSelectionMode
+    readonly property bool pickerMode: dialogMode === pickerSelectionMode
+    readonly property bool readOnlyMode: dialogMode !== manageMode
     readonly property real legacyHexColumnWidth: readOnlyMode ? 0 : 82
     readonly property real ruleColumnWidth: readOnlyMode ? 150 : 164
+    readonly property real scrollBarHitThickness: 20
 
     modal: true
     title: readOnlyMode ? app.trText("loadEngineTitle") : app.trText("engineSettingsTitle")
     closePolicy: Popup.NoAutoClose
     onNativeCloseRequested: requestClose()
     padding: 8
-    headerHeight: 48
     preferredWidth: boundedPreferredWidth(1180, 36)
     preferredHeight: readOnlyMode ? boundedPreferredHeight(430, 80)
                                   : boundedPreferredHeight(820, 36)
@@ -48,26 +52,32 @@ AppDialog {
             selectedIndex = 0
     }
 
-    function openStartup() {
-        startupMode = true
-        pickerMode = false
+    function prepareOpeningOwner(ownerWindow) {
+        var nextOwner = ownerWindow && ownerWindow !== engineListDialog ? ownerWindow : app
+        owningWindow = nextOwner
+        centerTarget = nextOwner
+    }
+
+    function openStartup(ownerWindow) {
+        dialogMode = startupSelectionMode
+        prepareOpeningOwner(ownerWindow)
         selectedIndex = app.enginePresets.length > 0 ? 0 : -1
         syncEditor()
         open()
     }
 
-    function openPicker() {
-        startupMode = false
-        pickerMode = true
+    function openPicker(ownerWindow) {
+        dialogMode = pickerSelectionMode
+        prepareOpeningOwner(ownerWindow)
         var activeIndex = app.enginePresetIndexById(app.activeEngineId)
         selectedIndex = activeIndex >= 0 ? activeIndex : (app.enginePresets.length > 0 ? 0 : -1)
         syncEditor()
         open()
     }
 
-    function openManage() {
-        startupMode = false
-        pickerMode = false
+    function openManage(ownerWindow) {
+        dialogMode = manageMode
+        prepareOpeningOwner(ownerWindow)
         var activeIndex = app.enginePresetIndexById(app.activeEngineId)
         selectedIndex = activeIndex >= 0 ? activeIndex : (app.enginePresets.length > 0 ? 0 : -1)
         syncEditor()
@@ -251,12 +261,71 @@ AppDialog {
             action()
     }
 
+    function closeTopmostChildOverlay() {
+        if (unsavedEngineDialog.visible) {
+            unsavedEngineDialog.close()
+            return true
+        }
+        if (confirmDeleteEngineDialog.visible) {
+            confirmDeleteEngineDialog.close()
+            return true
+        }
+        if (engineGoRuleDialog.visible) {
+            engineGoRuleDialog.close()
+            return true
+        }
+        if (engineGomokuRuleDialog.visible) {
+            engineGomokuRuleDialog.close()
+            return true
+        }
+        if (engineNoRuleVariantDialog.visible) {
+            engineNoRuleVariantDialog.close()
+            return true
+        }
+        if (engineRuleSelectionPopup.visible) {
+            engineRuleSelectionPopup.close()
+            return true
+        }
+        if (ruleCombo.popup && ruleCombo.popup.visible) {
+            ruleCombo.popup.close()
+            return true
+        }
+        if (defaultEngineCombo.popup && defaultEngineCombo.popup.visible) {
+            defaultEngineCombo.popup.close()
+            return true
+        }
+        return false
+    }
+
+    function closeAllChildOverlays() {
+        hideListTooltip("")
+        if (unsavedEngineDialog.visible)
+            unsavedEngineDialog.close()
+        if (confirmDeleteEngineDialog.visible)
+            confirmDeleteEngineDialog.close()
+        if (engineGoRuleDialog.visible)
+            engineGoRuleDialog.close()
+        if (engineGomokuRuleDialog.visible)
+            engineGomokuRuleDialog.close()
+        if (engineNoRuleVariantDialog.visible)
+            engineNoRuleVariantDialog.close()
+        if (engineRuleSelectionPopup.visible)
+            engineRuleSelectionPopup.close()
+        if (ruleCombo.popup && ruleCombo.popup.visible)
+            ruleCombo.popup.close()
+        if (defaultEngineCombo.popup && defaultEngineCombo.popup.visible)
+            defaultEngineCombo.popup.close()
+    }
+
     function closeWithoutPrompt() {
         pendingUnsavedAction = null
-        close()
+        closeAllChildOverlays()
+        closeDialog()
     }
 
     function requestClose() {
+        if (closeTopmostChildOverlay())
+            return
         confirmUnsavedOrRun(function() { engineListDialog.closeWithoutPrompt() })
     }
 
@@ -454,12 +523,12 @@ AppDialog {
 
     onOpened: syncEditor()
     onClosed: {
-        hideListTooltip("")
+        closeAllChildOverlays()
         pendingUnsavedAction = null
         app.focusBoardInput()
     }
 
-    contentItem: Flickable {
+    dialogBody: Flickable {
         id: dialogFlick
         implicitWidth: 1160
         implicitHeight: 720
@@ -467,15 +536,18 @@ AppDialog {
         contentHeight: dialogContent.height
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        acceptedButtons: Qt.NoButton
 
         ScrollBar.vertical: AppScrollBar {
+            id: dialogScrollBar
             policy: dialogFlick.contentHeight > dialogFlick.height
                     ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+            hitThickness: engineListDialog.scrollBarHitThickness
         }
 
         ColumnLayout {
             id: dialogContent
-            width: dialogFlick.width
+            width: Math.max(0, dialogFlick.width - engineListDialog.scrollBarHitThickness)
             height: Math.max(dialogFlick.height, implicitHeight)
             spacing: 8
 
@@ -601,8 +673,18 @@ AppDialog {
                         enabled: engineListDialog.selectedPreset() !== null
                         font.bold: true
                         Layout.preferredWidth: 116
+                        validator: DoubleValidator {
+                            bottom: -app.maxKomiMagnitude
+                            top: app.maxKomiMagnitude
+                            decimals: 1
+                            notation: DoubleValidator.StandardNotation
+                            locale: "C"
+                        }
                         textFromValue: function(value) { return (value / 2).toFixed(1) }
-                        valueFromText: function(text) { return Math.round(Number(text) * 2) }
+                        valueFromText: function(text) {
+                            var number = Number(text)
+                            return isNaN(number) ? komiSpin.value : Math.round(number * 2)
+                        }
                     }
 
                     AppCheckBox {
@@ -774,6 +856,7 @@ AppDialog {
                     id: tableHeader
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    anchors.rightMargin: engineListDialog.scrollBarHitThickness
                     anchors.top: parent.top
                     height: 34
                     color: "#e4eef4"
@@ -809,7 +892,17 @@ AppDialog {
                     currentIndex: engineListDialog.selectedIndex
 
                     ScrollBar.vertical: AppScrollBar {
+                        id: engineListScrollBar
                         policy: engineListView.contentHeight > engineListView.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                        hitThickness: engineListDialog.scrollBarHitThickness
+                        minimumSize: Math.min(
+                                         1,
+                                         32 / Math.max(
+                                             1,
+                                             height - topPadding - bottomPadding))
+                        hoverEnabled: true
+                        interactive: true
+                        z: 10
                     }
 
                     delegate: Rectangle {
@@ -846,7 +939,7 @@ AppDialog {
                                                                   rowMouse.mouseX, rowMouse.mouseY)
                         }
 
-                        width: engineListView.width
+                        width: engineListView.width - engineListDialog.scrollBarHitThickness
                         height: 28
                         color: selected ? "#0078d7" : rowMouse.containsMouse ? "#e9f3f8" : "#ffffff"
                         border.color: selected ? "#0078d7" : "#d4dce2"
@@ -899,7 +992,7 @@ AppDialog {
         }
     }
 
-    footer: AppDialogFooter {
+    dialogFooter: AppDialogFooter {
         implicitHeight: 58
         contentMargins: 10
 
@@ -1127,6 +1220,7 @@ AppDialog {
     AppPopup {
         id: engineRuleSelectionPopup
 
+        parent: engineListDialog.contentItem
         readonly property int treeDepthStep: app.compactLayout ? 20 : 24
         readonly property int treeNodeCenter: app.compactLayout ? 22 : 26
         readonly property int treeTextGap: app.compactLayout ? 22 : 26

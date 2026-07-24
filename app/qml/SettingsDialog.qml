@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-AppDialog {
+AppWindowDialog {
     id: settingsDialog
 
     required property var controller
@@ -64,7 +64,7 @@ AppDialog {
         app.focusBoardInput()
     }
 
-    contentItem: RowLayout {
+    dialogBody: RowLayout {
         implicitWidth: 780
         implicitHeight: 570
         spacing: 14
@@ -844,7 +844,7 @@ AppDialog {
                                 Layout.preferredWidth: 180
                                 Layout.minimumWidth: 160
                                 primary: true
-                                onClicked: app.openEngineListDialog()
+                                onClicked: app.openEngineListDialog(settingsDialog)
                             }
 
                             Item { Layout.fillWidth: true }
@@ -1025,7 +1025,7 @@ AppDialog {
         }
     }
 
-    footer: AppDialogFooter {
+    dialogFooter: AppDialogFooter {
         implicitHeight: 62
         contentMargins: 16
 
@@ -1035,7 +1035,7 @@ AppDialog {
             text: app.trText("close")
             primary: true
             Layout.preferredWidth: 110
-            onClicked: settingsDialog.close()
+            onClicked: settingsDialog.closeDialog()
         }
     }
 

@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Quick)
 
-qt_standard_project_setup(REQUIRES 6.8)
+qt_standard_project_setup(REQUIRES 6.9)
 
 qt_add_executable(qlizzie
     src/appsettings.cpp
@@ -47,6 +47,7 @@ qt_add_qml_module(qlizzie
         qml/AppSpinBox.qml
         qml/AppTextArea.qml
         qml/AppTextField.qml
+        qml/AppWindowDialog.qml
         qml/AnalysisToolbar.qml
         qml/BoardSizeDialog.qml
         qml/BoardSizeStepper.qml

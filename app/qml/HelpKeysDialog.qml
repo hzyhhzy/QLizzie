@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-AppDialog {
+AppWindowDialog {
     id: helpDialog
 
     modal: true
@@ -26,7 +26,7 @@ AppDialog {
         { "keys": "Ctrl+I", "textKey": "helpKeyBoardSizeDesc" }
     ]
 
-    contentItem: ColumnLayout {
+    dialogBody: ColumnLayout {
         implicitWidth: 600
         implicitHeight: 500
         spacing: 12
@@ -125,7 +125,7 @@ AppDialog {
                 text: app.trText("close")
                 primary: true
                 onClicked: {
-                    helpDialog.close()
+                    helpDialog.closeDialog()
                     app.focusBoardInput()
                 }
             }

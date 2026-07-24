@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
-AppDialog {
+AppWindowDialog {
     id: hiddenDialog
 
     required property var controller
@@ -30,7 +30,7 @@ AppDialog {
         app.focusBoardInput()
     }
 
-    contentItem: ColumnLayout {
+    dialogBody: ColumnLayout {
         implicitWidth: 700
         implicitHeight: 220
         spacing: 12
@@ -87,7 +87,7 @@ AppDialog {
             SavePromptButton {
                 text: app.trText("close")
                 primary: true
-                onClicked: hiddenDialog.close()
+                onClicked: hiddenDialog.closeDialog()
             }
         }
     }
