@@ -525,7 +525,8 @@ AppWindowDialog {
     onClosed: {
         closeAllChildOverlays()
         pendingUnsavedAction = null
-        app.focusBoardInput()
+        if (!app.applicationShutdownPrepared)
+            app.focusBoardInput()
     }
 
     dialogBody: Flickable {

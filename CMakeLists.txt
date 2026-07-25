@@ -10,7 +10,7 @@ add_subdirectory(launcher)
 if(BUILD_TESTING)
     find_program(QLIZZIE_NODE_EXECUTABLE NAMES node node.exe)
     if(QLIZZIE_NODE_EXECUTABLE)
-        foreach(test_name IN ITEMS GameRules candidate_analysis engine_list_dialog frontend_rendering modal_dialog rule_support sgf_session sgf_utils translations)
+        foreach(test_name IN ITEMS GameRules candidate_analysis engine_list_dialog engine_log_formatter engine_support engine_sync frontend_rendering modal_dialog rule_support sgf_session sgf_utils translations)
             add_test(
                 NAME qlizzie_js_${test_name}
                 COMMAND ${QLIZZIE_NODE_EXECUTABLE}
@@ -32,6 +32,12 @@ if(BUILD_TESTING)
                 NAME qlizzie_qml_modal_window
                 COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
                         -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_modal_window.qml
+                        -platform offscreen
+            )
+            add_test(
+                NAME qlizzie_qml_engine_communication
+                COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
+                        -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_engine_communication.qml
                         -platform offscreen
             )
         endif()

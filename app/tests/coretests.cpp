@@ -1,8 +1,10 @@
+#include "enginecontroller.h"
 #include "engineprotocol.h"
 #include "fileio.h"
 
 #include <QDir>
 #include <QFile>
+#include <QSignalSpy>
 #include <QTest>
 #include <QUrl>
 
@@ -15,8 +17,11 @@ private slots:
     void rejectsFailedHandshake();
     void keepsUnrelatedResponsesOutOfAnalysisTransaction();
     void rejectsAnalysisWhenAnySyncCommandFails();
+    void ignoresConfiguredProtocolErrors();
     void propagatesMovePreludeFailure();
     void completesAndCancelsMoveRequests();
+    void rejectsOversizedStdoutAndRecoversFromOversizedStderr();
+    void shutdownIsTerminal();
     void writesTextThroughCommittedSaveFile();
 };
 
@@ -85,6 +90,55 @@ void CoreTests::rejectsAnalysisWhenAnySyncCommandFails()
     QVERIFY(!state.acceptsCandidateInfo());
 }
 
+void CoreTests::ignoresConfiguredProtocolErrors()
+{
+    EngineProtocolState handshakeState;
+    handshakeState.beginHandshake();
+    const EngineProtocolState::Outcome handshake =
+        handshakeState.consumeLine(QStringLiteral(" ? unknown command "), true);
+    QCOMPARE(handshake.event, EngineProtocolState::Event::HandshakeCompleted);
+    QVERIFY(handshake.success);
+    QCOMPARE(handshake.rawLine, QStringLiteral(" ? unknown command "));
+
+    EngineProtocolState analysisState;
+    analysisState.beginAnalysis(2);
+    analysisState.expectResponse(EngineProtocolState::ResponseRole::AnalysisSync);
+    const EngineProtocolState::Outcome ignoredSyncError =
+        analysisState.consumeLine(QStringLiteral("? cannot undo"), true);
+    QCOMPARE(ignoredSyncError.event, EngineProtocolState::Event::None);
+    QVERIFY(ignoredSyncError.handled);
+    QVERIFY(ignoredSyncError.toleratedSyncError);
+    QVERIFY(!analysisState.acceptsCandidateInfo());
+
+    analysisState.expectResponse(EngineProtocolState::ResponseRole::AnalysisSync);
+    const EngineProtocolState::Outcome analysisCompleted =
+        analysisState.consumeLine(QStringLiteral("="), true);
+    QCOMPARE(analysisCompleted.event, EngineProtocolState::Event::AnalysisSyncCompleted);
+    QVERIFY(analysisCompleted.success);
+    QVERIFY(analysisCompleted.toleratedSyncError);
+    QVERIFY(analysisState.acceptsCandidateInfo());
+
+    EngineProtocolState moveState;
+    moveState.beginMove(1, 74);
+    moveState.expectResponse(EngineProtocolState::ResponseRole::MovePrelude);
+    const EngineProtocolState::Outcome ignoredPreludeError =
+        moveState.consumeLine(QStringLiteral("? unsupported time_settings"), true);
+    QCOMPARE(ignoredPreludeError.event, EngineProtocolState::Event::MovePreludeCompleted);
+    QVERIFY(ignoredPreludeError.handled);
+    QVERIFY(ignoredPreludeError.success);
+    QVERIFY(ignoredPreludeError.toleratedSyncError);
+    QVERIFY(moveState.hasActiveMove());
+
+    moveState.expectResponse(EngineProtocolState::ResponseRole::MoveGenerate);
+    const EngineProtocolState::Outcome failedGenmove =
+        moveState.consumeLine(QStringLiteral("? cannot generate move"), true);
+    QCOMPARE(failedGenmove.event, EngineProtocolState::Event::MoveCompleted);
+    QCOMPARE(failedGenmove.requestId, 74);
+    QVERIFY(!failedGenmove.success);
+    QCOMPARE(failedGenmove.rawLine, QStringLiteral("? cannot generate move"));
+    QVERIFY(!moveState.hasActiveMove());
+}
+
 void CoreTests::propagatesMovePreludeFailure()
 {
     EngineProtocolState state;
@@ -110,8 +164,10 @@ void CoreTests::completesAndCancelsMoveRequests()
     state.beginMove(1, 91);
     state.expectResponse(EngineProtocolState::ResponseRole::MovePrelude);
     const EngineProtocolState::Outcome prelude = state.consumeLine(QStringLiteral("="));
-    QCOMPARE(prelude.event, EngineProtocolState::Event::None);
+    QCOMPARE(prelude.event, EngineProtocolState::Event::MovePreludeCompleted);
     QVERIFY(prelude.handled);
+    QVERIFY(prelude.success);
+    QVERIFY(!prelude.toleratedSyncError);
 
     state.expectResponse(EngineProtocolState::ResponseRole::MoveGenerate);
 
@@ -136,6 +192,99 @@ void CoreTests::completesAndCancelsMoveRequests()
     const EngineProtocolState::Outcome stopResponse = state.consumeLine(QStringLiteral("="));
     QCOMPARE(stopResponse.event, EngineProtocolState::Event::None);
     QVERIFY(stopResponse.handled);
+}
+
+void CoreTests::rejectsOversizedStdoutAndRecoversFromOversizedStderr()
+{
+    constexpr qsizetype maximumEngineLineBytes = 262144;
+
+    {
+        EngineController controller;
+        QSignalSpy moveSpy(&controller, &EngineController::moveGenerated);
+        controller.m_protocolState.beginMove(0, 93);
+        controller.m_protocolState.expectResponse(
+            EngineProtocolState::ResponseRole::MoveGenerate);
+        controller.m_responsesPending = 1;
+        QByteArray oversizedLine(maximumEngineLineBytes + 1, 'x');
+        oversizedLine.append('\n');
+
+        controller.consumeLines(oversizedLine, false);
+
+        QVERIFY(controller.failed());
+        QCOMPARE(controller.failureKind(), QStringLiteral("protocol"));
+        QCOMPARE(controller.m_responsesPending, 0);
+        QVERIFY(oversizedLine.isEmpty());
+        QCOMPARE(moveSpy.count(), 1);
+        QCOMPARE(moveSpy.first().at(0).toInt(), 93);
+        QVERIFY(!moveSpy.first().at(2).toBool());
+    }
+
+    {
+        EngineController controller;
+        controller.m_responsesPending = 1;
+        QByteArray oversizedPartialLine(maximumEngineLineBytes + 1, 'x');
+
+        controller.consumeLines(oversizedPartialLine, false);
+
+        QVERIFY(controller.failed());
+        QCOMPARE(controller.failureKind(), QStringLiteral("protocol"));
+        QCOMPARE(controller.m_responsesPending, 0);
+        QVERIFY(oversizedPartialLine.isEmpty());
+        QVERIFY(!controller.m_discardingOversizedStdoutLine);
+    }
+
+    {
+        EngineController controller;
+        QSignalSpy stderrSpy(&controller, &EngineController::engineErrorOutput);
+        QByteArray oversizedPartialLine(maximumEngineLineBytes + 1, 'x');
+
+        controller.consumeLines(oversizedPartialLine, true);
+        QVERIFY(!controller.failed());
+        QVERIFY(controller.m_discardingOversizedStderrLine);
+        QCOMPARE(stderrSpy.count(), 1);
+
+        oversizedPartialLine.append("\nusable stderr line\n");
+        controller.consumeLines(oversizedPartialLine, true);
+
+        QVERIFY(!controller.failed());
+        QVERIFY(!controller.m_discardingOversizedStderrLine);
+        QVERIFY(oversizedPartialLine.isEmpty());
+        QCOMPARE(stderrSpy.count(), 2);
+        QCOMPARE(stderrSpy.at(1).at(0).toString(),
+                 QStringLiteral("usable stderr line"));
+    }
+
+    {
+        EngineController controller;
+        controller.m_stopping = true;
+        controller.m_restartPending = true;
+        QByteArray staleOversizedLine(maximumEngineLineBytes + 1, 'x');
+        staleOversizedLine.append('\n');
+
+        controller.consumeLines(staleOversizedLine, false);
+
+        QVERIFY(!controller.failed());
+        QVERIFY(controller.m_stopping);
+        QVERIFY(controller.m_restartPending);
+        QVERIFY(controller.m_transportFailureMessage.isEmpty());
+    }
+}
+
+void CoreTests::shutdownIsTerminal()
+{
+    EngineController controller;
+    controller.shutdown();
+    controller.setCommand(QStringLiteral("definitely-missing-engine.exe"));
+
+    controller.ensureStarted();
+    controller.restart();
+    controller.sendCommand(QStringLiteral("name"));
+    controller.requestAnalysis({}, QStringLiteral("kata-analyze"), 1);
+    controller.requestMove({}, QString(), QStringLiteral("genmove B"), 2, 3);
+
+    QVERIFY(!controller.running());
+    QVERIFY(!controller.ready());
+    QVERIFY(!controller.failed());
 }
 
 void CoreTests::writesTextThroughCommittedSaveFile()

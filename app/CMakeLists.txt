@@ -63,6 +63,8 @@ qt_add_qml_module(qlizzie
         qml/ConfirmDeleteNodeDialog.qml
         qml/CoordinateUtils.js
         qml/EnginePresets.js
+        qml/EngineLogFormatter.js
+        qml/EngineSync.js
         qml/EngineListDialog.qml
         qml/EngineSupport.js
         qml/EngineCommunicationWindow.qml
@@ -121,6 +123,8 @@ if(BUILD_TESTING)
     if(TARGET Qt6::Test)
         qt_add_executable(qlizzie_core_tests
             tests/coretests.cpp
+            src/enginecontroller.cpp
+            src/enginecontroller.h
             src/engineprotocol.cpp
             src/engineprotocol.h
             src/fileio.cpp

@@ -9,7 +9,7 @@ EngineProtocolState::Response EngineProtocolState::parseResponse(const QString &
         return {};
 
     Response response;
-    response.rawLine = trimmedLine;
+    response.rawLine = line;
     if (trimmedLine.startsWith(QLatin1Char('=')))
         response.type = ResponseType::Success;
     else if (trimmedLine.startsWith(QLatin1Char('?')))
@@ -58,7 +58,8 @@ void EngineProtocolState::stopAcceptingCandidateInfo()
     m_acceptCandidateInfo = false;
 }
 
-EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &line)
+EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &line,
+                                                              bool ignoreErrorResponses)
 {
     const Response response = parseResponse(line);
     if (!response.isResponse())
@@ -69,7 +70,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
         return {
             Event::HandshakeCompleted,
             true,
-            response.isSuccess(),
+            response.isSuccess() || ignoreErrorResponses,
             0,
             response.payload,
             response.rawLine
@@ -87,7 +88,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
 
     if (expected.role == ResponseRole::AnalysisSync
             && m_transactionKind == TransactionKind::Analysis) {
-        if (!response.isSuccess()) {
+        if (!response.isSuccess() && !ignoreErrorResponses) {
             const QString failureLine = response.rawLine;
             resetTransaction();
             return {
@@ -99,11 +100,23 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
+        const bool toleratedError = !response.isSuccess();
+        if (toleratedError)
+            m_transactionHadToleratedSyncError = true;
         --m_responsesBeforeCompletion;
 
         if (m_responsesBeforeCompletion > 0)
-            return { Event::None, true };
+            return {
+                Event::None,
+                true,
+                false,
+                0,
+                QString(),
+                response.rawLine,
+                toleratedError
+            };
 
+        const bool transactionHadToleratedError = m_transactionHadToleratedSyncError;
         resetTransaction();
         m_acceptCandidateInfo = true;
         return {
@@ -112,13 +125,14 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
             true,
             0,
             QString(),
-            response.rawLine
+            response.rawLine,
+            transactionHadToleratedError
         };
     }
 
     if (expected.role == ResponseRole::MovePrelude
             && m_transactionKind == TransactionKind::Move) {
-        if (!response.isSuccess()) {
+        if (!response.isSuccess() && !ignoreErrorResponses) {
             const int requestId = m_moveRequestId;
             const QString failureLine = response.rawLine;
             resetTransaction();
@@ -131,9 +145,31 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
+        const bool toleratedError = !response.isSuccess();
+        if (toleratedError)
+            m_transactionHadToleratedSyncError = true;
         if (m_responsesBeforeCompletion > 0)
             --m_responsesBeforeCompletion;
-        return { Event::None, true };
+        if (m_responsesBeforeCompletion == 0) {
+            return {
+                Event::MovePreludeCompleted,
+                true,
+                true,
+                m_moveRequestId,
+                QString(),
+                response.rawLine,
+                m_transactionHadToleratedSyncError
+            };
+        }
+        return {
+            Event::None,
+            true,
+            false,
+            0,
+            QString(),
+            response.rawLine,
+            toleratedError
+        };
     }
 
     if (expected.role == ResponseRole::MoveGenerate
@@ -185,6 +221,7 @@ void EngineProtocolState::resetTransaction()
     m_responsesBeforeCompletion = 0;
     m_moveRequestId = 0;
     m_transactionFailed = false;
+    m_transactionHadToleratedSyncError = false;
     m_acceptCandidateInfo = false;
     m_firstFailureLine.clear();
 }

@@ -62,6 +62,25 @@ function normalizePersistentSettings(app) {
                                                 app.hexRotationCurrent,
                                                 app.hexRotationMirrorTranspose))
     app.packageMode = Math.round(app.clamp(app.packageMode, app.packageModeUniversal, app.packageModeSix))
+    var logLineLimit = Number(app.engineCommunicationLogLimit)
+    if (isNaN(logLineLimit))
+        logLineLimit = 1000
+    var logCharacterLimit = Number(app.engineCommunicationLogCharacterLimit)
+    if (isNaN(logCharacterLimit))
+        logCharacterLimit = 262144
+    var logLineCharacterLimit = Number(app.engineCommunicationLineCharacterLimit)
+    if (isNaN(logLineCharacterLimit))
+        logLineCharacterLimit = 16384
+    app.engineCommunicationLogLimit = Math.round(app.clamp(
+                logLineLimit, 1, app.maxEngineCommunicationLogLines))
+    app.engineCommunicationLogCharacterLimit = Math.round(app.clamp(
+                logCharacterLimit, 1024,
+                app.maxEngineCommunicationLogCharacters))
+    app.engineCommunicationLineCharacterLimit = Math.round(app.clamp(
+                logLineCharacterLimit, 128,
+                Math.min(app.maxEngineCommunicationLineCharacters,
+                         Math.max(128,
+                                  app.engineCommunicationLogCharacterLimit - 1))))
     app.enginePresets = EnginePresets.normalizeList(app, app.enginePresets)
     app.engineStartupMode = Math.round(app.clamp(Number(app.engineStartupMode),
                                                  app.engineStartupDefault,
@@ -254,6 +273,16 @@ function loadPersistentSettings(app, settings) {
     app.hexBoardStyle = Number(settingValue(settings, "hexBoardStyle", app.hexBoardStyle))
     app.hexBoardRotation = Number(settingValue(settings, "hexBoardRotation", app.hexBoardRotation))
     app.packageMode = Number(settingValue(settings, "packageMode", app.packageMode))
+    app.ignoreGtpErrors = settingBool(settings, "ignoreGtpErrors", app.ignoreGtpErrors)
+    app.engineCommunicationLogLimit = Number(settingValue(
+                settings, "engineCommunicationLogLimit",
+                app.engineCommunicationLogLimit))
+    app.engineCommunicationLogCharacterLimit = Number(settingValue(
+                settings, "engineCommunicationLogCharacterLimit",
+                app.engineCommunicationLogCharacterLimit))
+    app.engineCommunicationLineCharacterLimit = Number(settingValue(
+                settings, "engineCommunicationLineCharacterLimit",
+                app.engineCommunicationLineCharacterLimit))
     app.enginePresets = EnginePresets.parseList(app, String(settingValue(settings, "enginePresetsJson", "")))
     app.defaultEngineId = String(settingValue(settings, "defaultEngineId", app.defaultEngineId))
     app.activeEngineId = String(settingValue(settings, "activeEngineId", app.activeEngineId))
@@ -337,6 +366,12 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("hexBoardStyle", app.hexBoardStyle)
     settings.setValue("hexBoardRotation", app.hexBoardRotation)
     settings.setValue("packageMode", app.packageMode)
+    settings.setValue("ignoreGtpErrors", app.ignoreGtpErrors)
+    settings.setValue("engineCommunicationLogLimit", app.engineCommunicationLogLimit)
+    settings.setValue("engineCommunicationLogCharacterLimit",
+                      app.engineCommunicationLogCharacterLimit)
+    settings.setValue("engineCommunicationLineCharacterLimit",
+                      app.engineCommunicationLineCharacterLimit)
     settings.setValue("enginePresetsJson", EnginePresets.serializeList(app.enginePresets))
     settings.setValue("defaultEngineId", app.defaultEngineId)
     settings.setValue("activeEngineId", app.activeEngineId)

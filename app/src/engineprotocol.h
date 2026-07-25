@@ -25,6 +25,7 @@ public:
         None,
         HandshakeCompleted,
         AnalysisSyncCompleted,
+        MovePreludeCompleted,
         MovePreludeFailed,
         MoveCompleted
     };
@@ -43,6 +44,7 @@ public:
         int requestId = 0;
         QString payload;
         QString rawLine;
+        bool toleratedSyncError = false;
     };
 
     static Response parseResponse(const QString &line);
@@ -53,7 +55,7 @@ public:
     void expectResponse(ResponseRole role);
     void stopAcceptingCandidateInfo();
 
-    Outcome consumeLine(const QString &line);
+    Outcome consumeLine(const QString &line, bool ignoreErrorResponses = false);
     Outcome cancelMove(const QString &reason);
 
     void resetTransaction();
@@ -86,6 +88,7 @@ private:
     int m_responsesBeforeCompletion = 0;
     int m_moveRequestId = 0;
     bool m_transactionFailed = false;
+    bool m_transactionHadToleratedSyncError = false;
     bool m_acceptCandidateInfo = false;
     QString m_firstFailureLine;
 };

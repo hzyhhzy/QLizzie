@@ -183,6 +183,18 @@ Window {
         aboutToHide()
     }
 
+    Connections {
+        target: appWindowDialog.owningWindow
+        ignoreUnknownSignals: true
+
+        function onVisibleChanged() {
+            if (appWindowDialog.owningWindow
+                    && !appWindowDialog.owningWindow.visible
+                    && appWindowDialog.visible)
+                appWindowDialog.closeDialog()
+        }
+    }
+
     onDialogBodyChanged: {
         if (dialogBody)
             dialogBody.parent = bodyHost

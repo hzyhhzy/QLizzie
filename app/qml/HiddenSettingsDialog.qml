@@ -25,14 +25,20 @@ AppWindowDialog {
         packageModeCombo.currentIndex = app.packageMode
     }
 
+    function applyCommunicationLogLimits() {
+        app.applyEngineCommunicationLogLimits()
+        app.savePersistentSettings()
+    }
+
     onOpened: syncFields()
     onClosed: {
-        app.focusBoardInput()
+        if (!app.applicationShutdownPrepared)
+            app.focusBoardInput()
     }
 
     dialogBody: ColumnLayout {
         implicitWidth: 700
-        implicitHeight: 220
+        implicitHeight: 390
         spacing: 12
 
         Label {
@@ -74,6 +80,111 @@ AppWindowDialog {
                 color: "#51616b"
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            AppCheckBox {
+                id: ignoreGtpErrorsCheckBox
+                text: app.trText("ignoreGtpErrors")
+                checked: app.ignoreGtpErrors
+                onToggled: app.ignoreGtpErrors = checked
+                onClicked: app.savePersistentSettings()
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: ignoreGtpErrorsCheckBox.indicatorSize
+                                   + ignoreGtpErrorsCheckBox.spacing
+                text: app.trText("ignoreGtpErrorsTip")
+                color: "#51616b"
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Label {
+                text: app.trText("engineLogLimitsTitle")
+                color: "#24313a"
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 12
+                rowSpacing: 8
+
+                Label {
+                    text: app.trText("engineLogMaxLines")
+                    color: "#24313a"
+                    Layout.fillWidth: true
+                }
+
+                AppSpinBox {
+                    from: 1
+                    to: app.maxEngineCommunicationLogLines
+                    value: app.engineCommunicationLogLimit
+                    Layout.preferredWidth: 150
+                    onValueModified: {
+                        app.engineCommunicationLogLimit = value
+                        hiddenDialog.applyCommunicationLogLimits()
+                    }
+                }
+
+                Label {
+                    text: app.trText("engineLogMaxCharacters")
+                    color: "#24313a"
+                    Layout.fillWidth: true
+                }
+
+                AppSpinBox {
+                    from: 1024
+                    to: app.maxEngineCommunicationLogCharacters
+                    stepSize: 1024
+                    value: app.engineCommunicationLogCharacterLimit
+                    Layout.preferredWidth: 150
+                    onValueModified: {
+                        app.engineCommunicationLogCharacterLimit = value
+                        hiddenDialog.applyCommunicationLogLimits()
+                    }
+                }
+
+                Label {
+                    text: app.trText("engineLogMaxLineCharacters")
+                    color: "#24313a"
+                    Layout.fillWidth: true
+                }
+
+                AppSpinBox {
+                    from: 128
+                    to: Math.min(app.maxEngineCommunicationLineCharacters,
+                                 Math.max(128,
+                                          app.engineCommunicationLogCharacterLimit - 1))
+                    stepSize: 128
+                    value: app.engineCommunicationLineCharacterLimit
+                    Layout.preferredWidth: 150
+                    onValueModified: {
+                        app.engineCommunicationLineCharacterLimit = value
+                        hiddenDialog.applyCommunicationLogLimits()
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: app.trText("engineLogLimitsTip")
+                color: "#9b5b18"
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
             }
         }
 

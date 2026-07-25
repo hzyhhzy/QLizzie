@@ -59,9 +59,11 @@ AppWindowDialog {
 
     onOpened: syncFields()
     onClosed: {
-        applyBoardSize()
-        app.onSettingsDialogClosed()
-        app.focusBoardInput()
+        if (!app.applicationShutdownPrepared) {
+            applyBoardSize()
+            app.onSettingsDialogClosed()
+            app.focusBoardInput()
+        }
     }
 
     dialogBody: RowLayout {

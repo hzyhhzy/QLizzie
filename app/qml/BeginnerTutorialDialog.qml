@@ -95,6 +95,15 @@ Window {
         skipTutorialDialog.open()
     }
 
+    Connections {
+        target: app
+
+        function onVisibleChanged() {
+            if (!app.visible)
+                tutorialDialog.visible = false
+        }
+    }
+
     QtObject {
         id: tutorialPreviewStyle
 
