@@ -63,6 +63,7 @@ qt_add_qml_module(qlizzie
         qml/ConfirmDeleteNodeDialog.qml
         qml/CoordinateUtils.js
         qml/EnginePresets.js
+        qml/EngineSpeed.js
         qml/EngineLogFormatter.js
         qml/EngineSync.js
         qml/EngineListDialog.qml

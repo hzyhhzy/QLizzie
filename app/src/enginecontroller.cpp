@@ -1089,6 +1089,8 @@ void EngineController::parseInfoLine(const QString &line)
                 const int visits = value.toInt(&ok);
                 if (ok)
                     item.insert(QStringLiteral("visits"), visits);
+            } else if (key == QLatin1StringView("isSymmetryOf")) {
+                item.insert(QStringLiteral("isSymmetryOf"), value.toString());
             } else if (key == QLatin1StringView("winrate")) {
                 const double winrate = value.toDouble(&ok);
                 if (ok)

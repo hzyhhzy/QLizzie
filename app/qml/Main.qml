@@ -10,6 +10,7 @@ import "BoardVisuals.js" as BoardVisuals
 import "CandidateAnalysis.js" as CandidateAnalysis
 import "CoordinateUtils.js" as CoordinateUtils
 import "EnginePresets.js" as EnginePresets
+import "EngineSpeed.js" as EngineSpeed
 import "EngineSync.js" as EngineSync
 import "EngineSupport.js" as EngineSupport
 import "GameRules.js" as GameRules
@@ -289,6 +290,9 @@ ApplicationWindow {
     property int engineAnalysisRequestGeneration: -1
     property string engineAnalysisRequestBoardSignature: ""
     property string engineAnalysisRequestKomiSignature: ""
+    property var engineSearchSpeedSamples: []
+    property int engineSearchSpeed: -1
+    property string engineSearchSpeedKey: ""
     property int analysisRevision: 0
     property int analysisIntervalCentiseconds: 10
     property int maxAnalysisSeconds: 0
@@ -398,6 +402,13 @@ ApplicationWindow {
     }
 
     onCoordinateDisplayModeChanged: refreshCoordinateDisplayText()
+    onCurrentNodeIdChanged: resetEngineSearchSpeed()
+    onGameTreeGenerationChanged: resetEngineSearchSpeed()
+    onActiveEngineIdChanged: resetEngineSearchSpeed()
+    onEngineAutoAnalyzeChanged: resetEngineSearchSpeed()
+    onEnginePausedChanged: resetEngineSearchSpeed()
+    onEngineDisabledChanged: resetEngineSearchSpeed()
+    onPlayModeChanged: resetEngineSearchSpeed()
     onIgnoreGtpErrorsChanged: {
         if (engineController)
             engineController.ignoreGtpErrors = ignoreGtpErrors
@@ -742,6 +753,14 @@ ApplicationWindow {
         interval: 280
         repeat: false
         onTriggered: root.requestEngineAnalysis(false)
+    }
+
+    Timer {
+        id: engineSearchSpeedTimer
+        interval: 1000
+        repeat: true
+        running: true
+        onTriggered: root.sampleEngineSearchSpeed()
     }
 
     Timer {
@@ -1553,7 +1572,81 @@ ApplicationWindow {
     }
 
     function windowTitleText() {
-        return trText("windowTitle")
+        var titleText = trText("windowTitle")
+        if (!engineController || !engineController.running || engineDisabled)
+            return titleText
+
+        var preset = activeEnginePreset()
+        if (preset && String(preset.name || "").trim().length > 0)
+            titleText += " - " + String(preset.name).trim()
+
+        var speedText = "-"
+        var currentKey = currentEngineSearchSpeedKey()
+        if (engineSearchSpeedActive()
+                && engineSearchSpeedKey === currentKey
+                && engineSearchSpeed >= 0) {
+            speedText = String(engineSearchSpeed)
+        }
+        return titleText + " - " + speedText + " " + trText("engineSpeedUnit")
+    }
+
+    function currentEngineSearchSpeedKey() {
+        return [
+                    activeEngineId,
+                    engineSyncRequestSerial,
+                    gameTreeGeneration,
+                    engineAnalysisRequestNodeId,
+                    engineAnalysisRequestBoardSignature,
+                    engineAnalysisRequestKomiSignature
+                ].join("|")
+    }
+
+    function engineSearchSpeedActive() {
+        return !applicationShutdownPrepared
+               && analysisModeActive()
+               && engineAutoAnalyze
+               && !enginePaused
+               && !engineDisabled
+               && !engineLoading
+               && !engineCandidatesFromCache
+               && !!engineController
+               && engineController.running
+               && engineController.ready
+               && !engineController.failed
+               && engineAnalysisRequestNodeId === currentNodeId
+               && engineAnalysisRequestGeneration === gameTreeGeneration
+               && engineAnalysisRequestBoardSignature === engineBoardSignature()
+               && engineAnalysisRequestKomiSignature === engineKomiSignature()
+    }
+
+    function resetEngineSearchSpeed() {
+        engineSearchSpeedSamples = []
+        engineSearchSpeed = -1
+        engineSearchSpeedKey = ""
+    }
+
+    function sampleEngineSearchSpeed() {
+        if (!engineSearchSpeedActive()) {
+            resetEngineSearchSpeed()
+            return
+        }
+
+        var key = currentEngineSearchSpeedKey()
+        var total = EngineSpeed.totalVisits(engineController.candidates)
+        if (total < 0) {
+            resetEngineSearchSpeed()
+            return
+        }
+
+        var sampled = EngineSpeed.nextSample(engineSearchSpeedSamples,
+                                             key,
+                                             total,
+                                             Date.now(),
+                                             4,
+                                             5000)
+        engineSearchSpeedSamples = sampled.samples
+        engineSearchSpeed = sampled.speed
+        engineSearchSpeedKey = key
     }
 
     function clamp(value, low, high) {
@@ -3675,6 +3768,7 @@ ApplicationWindow {
     function startEngine() {
         if (applicationShutdownPrepared || !engineController)
             return
+        resetEngineSearchSpeed()
         engineDisabled = false
         engineLoading = true
         engineNoticeDismissed = false
@@ -3705,6 +3799,7 @@ ApplicationWindow {
     function restartEngine() {
         if (applicationShutdownPrepared || !engineController)
             return
+        resetEngineSearchSpeed()
         engineDisabled = false
         engineLoading = true
         engineNoticeDismissed = false
@@ -3728,6 +3823,7 @@ ApplicationWindow {
     }
 
     function pauseEngineAnalysis() {
+        resetEngineSearchSpeed()
         enginePaused = true
         stopAnalysisLimitTimer()
         if (engineController)
@@ -4069,6 +4165,7 @@ ApplicationWindow {
     }
 
     function clearEngineCandidates() {
+        resetEngineSearchSpeed()
         resetEngineCandidateDisplay()
         if (engineController)
             engineController.clearCandidates()
@@ -4527,6 +4624,7 @@ ApplicationWindow {
 
     function stopApplicationTimersForShutdown() {
         autoAnalyzeTimer.stop()
+        engineSearchSpeedTimer.stop()
         engineInitialCommandsCompletionTimer.stop()
         analysisLimitTimer.stop()
         focusBoardInputTimer.stop()
@@ -4723,6 +4821,7 @@ ApplicationWindow {
         }
 
         function onCommandChanged() {
+            root.resetEngineSearchSpeed()
             root.engineInitialCommandsSentForId = ""
             root.engineInitialCommandsPendingForId = ""
             engineInitialCommandsCompletionTimer.stop()
@@ -4730,11 +4829,15 @@ ApplicationWindow {
         }
 
         function onCandidatesChanged() {
+            if (!engineController.candidates || engineController.candidates.length <= 0)
+                root.resetEngineSearchSpeed()
             root.applyEngineCandidateUpdate(engineController.candidates,
                                             engineController.candidateRevision)
         }
 
         function onReadyChanged() {
+            if (!engineController.ready)
+                root.resetEngineSearchSpeed()
             if (engineController.ready) {
                 root.engineLoading = false
                 root.sendActiveEngineInitialCommands()
@@ -4745,8 +4848,14 @@ ApplicationWindow {
 
         function onFailedChanged() {
             if (engineController.failed) {
+                root.resetEngineSearchSpeed()
                 root.handleEngineLoadFailure(root.engineFailureMessage())
             }
+        }
+
+        function onRunningChanged() {
+            if (!engineController.running)
+                root.resetEngineSearchSpeed()
         }
 
         function onMoveGenerated(requestId, move, ok, rawLine) {

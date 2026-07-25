@@ -3,6 +3,7 @@
 var translations = ({
     "zh": {
         "windowTitle": "QLizzie",
+        "engineSpeedUnit": "搜索/秒",
         "menuFile": "文件",
         "menuEdit": "棋局",
         "menuView": "视图",
@@ -491,6 +492,7 @@ var translations = ({
     },
     "en": {
         "windowTitle": "QLizzie",
+        "engineSpeedUnit": "visits/s",
         "menuFile": "File",
         "menuEdit": "Game",
         "menuView": "View",

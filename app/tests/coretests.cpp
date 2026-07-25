@@ -21,6 +21,7 @@ private slots:
     void propagatesMovePreludeFailure();
     void completesAndCancelsMoveRequests();
     void rejectsOversizedStdoutAndRecoversFromOversizedStderr();
+    void preservesCandidateSymmetryMetadata();
     void shutdownIsTerminal();
     void writesTextThroughCommittedSaveFile();
 };
@@ -36,6 +37,22 @@ void CoreTests::parsesGtpResponses()
     QCOMPARE(error.payload, QStringLiteral("illegal move"));
 
     QVERIFY(!EngineProtocolState::parseResponse(QStringLiteral("info move D4")).isResponse());
+}
+
+void CoreTests::preservesCandidateSymmetryMetadata()
+{
+    EngineController controller;
+    controller.parseInfoLine(QStringLiteral(
+        "info move D4 visits 120 order 0 pv D4 "
+        "info move Q16 visits 80 isSymmetryOf D4 order 1 pv Q16"));
+
+    QCOMPARE(controller.m_candidates.size(), 2);
+    const QVariantMap first = controller.m_candidates.at(0).toMap();
+    const QVariantMap second = controller.m_candidates.at(1).toMap();
+    QCOMPARE(first.value(QStringLiteral("move")).toString(), QStringLiteral("D4"));
+    QVERIFY(!first.contains(QStringLiteral("isSymmetryOf")));
+    QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
+    QCOMPARE(second.value(QStringLiteral("isSymmetryOf")).toString(), QStringLiteral("D4"));
 }
 
 void CoreTests::rejectsFailedHandshake()

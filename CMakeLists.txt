@@ -10,7 +10,7 @@ add_subdirectory(launcher)
 if(BUILD_TESTING)
     find_program(QLIZZIE_NODE_EXECUTABLE NAMES node node.exe)
     if(QLIZZIE_NODE_EXECUTABLE)
-        foreach(test_name IN ITEMS GameRules candidate_analysis engine_list_dialog engine_log_formatter engine_support engine_sync frontend_rendering modal_dialog rule_support sgf_session sgf_utils translations)
+        foreach(test_name IN ITEMS GameRules candidate_analysis engine_list_dialog engine_log_formatter engine_speed engine_support engine_sync frontend_rendering modal_dialog rule_support sgf_session sgf_utils translations)
             add_test(
                 NAME qlizzie_js_${test_name}
                 COMMAND ${QLIZZIE_NODE_EXECUTABLE}
