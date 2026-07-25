@@ -44,7 +44,6 @@ public:
         int requestId = 0;
         QString payload;
         QString rawLine;
-        bool toleratedSyncError = false;
     };
 
     static Response parseResponse(const QString &line);
@@ -88,7 +87,6 @@ private:
     int m_responsesBeforeCompletion = 0;
     int m_moveRequestId = 0;
     bool m_transactionFailed = false;
-    bool m_transactionHadToleratedSyncError = false;
     bool m_acceptCandidateInfo = false;
     QString m_firstFailureLine;
 };

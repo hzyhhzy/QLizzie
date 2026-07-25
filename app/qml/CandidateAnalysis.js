@@ -695,7 +695,8 @@ function showCachedAnalysisForCurrentNode(app) {
 }
 
 function applyEngineCandidateUpdate(app, candidates, revision) {
-    if (!app.analysisModeActive()) {
+    if (app.engineAnalysisRequestValid === false
+            || (!app.analysisModeActive() && app.aiAnalysisInFlight !== true)) {
         resetDisplay(app)
         return
     }

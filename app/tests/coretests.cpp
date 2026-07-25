@@ -18,10 +18,16 @@ private slots:
     void keepsUnrelatedResponsesOutOfAnalysisTransaction();
     void rejectsAnalysisWhenAnySyncCommandFails();
     void ignoresConfiguredProtocolErrors();
+    void ignoredSyncErrorsOnlyNotify();
     void propagatesMovePreludeFailure();
     void completesAndCancelsMoveRequests();
     void rejectsOversizedStdoutAndRecoversFromOversizedStderr();
     void preservesCandidateSymmetryMetadata();
+    void parsesOwnershipWithoutPollutingCandidates();
+    void clearsOwnershipWithNewCandidateBatch();
+    void clearsOwnershipWithoutCandidates();
+    void rejectsMalformedOwnership();
+    void ignoresUnhandledAnalysisErrorsWhenConfigured();
     void shutdownIsTerminal();
     void writesTextThroughCommittedSaveFile();
 };
@@ -53,6 +59,109 @@ void CoreTests::preservesCandidateSymmetryMetadata()
     QVERIFY(!first.contains(QStringLiteral("isSymmetryOf")));
     QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
     QCOMPARE(second.value(QStringLiteral("isSymmetryOf")).toString(), QStringLiteral("D4"));
+}
+
+void CoreTests::parsesOwnershipWithoutPollutingCandidates()
+{
+    EngineController controller;
+    QSignalSpy changedSpy(&controller, &EngineController::candidatesChanged);
+    controller.parseInfoLine(QStringLiteral(
+        "info move D4 visits 120 order 0 pv D4 C3 "
+        "info move Q16 visits 80 order 1 pv Q16 R17 "
+        "rootInfo visits 200 winrate 0.51 ownership 1 -0.5 0 0.25"));
+
+    QCOMPARE(changedSpy.count(), 1);
+    QCOMPARE(controller.candidates().size(), 2);
+    QCOMPARE(controller.ownership().size(), 4);
+    QCOMPARE(controller.ownership().at(0).toDouble(), 1.0);
+    QCOMPARE(controller.ownership().at(1).toDouble(), -0.5);
+    QCOMPARE(controller.ownership().at(2).toDouble(), 0.0);
+    QCOMPARE(controller.ownership().at(3).toDouble(), 0.25);
+
+    const QVariantMap first = controller.candidates().at(0).toMap();
+    const QVariantMap second = controller.candidates().at(1).toMap();
+    QCOMPARE(first.value(QStringLiteral("pv")).toList(),
+             QVariantList({ QStringLiteral("D4"), QStringLiteral("C3") }));
+    QCOMPARE(second.value(QStringLiteral("pv")).toList(),
+             QVariantList({ QStringLiteral("Q16"), QStringLiteral("R17") }));
+}
+
+void CoreTests::clearsOwnershipWithNewCandidateBatch()
+{
+    EngineController controller;
+    QSignalSpy changedSpy(&controller, &EngineController::candidatesChanged);
+    controller.parseInfoLine(
+        QStringLiteral("info move D4 visits 1 order 0 pv D4 ownership 0.75 -0.25"));
+    QVERIFY(!controller.ownership().isEmpty());
+
+    controller.parseInfoLine(
+        QStringLiteral("info move Q16 visits 2 order 0 pv Q16 R17"));
+
+    QCOMPARE(changedSpy.count(), 2);
+    QVERIFY(controller.ownership().isEmpty());
+    QCOMPARE(controller.candidates().size(), 1);
+    QCOMPARE(controller.candidates().first().toMap().value(QStringLiteral("move")).toString(),
+             QStringLiteral("Q16"));
+}
+
+void CoreTests::clearsOwnershipWithoutCandidates()
+{
+    EngineController controller;
+    QSignalSpy changedSpy(&controller, &EngineController::candidatesChanged);
+    controller.m_ownership = QVariantList({ 0.5, -0.5 });
+    QVERIFY(controller.m_candidates.isEmpty());
+
+    controller.clearCandidates();
+
+    QCOMPARE(changedSpy.count(), 1);
+    QVERIFY(controller.m_candidates.isEmpty());
+    QVERIFY(controller.m_ownership.isEmpty());
+    QCOMPARE(controller.m_candidateRevision, 1);
+}
+
+void CoreTests::rejectsMalformedOwnership()
+{
+    EngineController controller;
+    controller.parseInfoLine(
+        QStringLiteral("info move D4 visits 1 order 0 pv D4 ownership 0.5 -0.5"));
+    QVERIFY(!controller.ownership().isEmpty());
+
+    controller.parseInfoLine(
+        QStringLiteral("info move Q16 visits 2 order 0 pv Q16 ownership 0.25 NaN -0.25"));
+
+    QVERIFY(controller.ownership().isEmpty());
+    QCOMPARE(controller.candidates().size(), 1);
+    const QVariantMap candidate = controller.candidates().first().toMap();
+    QCOMPARE(candidate.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
+    QCOMPARE(candidate.value(QStringLiteral("pv")).toList(),
+             QVariantList({ QStringLiteral("Q16") }));
+}
+
+void CoreTests::ignoresUnhandledAnalysisErrorsWhenConfigured()
+{
+    EngineController controller;
+    controller.m_ready = true;
+    controller.m_activeAnalysisRequestId = 73;
+    controller.m_protocolState.beginAnalysis(0);
+    QSignalSpy failedSpy(&controller, &EngineController::analysisCommandFailed);
+    QSignalSpy errorSpy(&controller, &EngineController::gtpErrorResponse);
+
+    controller.handleStdoutLine(QStringLiteral("? unknown command"));
+
+    QCOMPARE(errorSpy.count(), 1);
+    QCOMPARE(errorSpy.first().at(0).toString(), QStringLiteral("? unknown command"));
+    QCOMPARE(failedSpy.count(), 0);
+    QCOMPARE(controller.m_activeAnalysisRequestId, 73);
+    QVERIFY(controller.m_protocolState.acceptsCandidateInfo());
+
+    controller.setIgnoreGtpErrors(false);
+    controller.handleStdoutLine(QStringLiteral("? analysis failed"));
+
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(failedSpy.first().at(0).toInt(), 73);
+    QCOMPARE(failedSpy.first().at(1).toString(), QStringLiteral("? analysis failed"));
+    QCOMPARE(controller.m_activeAnalysisRequestId, 0);
+    QVERIFY(!controller.m_protocolState.acceptsCandidateInfo());
 }
 
 void CoreTests::rejectsFailedHandshake()
@@ -124,7 +233,6 @@ void CoreTests::ignoresConfiguredProtocolErrors()
         analysisState.consumeLine(QStringLiteral("? cannot undo"), true);
     QCOMPARE(ignoredSyncError.event, EngineProtocolState::Event::None);
     QVERIFY(ignoredSyncError.handled);
-    QVERIFY(ignoredSyncError.toleratedSyncError);
     QVERIFY(!analysisState.acceptsCandidateInfo());
 
     analysisState.expectResponse(EngineProtocolState::ResponseRole::AnalysisSync);
@@ -132,7 +240,6 @@ void CoreTests::ignoresConfiguredProtocolErrors()
         analysisState.consumeLine(QStringLiteral("="), true);
     QCOMPARE(analysisCompleted.event, EngineProtocolState::Event::AnalysisSyncCompleted);
     QVERIFY(analysisCompleted.success);
-    QVERIFY(analysisCompleted.toleratedSyncError);
     QVERIFY(analysisState.acceptsCandidateInfo());
 
     EngineProtocolState moveState;
@@ -143,7 +250,6 @@ void CoreTests::ignoresConfiguredProtocolErrors()
     QCOMPARE(ignoredPreludeError.event, EngineProtocolState::Event::MovePreludeCompleted);
     QVERIFY(ignoredPreludeError.handled);
     QVERIFY(ignoredPreludeError.success);
-    QVERIFY(ignoredPreludeError.toleratedSyncError);
     QVERIFY(moveState.hasActiveMove());
 
     moveState.expectResponse(EngineProtocolState::ResponseRole::MoveGenerate);
@@ -154,6 +260,33 @@ void CoreTests::ignoresConfiguredProtocolErrors()
     QVERIFY(!failedGenmove.success);
     QCOMPARE(failedGenmove.rawLine, QStringLiteral("? cannot generate move"));
     QVERIFY(!moveState.hasActiveMove());
+}
+
+void CoreTests::ignoredSyncErrorsOnlyNotify()
+{
+    EngineController controller;
+    controller.m_ready = true;
+    controller.m_activeSyncRequestId = 88;
+    controller.m_protocolState.beginAnalysis(1);
+    controller.m_protocolState.expectResponse(
+        EngineProtocolState::ResponseRole::AnalysisSync);
+    controller.m_responsesPending = 1;
+
+    QSignalSpy errorSpy(&controller, &EngineController::gtpErrorResponse);
+    QSignalSpy synchronizedSpy(
+        &controller, &EngineController::engineSynchronizationCompleted);
+    QSignalSpy failedSpy(&controller, &EngineController::failedChanged);
+
+    controller.handleStdoutLine(QStringLiteral("? cannot undo"));
+
+    QCOMPARE(errorSpy.count(), 1);
+    QCOMPARE(errorSpy.first().at(0).toString(), QStringLiteral("? cannot undo"));
+    QCOMPARE(synchronizedSpy.count(), 1);
+    QCOMPARE(synchronizedSpy.first().at(0).toInt(), 88);
+    QCOMPARE(failedSpy.count(), 0);
+    QVERIFY(!controller.failed());
+    QCOMPARE(controller.m_responsesPending, 0);
+    QVERIFY(controller.m_protocolState.acceptsCandidateInfo());
 }
 
 void CoreTests::propagatesMovePreludeFailure()
@@ -184,7 +317,6 @@ void CoreTests::completesAndCancelsMoveRequests()
     QCOMPARE(prelude.event, EngineProtocolState::Event::MovePreludeCompleted);
     QVERIFY(prelude.handled);
     QVERIFY(prelude.success);
-    QVERIFY(!prelude.toleratedSyncError);
 
     state.expectResponse(EngineProtocolState::ResponseRole::MoveGenerate);
 
@@ -214,6 +346,7 @@ void CoreTests::completesAndCancelsMoveRequests()
 void CoreTests::rejectsOversizedStdoutAndRecoversFromOversizedStderr()
 {
     constexpr qsizetype maximumEngineLineBytes = 262144;
+    constexpr qsizetype maximumAnalysisInfoLineBytes = 4 * 1024 * 1024;
 
     {
         EngineController controller;
@@ -234,6 +367,49 @@ void CoreTests::rejectsOversizedStdoutAndRecoversFromOversizedStderr()
         QCOMPARE(moveSpy.count(), 1);
         QCOMPARE(moveSpy.first().at(0).toInt(), 93);
         QVERIFY(!moveSpy.first().at(2).toBool());
+    }
+
+    {
+        EngineController controller;
+        QByteArray largeAnalysisLine("info move A1 ");
+        largeAnalysisLine.append(
+            QByteArray(maximumEngineLineBytes - largeAnalysisLine.size() + 1, 'x'));
+        largeAnalysisLine.append('\n');
+
+        controller.consumeLines(largeAnalysisLine, false);
+
+        QVERIFY(!controller.failed());
+        QVERIFY(largeAnalysisLine.isEmpty());
+    }
+
+    {
+        EngineController controller;
+        QByteArray largePartialAnalysisLine("  info\tmove A1 ");
+        largePartialAnalysisLine.append(
+            QByteArray(maximumEngineLineBytes
+                       - largePartialAnalysisLine.size() + 1, 'x'));
+
+        controller.consumeLines(largePartialAnalysisLine, false);
+
+        QVERIFY(!controller.failed());
+        QVERIFY(largePartialAnalysisLine.size() > maximumEngineLineBytes);
+    }
+
+    {
+        EngineController controller;
+        QByteArray oversizedAnalysisLine("info move A1 ");
+        oversizedAnalysisLine.append(
+            QByteArray(maximumAnalysisInfoLineBytes
+                       - oversizedAnalysisLine.size() + 1, 'x'));
+        oversizedAnalysisLine.append('\n');
+
+        controller.consumeLines(oversizedAnalysisLine, false);
+
+        QVERIFY(controller.failed());
+        QCOMPARE(controller.failureKind(), QStringLiteral("protocol"));
+        QVERIFY(controller.failureMessage().contains(
+            QString::number(maximumAnalysisInfoLineBytes)));
+        QVERIFY(oversizedAnalysisLine.isEmpty());
     }
 
     {

@@ -100,9 +100,6 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
-        const bool toleratedError = !response.isSuccess();
-        if (toleratedError)
-            m_transactionHadToleratedSyncError = true;
         --m_responsesBeforeCompletion;
 
         if (m_responsesBeforeCompletion > 0)
@@ -112,11 +109,9 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 false,
                 0,
                 QString(),
-                response.rawLine,
-                toleratedError
+                response.rawLine
             };
 
-        const bool transactionHadToleratedError = m_transactionHadToleratedSyncError;
         resetTransaction();
         m_acceptCandidateInfo = true;
         return {
@@ -125,8 +120,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
             true,
             0,
             QString(),
-            response.rawLine,
-            transactionHadToleratedError
+            response.rawLine
         };
     }
 
@@ -145,9 +139,6 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
-        const bool toleratedError = !response.isSuccess();
-        if (toleratedError)
-            m_transactionHadToleratedSyncError = true;
         if (m_responsesBeforeCompletion > 0)
             --m_responsesBeforeCompletion;
         if (m_responsesBeforeCompletion == 0) {
@@ -157,8 +148,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 true,
                 m_moveRequestId,
                 QString(),
-                response.rawLine,
-                m_transactionHadToleratedSyncError
+                response.rawLine
             };
         }
         return {
@@ -167,8 +157,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
             false,
             0,
             QString(),
-            response.rawLine,
-            toleratedError
+            response.rawLine
         };
     }
 
@@ -221,7 +210,6 @@ void EngineProtocolState::resetTransaction()
     m_responsesBeforeCompletion = 0;
     m_moveRequestId = 0;
     m_transactionFailed = false;
-    m_transactionHadToleratedSyncError = false;
     m_acceptCandidateInfo = false;
     m_firstFailureLine.clear();
 }

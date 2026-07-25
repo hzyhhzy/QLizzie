@@ -1,5 +1,6 @@
 #include "enginecontroller.h"
 
+#include <QByteArrayView>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -9,6 +10,7 @@
 #include <QVector>
 
 #include <algorithm>
+#include <cmath>
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -16,6 +18,7 @@
 
 namespace {
 constexpr qsizetype kMaximumEngineLineBytes = 262144;
+constexpr qsizetype kMaximumAnalysisInfoLineBytes = 4 * 1024 * 1024;
 
 QString portableRootPath()
 {
@@ -66,11 +69,41 @@ QStringView nextToken(QStringView text, qsizetype &position)
     return text.sliced(start, position - start);
 }
 
+bool isAsciiWhitespace(char ch)
+{
+    return ch == ' ' || ch == '\t' || ch == '\r'
+        || ch == '\n' || ch == '\f' || ch == '\v';
+}
+
+QByteArrayView nextToken(QByteArrayView text, qsizetype &position)
+{
+    while (position < text.size() && isAsciiWhitespace(text.at(position)))
+        ++position;
+    const qsizetype start = position;
+    while (position < text.size() && !isAsciiWhitespace(text.at(position)))
+        ++position;
+    return text.sliced(start, position - start);
+}
+
 bool communicationInfoLineFiltered(QStringView text)
 {
     qsizetype position = 0;
     return nextToken(text, position) == QLatin1StringView("info")
         && nextToken(text, position) == QLatin1StringView("move");
+}
+
+bool communicationInfoLineFiltered(QByteArrayView text)
+{
+    qsizetype position = 0;
+    return nextToken(text, position) == QByteArrayView("info", 4)
+        && nextToken(text, position) == QByteArrayView("move", 4);
+}
+
+qsizetype maximumEngineLineBytes(QByteArrayView text, bool stderrStream)
+{
+    if (!stderrStream && communicationInfoLineFiltered(text))
+        return kMaximumAnalysisInfoLineBytes;
+    return kMaximumEngineLineBytes;
 }
 
 QString nextMoveToken(QStringView text, qsizetype &position)
@@ -99,6 +132,65 @@ qsizetype nextInfoSeparator(QStringView text, qsizetype from)
             return i;
     }
     return -1;
+}
+
+qsizetype standaloneTokenPosition(QStringView text, QLatin1StringView wanted, qsizetype from = 0)
+{
+    qsizetype position = from;
+    while (position < text.size()) {
+        while (position < text.size() && text.at(position).isSpace())
+            ++position;
+        const qsizetype tokenStart = position;
+        const QStringView token = nextToken(text, position);
+        if (token == wanted)
+            return tokenStart;
+    }
+    return -1;
+}
+
+qsizetype firstAnalysisTrailerPosition(QStringView text)
+{
+    qsizetype position = 0;
+    while (position < text.size()) {
+        while (position < text.size() && text.at(position).isSpace())
+            ++position;
+        const qsizetype tokenStart = position;
+        const QStringView token = nextToken(text, position);
+        if (token == QLatin1StringView("rootInfo")
+            || token == QLatin1StringView("ownership")
+            || token == QLatin1StringView("ownershipStdev")) {
+            return tokenStart;
+        }
+    }
+    return -1;
+}
+
+QVariantList parsedOwnership(QStringView payload)
+{
+    const qsizetype ownershipPosition =
+        standaloneTokenPosition(payload, QLatin1StringView("ownership"));
+    if (ownershipPosition < 0)
+        return {};
+
+    qsizetype position = ownershipPosition + qsizetype(QLatin1StringView("ownership").size());
+    QVariantList result;
+    while (position < payload.size()) {
+        const QStringView token = nextToken(payload, position);
+        if (token.isEmpty())
+            break;
+        if (token == QLatin1StringView("info")
+            || token == QLatin1StringView("rootInfo")
+            || token == QLatin1StringView("ownershipStdev")) {
+            break;
+        }
+
+        bool ok = false;
+        const double value = token.toDouble(&ok);
+        if (!ok || !std::isfinite(value))
+            return {};
+        result.append(value);
+    }
+    return result;
 }
 
 QStringList normalizedCommands(const QStringList &commands)
@@ -134,6 +226,7 @@ bool commandExpectsResponse(const QString &command)
     return name != QStringLiteral("kata-analyze")
         && name != QStringLiteral("lz-analyze");
 }
+
 }
 
 EngineController::EngineController(QObject *parent)
@@ -323,6 +416,11 @@ void EngineController::setIgnoreGtpErrors(bool ignore)
 QVariantList EngineController::candidates() const
 {
     return m_candidates;
+}
+
+QVariantList EngineController::ownership() const
+{
+    return m_ownership;
 }
 
 int EngineController::candidateRevision() const
@@ -541,6 +639,7 @@ void EngineController::requestAnalysis(const QStringList &syncCommands,
                                    EngineProtocolState::ResponseRole::Ignored,
                                    false });
     m_activeSyncRequestId = syncRequestId;
+    m_activeAnalysisRequestId = syncRequestId;
     m_protocolState.beginAnalysis(syncResponseCount);
 
     if (m_restartPending) {
@@ -632,10 +731,12 @@ bool EngineController::canUseIncrementalSync() const
 void EngineController::clearCandidates()
 {
     m_protocolState.stopAcceptingCandidateInfo();
-    if (m_candidates.isEmpty())
+    m_activeAnalysisRequestId = 0;
+    if (m_candidates.isEmpty() && m_ownership.isEmpty())
         return;
 
     m_candidates.clear();
+    m_ownership.clear();
     ++m_candidateRevision;
     emit candidatesChanged();
 }
@@ -760,6 +861,7 @@ void EngineController::interruptCurrentCommand(const QueuedCommand &command, con
     m_pendingCommands.clear();
     m_protocolState.resetTransaction();
     m_activeSyncRequestId = 0;
+    m_activeAnalysisRequestId = 0;
     if (m_process.state() == QProcess::Running && m_ready)
         writeCommand(command);
 }
@@ -786,12 +888,12 @@ void EngineController::consumeLines(QByteArray &buffer, bool stderrStream)
     bool &discardingOversizedLine = stderrStream
         ? m_discardingOversizedStderrLine
         : m_discardingOversizedStdoutLine;
-    const auto reportOversizedLine = [this, stderrStream]() {
+    const auto reportOversizedLine = [this, stderrStream](qsizetype maximumBytes) {
         const QString marker = QStringLiteral(
             "... [engine %1 line exceeded %2 bytes; discarded] ...")
             .arg(stderrStream ? QStringLiteral("stderr")
                               : QStringLiteral("stdout"))
-            .arg(kMaximumEngineLineBytes);
+            .arg(maximumBytes);
         if (stderrStream)
             emit engineErrorOutput(marker);
         else
@@ -811,9 +913,11 @@ void EngineController::consumeLines(QByteArray &buffer, bool stderrStream)
 
     qsizetype newlineIndex = -1;
     while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
-        if (newlineIndex > kMaximumEngineLineBytes) {
+        const qsizetype maximumBytes = maximumEngineLineBytes(
+            QByteArrayView(buffer.constData(), newlineIndex), stderrStream);
+        if (newlineIndex > maximumBytes) {
             buffer.remove(0, newlineIndex + 1);
-            const QString marker = reportOversizedLine();
+            const QString marker = reportOversizedLine(maximumBytes);
             if (!stderrStream) {
                 buffer.clear();
                 failTransport(marker);
@@ -834,9 +938,11 @@ void EngineController::consumeLines(QByteArray &buffer, bool stderrStream)
             handleStdoutLine(line);
     }
 
-    if (buffer.size() > kMaximumEngineLineBytes) {
+    const qsizetype maximumBytes = maximumEngineLineBytes(
+        QByteArrayView(buffer.constData(), buffer.size()), stderrStream);
+    if (buffer.size() > maximumBytes) {
         buffer.clear();
-        const QString marker = reportOversizedLine();
+        const QString marker = reportOversizedLine(maximumBytes);
         if (!stderrStream) {
             failTransport(marker);
             return;
@@ -867,13 +973,21 @@ void EngineController::handleStdoutLine(const QString &line)
 
     const EngineProtocolState::Outcome outcome =
         m_protocolState.consumeLine(line, m_ignoreGtpErrors);
-    if (!outcome.handled)
+    if (!outcome.handled) {
+        if (response.type == EngineProtocolState::ResponseType::Error
+            && m_activeAnalysisRequestId > 0
+            && !m_ignoreGtpErrors
+            && m_protocolState.acceptsCandidateInfo()) {
+            const int analysisRequestId = m_activeAnalysisRequestId;
+            m_activeAnalysisRequestId = 0;
+            m_protocolState.stopAcceptingCandidateInfo();
+            emit analysisCommandFailed(analysisRequestId, response.rawLine);
+        }
         return;
+    }
 
     if (m_responsesPending > 0)
         --m_responsesPending;
-    if (outcome.toleratedSyncError)
-        emit engineSyncStateUncertain(m_activeSyncRequestId);
     const bool abortPendingCommands =
         (outcome.event == EngineProtocolState::Event::AnalysisSyncCompleted && !outcome.success)
         || outcome.event == EngineProtocolState::Event::MovePreludeFailed;
@@ -915,10 +1029,10 @@ void EngineController::handleProtocolOutcome(const EngineProtocolState::Outcome 
         return;
     case EngineProtocolState::Event::AnalysisSyncCompleted:
         if (outcome.success) {
-            if (!outcome.toleratedSyncError)
-                emit engineSynchronizationCompleted(m_activeSyncRequestId);
+            emit engineSynchronizationCompleted(m_activeSyncRequestId);
             m_activeSyncRequestId = 0;
         } else {
+            m_activeAnalysisRequestId = 0;
             m_pendingCommands.clear();
             QString message = QStringLiteral("Engine synchronization failed");
             if (!outcome.rawLine.isEmpty())
@@ -930,8 +1044,7 @@ void EngineController::handleProtocolOutcome(const EngineProtocolState::Outcome 
         }
         return;
     case EngineProtocolState::Event::MovePreludeCompleted:
-        if (!outcome.toleratedSyncError)
-            emit engineSynchronizationCompleted(m_activeSyncRequestId);
+        emit engineSynchronizationCompleted(m_activeSyncRequestId);
         m_activeSyncRequestId = 0;
         return;
     case EngineProtocolState::Event::MovePreludeFailed:
@@ -988,6 +1101,7 @@ void EngineController::resetProtocolState(bool clearPendingCommands)
         m_pendingCommands.clear();
     m_responsesPending = 0;
     m_activeSyncRequestId = 0;
+    m_activeAnalysisRequestId = 0;
     m_protocolState.reset();
 }
 
@@ -997,16 +1111,21 @@ void EngineController::parseInfoLine(const QString &line)
     if (payload.startsWith(QLatin1StringView("info ")))
         payload = payload.sliced(5);
     payload = trimmedView(payload);
+    const QVariantList ownership = parsedOwnership(payload);
+    const qsizetype trailerPosition = firstAnalysisTrailerPosition(payload);
+    const QStringView candidatePayload =
+        trailerPosition >= 0 ? trimmedView(payload.first(trailerPosition)) : payload;
 
     QVector<ParsedCandidateInfo> parsedCandidates;
     int segmentIndex = 0;
     qsizetype segmentStart = 0;
 
-    while (segmentStart < payload.size()) {
-        const qsizetype separator = nextInfoSeparator(payload, segmentStart);
+    while (segmentStart < candidatePayload.size()) {
+        const qsizetype separator = nextInfoSeparator(candidatePayload, segmentStart);
         const QStringView segment = trimmedView(separator >= 0
-                                                ? payload.sliced(segmentStart, separator - segmentStart)
-                                                : payload.sliced(segmentStart));
+                                                ? candidatePayload.sliced(segmentStart,
+                                                                          separator - segmentStart)
+                                                : candidatePayload.sliced(segmentStart));
         if (segment.isEmpty()) {
             if (separator < 0)
                 break;
@@ -1117,8 +1236,10 @@ void EngineController::parseInfoLine(const QString &line)
         if (separator < 0)
             break;
         segmentStart = separator + 5;
-        while (segmentStart < payload.size() && payload.at(segmentStart).isSpace())
+        while (segmentStart < candidatePayload.size()
+               && candidatePayload.at(segmentStart).isSpace()) {
             ++segmentStart;
+        }
     }
 
     if (parsedCandidates.isEmpty())
@@ -1134,6 +1255,7 @@ void EngineController::parseInfoLine(const QString &line)
         candidateItems.append(candidate.item);
 
     m_candidates = candidateItems;
+    m_ownership = ownership;
     ++m_candidateRevision;
     emit candidatesChanged();
 }

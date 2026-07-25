@@ -29,6 +29,9 @@ const beginnerTutorialSource = fs.readFileSync(
 )
 const hiddenSettingsSource = fs.readFileSync(path.join(root, "app", "qml", "HiddenSettingsDialog.qml"), "utf8")
 const settingsDialogSource = fs.readFileSync(path.join(root, "app", "qml", "SettingsDialog.qml"), "utf8")
+const analysisToolbarSource = fs.readFileSync(path.join(root, "app", "qml", "AnalysisToolbar.qml"), "utf8")
+const helpKeysSource = fs.readFileSync(path.join(root, "app", "qml", "HelpKeysDialog.qml"), "utf8")
+const boardSceneSource = fs.readFileSync(path.join(root, "app", "qml", "BoardScene.qml"), "utf8")
 const engineCommunicationSource = fs.readFileSync(
     path.join(root, "app", "qml", "EngineCommunicationWindow.qml"),
     "utf8"
@@ -114,6 +117,14 @@ assert.match(backspaceHandler, /app\.requestDeleteCurrentNode\(\)/)
 assert.doesNotMatch(backspaceHandler, /isAutoRepeat/)
 assert.match(boardInputSource, /function ownsKeyboardFocus\(\)/)
 assert.match(boardInputSource, /if \(!inputLayer\.ownsKeyboardFocus\(\)\)/)
+assert.match(boardInputSource,
+             /event\.key === Qt\.Key_E[\s\S]*?app\.openEngineCommunicationLog\(\)/)
+assert.doesNotMatch(boardInputSource, /Qt\.Key_U/)
+assert.match(boardInputSource,
+             /event\.key === Qt\.Key_Period[\s\S]*?app\.gameRuleMode === app\.gameRuleGo[\s\S]*?app\.ownershipEnabled = !app\.ownershipEnabled/)
+assert.match(helpKeysSource, /\{\s*"keys":\s*"E",\s*"textKey":\s*"helpKeyEngineLogDesc"\s*\}/)
+assert.match(helpKeysSource, /\{\s*"keys":\s*"\.",\s*"textKey":\s*"helpKeyOwnershipDesc"\s*\}/)
+assert.doesNotMatch(helpKeysSource, /\{\s*"keys":\s*"U"/)
 
 const engineMenu = mainSource.slice(
     mainSource.indexOf("id: engineMenu"),
@@ -137,6 +148,8 @@ assert.match(mainSource, /messages\.length > 2/)
 assert.match(mainSource, /interval:\s*5000/)
 assert.match(mainSource, /enabled:\s*false/)
 assert.match(mainSource, /function onGtpErrorResponse\(line\)/)
+assert.match(mainSource,
+             /var ignoredGtpError = root\.ignoreGtpErrors[\s\S]*?if \(ignoredGtpError\)\s*return/)
 assert.match(hiddenSettingsSource, /text:\s*app\.trText\("ignoreGtpErrors"\)/)
 assert.match(settingsStoreSource, /settingBool\(settings,\s*"ignoreGtpErrors"/)
 assert.match(settingsStoreSource, /settings\.setValue\("ignoreGtpErrors",\s*app\.ignoreGtpErrors\)/)
@@ -182,9 +195,13 @@ assert.match(engineControllerSource,
 assert.match(engineControllerSource,
              /kMaximumEngineLineBytes\s*=\s*262144/)
 assert.match(engineControllerSource,
-             /newlineIndex > kMaximumEngineLineBytes/)
+             /kMaximumAnalysisInfoLineBytes\s*=\s*4\s*\*\s*1024\s*\*\s*1024/)
 assert.match(engineControllerSource,
-             /buffer\.size\(\) > kMaximumEngineLineBytes/)
+             /communicationInfoLineFiltered\(text\)[\s\S]*?return kMaximumAnalysisInfoLineBytes/)
+assert.match(engineControllerSource,
+             /newlineIndex > maximumBytes/)
+assert.match(engineControllerSource,
+             /buffer\.size\(\) > maximumBytes/)
 assert.match(engineControllerSource,
              /void EngineController::failTransport\(const QString &message\)/)
 assert.match(engineControllerSource,
@@ -216,6 +233,58 @@ assert.match(mainSource, /position\.nodeId === root\.currentNodeId/)
 assert.match(mainSource, /function cancelActiveGenmoveRequest\(\)/)
 assert.match(mainSource, /if \(!engineController\.ready\)/)
 assert.match(mainSource, /engineInitialCommandsPendingForId/)
+assert.match(mainSource, /property int aiMoveMode:\s*aiMoveModeGtp/)
+assert.match(mainSource,
+             /if \(aiMoveMode === aiMoveModeAnalyze\)\s*\{\s*requestAiAnalysisMove\(\)/)
+assert.match(mainSource, /EnginePlay\.limitReached\(/)
+assert.match(mainSource, /function activeAiAnalysisPositionMatches\(\)/)
+assert.match(mainSource, /aiAnalysisMoveTimer\.stop\(\)/)
+assert.match(mainSource, /id:\s*aiAnalysisWatchdogTimer/)
+assert.match(mainSource, /function handleAiAnalysisWatchdogTimeout\(\)/)
+assert.match(mainSource, /property bool engineAnalysisRequestValid:\s*false/)
+assert.match(mainSource, /EnginePlay\.limitChangeAction\(/)
+assert.match(mainSource,
+             /function deferAnalysisCommandFailure\(analysisRequestId,\s*line\)/)
+assert.match(mainSource,
+             /function onAnalysisCommandFailed\(analysisRequestId,\s*line\)/)
+assert.match(mainSource,
+             /candidate && candidate\.winrate !== undefined[\s\S]*?!isFinite\(rawWinrate\)/)
+assert.match(mainSource,
+             /gameRuleMode === gameRuleGo && ownershipEnabled[\s\S]*?ownership true/)
+assert.match(mainSource,
+             /kata-analyze " \+ player \+ " " \+ interval/)
+assert.match(mainSource, /Ownership\.normalized\(/)
+assert.match(boardSceneSource, /id:\s*ownershipCanvas/)
+assert.match(boardSceneSource, /Ownership\.pointForIndex\(/)
+assert.match(boardSceneSource,
+             /onCoordinateDisplayModeChanged\(\)\s*\{\s*ownershipCanvas\.requestVisiblePaint\(\)/)
+assert.match(settingsStoreSource, /settingValue\(settings,\s*"aiMoveMode"/)
+assert.match(settingsStoreSource,
+             /settingValue\([\s\S]*?"analysisSecondsPerMove"/)
+assert.match(settingsStoreSource,
+             /settings\.setValue\("analysisSecondsPerMove",\s*app\.analysisSecondsPerMove\)/)
+assert.match(settingsStoreSource,
+             /settings\.setValue\("analysisTotalVisitsPerMove"/)
+assert.doesNotMatch(settingsStoreSource, /ownershipEnabled/)
+assert.match(mainSource,
+             /onGameRuleModeChanged:[\s\S]*?gameRuleMode !== gameRuleGo[\s\S]*?ownershipEnabled = false/)
+assert.match(settingsDialogSource,
+             /text:\s*app\.trText\("showOwnership"\)[\s\S]*?enabled:\s*app\.gameRuleMode === app\.gameRuleGo/)
+assert.doesNotMatch(settingsDialogSource, /ownershipGoOnlyTip/)
+assert.doesNotMatch(analysisToolbarSource, /ownershipGoOnlyTip/)
+assert.ok(settingsDialogSource.indexOf('app.trText("resignConsecutive")')
+          < settingsDialogSource.indexOf('app.trText("showOwnership")'))
+assert.match(settingsDialogSource, /app\.trText\("movesUnit"\)/)
+assert.match(mainSource,
+             /engineOwnershipBoardSignature === engineBoardSignature\(\)/)
+assert.match(mainSource,
+             /engineOwnershipKomiSignature === engineKomiSignature\(\)/)
+assert.match(mainSource,
+             /engineOwnershipEngineSignature === engineAnalysisSourceSignature\(\)/)
+assert.match(engineControllerHeader,
+             /Q_PROPERTY\(QVariantList ownership READ ownership NOTIFY candidatesChanged\)/)
+assert.match(engineControllerHeader,
+             /void analysisCommandFailed\(int analysisRequestId,\s*const QString &line\)/)
 
 assert.doesNotMatch(engineCommunicationSource, /\bListView\s*\{/)
 assert.match(engineCommunicationSource, /Basic\.TextArea\s*\{/)

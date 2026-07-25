@@ -129,7 +129,23 @@ function normalizePersistentSettings(app) {
     app.selectedPointScale = app.clamp(Number(app.selectedPointScale), 0.5, 1.0)
     app.moveNumberLabelScale = app.clamp(Number(app.moveNumberLabelScale), 0.5, 2.0)
     app.mouseHitRadiusScale = app.clamp(Number(app.mouseHitRadiusScale), 0.1, 1.0)
-    app.secondsPerMove = Math.max(0.1, Number(app.secondsPerMove))
+    var secondsPerMove = Number(app.secondsPerMove)
+    if (!isFinite(secondsPerMove))
+        secondsPerMove = 5.0
+    app.secondsPerMove = app.clamp(secondsPerMove, 0.1, 999)
+    var analysisSecondsPerMove = Number(app.analysisSecondsPerMove)
+    if (!isFinite(analysisSecondsPerMove))
+        analysisSecondsPerMove = 5.0
+    app.analysisSecondsPerMove = app.clamp(analysisSecondsPerMove, 0, 999)
+    if (app.aiMoveMode !== app.aiMoveModeGtp
+            && app.aiMoveMode !== app.aiMoveModeAnalyze)
+        app.aiMoveMode = app.aiMoveModeGtp
+    app.analysisTotalVisitsPerMove = Math.round(app.clamp(
+                Number(app.analysisTotalVisitsPerMove) || 0,
+                0, app.maxLargeIntegerSetting))
+    app.analysisFirstMoveVisitsPerMove = Math.round(app.clamp(
+                Number(app.analysisFirstMoveVisitsPerMove) || 0,
+                0, app.maxLargeIntegerSetting))
     app.resignMinMove = Math.max(1, Math.round(Number(app.resignMinMove)))
     app.resignConsecutiveMoves = Math.max(1, Math.round(Number(app.resignConsecutiveMoves)))
     app.resignWinrateThreshold = app.clamp(Number(app.resignWinrateThreshold), 0, 100)
@@ -329,6 +345,16 @@ function loadPersistentSettings(app, settings) {
     app.selectedPointScale = Number(settingValue(settings, "selectedPointScale", app.selectedPointScale))
     app.moveNumberLabelScale = Number(settingValue(settings, "moveNumberLabelScale", app.moveNumberLabelScale))
     app.secondsPerMove = Number(settingValue(settings, "secondsPerMove", app.secondsPerMove))
+    app.analysisSecondsPerMove = Number(settingValue(
+                settings, "analysisSecondsPerMove",
+                app.analysisSecondsPerMove))
+    app.aiMoveMode = Number(settingValue(settings, "aiMoveMode", app.aiMoveMode))
+    app.analysisTotalVisitsPerMove = Number(settingValue(
+                settings, "analysisTotalVisitsPerMove",
+                app.analysisTotalVisitsPerMove))
+    app.analysisFirstMoveVisitsPerMove = Number(settingValue(
+                settings, "analysisFirstMoveVisitsPerMove",
+                app.analysisFirstMoveVisitsPerMove))
     app.resignMinMove = Number(settingValue(settings, "resignMinMove", app.resignMinMove))
     app.resignConsecutiveMoves = Number(settingValue(settings, "resignConsecutiveMoves", app.resignConsecutiveMoves))
     app.resignWinrateThreshold = Number(settingValue(settings, "resignWinrateThreshold", app.resignWinrateThreshold))
@@ -418,6 +444,10 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("selectedPointScale", app.selectedPointScale)
     settings.setValue("moveNumberLabelScale", app.moveNumberLabelScale)
     settings.setValue("secondsPerMove", app.secondsPerMove)
+    settings.setValue("analysisSecondsPerMove", app.analysisSecondsPerMove)
+    settings.setValue("aiMoveMode", app.aiMoveMode)
+    settings.setValue("analysisTotalVisitsPerMove", app.analysisTotalVisitsPerMove)
+    settings.setValue("analysisFirstMoveVisitsPerMove", app.analysisFirstMoveVisitsPerMove)
     settings.setValue("resignMinMove", app.resignMinMove)
     settings.setValue("resignConsecutiveMoves", app.resignConsecutiveMoves)
     settings.setValue("resignWinrateThreshold", app.resignWinrateThreshold)

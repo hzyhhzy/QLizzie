@@ -402,6 +402,35 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            Layout.topMargin: 7
+            Layout.bottomMargin: 7
+            color: "#c4cdd2"
+        }
+
+        Label {
+            text: app.trText("aiMoveMethod")
+            color: "#26333b"
+            font.pixelSize: app.compactLayout ? 12 : 14
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        RowLayout {
+            spacing: app.compactLayout ? 3 : 4
+
+            AiMoveMethodButton {
+                mode: app.aiMoveModeGtp
+                text: app.trText("aiMoveModeGtp")
+            }
+
+            AiMoveMethodButton {
+                mode: app.aiMoveModeAnalyze
+                text: app.trText("aiMoveModeAnalyze")
+            }
+        }
+
         Label {
             text: app.trText("secondsPerMove")
             color: app.engineReadyForPlayMode() ? "#26333b" : "#7f8b92"
@@ -412,14 +441,16 @@ Rectangle {
         Basic.TextField {
             id: secondsField
             enabled: app.engineReadyForPlayMode()
-            text: Number(app.secondsPerMove).toFixed(1)
+            text: Number(app.currentAiMoveSecondsPerMove()).toFixed(1)
             selectByMouse: true
             validator: DoubleValidator {
-                bottom: 0.1
+                bottom: app.aiMoveMode === app.aiMoveModeAnalyze ? 0 : 0.1
                 top: 999
                 decimals: 1
                 notation: DoubleValidator.StandardNotation
             }
+            ToolTip.visible: hovered && app.aiMoveMode === app.aiMoveModeAnalyze
+            ToolTip.text: app.trText("analysisTimeZeroTip")
             Layout.preferredWidth: app.compactLayout ? 44 : 50
             implicitHeight: app.compactLayout ? 28 : 32
             leftPadding: 3
@@ -447,8 +478,13 @@ Rectangle {
             function applyValue() {
                 var nextValue = Number(text)
                 if (!isNaN(nextValue))
-                    app.secondsPerMove = Math.max(0.1, nextValue)
-                text = Number(app.secondsPerMove).toFixed(1)
+                    app.setCurrentAiMoveSecondsPerMove(nextValue)
+                text = Number(app.currentAiMoveSecondsPerMove()).toFixed(1)
+            }
+
+            function refreshText() {
+                if (!activeFocus)
+                    text = Number(app.currentAiMoveSecondsPerMove()).toFixed(1)
             }
 
             onEditingFinished: applyValue()
@@ -464,8 +500,13 @@ Rectangle {
             Connections {
                 target: app
                 function onSecondsPerMoveChanged() {
-                    if (!secondsField.activeFocus)
-                        secondsField.text = Number(app.secondsPerMove).toFixed(1)
+                    secondsField.refreshText()
+                }
+                function onAnalysisSecondsPerMoveChanged() {
+                    secondsField.refreshText()
+                }
+                function onAiMoveModeChanged() {
+                    secondsField.refreshText()
                 }
             }
         }
@@ -475,6 +516,19 @@ Rectangle {
             color: app.engineReadyForPlayMode() ? "#26333b" : "#7f8b92"
             font.pixelSize: app.compactLayout ? 12 : 14
             verticalAlignment: Text.AlignVCenter
+        }
+
+        AppCheckBox {
+            visible: app.gameRuleMode === app.gameRuleGo
+            enabled: app.analysisModeActive() || app.aiMoveMode === app.aiMoveModeAnalyze
+            compact: true
+            text: app.trText("showOwnership")
+            checked: app.ownershipEnabled
+            onToggled: app.ownershipEnabled = checked
+            onActiveFocusChanged: {
+                if (activeFocus)
+                    toolbar.ensureItemVisible(this)
+            }
         }
 
         }
@@ -736,6 +790,52 @@ Rectangle {
             border.color: modeButton.activeFocus ? "#0f6f9f"
                           : modeButton.selected ? "#2e8eb0" : "#b5c2c9"
             border.width: modeButton.activeFocus || modeButton.selected ? 2 : 1
+        }
+    }
+
+    component AiMoveMethodButton: Basic.Button {
+        id: aiMoveButton
+        property int mode: 0
+        readonly property bool selected: app.aiMoveMode === mode
+
+        enabled: !app.applicationShutdownPrepared
+        Layout.preferredWidth: app.compactLayout ? 48 : 58
+        Layout.preferredHeight: app.compactLayout ? 28 : 32
+        padding: 0
+        focusPolicy: Qt.TabFocus
+        opacity: enabled ? 1 : 0.48
+        Accessible.name: app.trText("aiMoveMethod") + ": " + text
+        Accessible.role: Accessible.RadioButton
+        Accessible.checked: selected
+
+        onActiveFocusChanged: {
+            if (activeFocus)
+                toolbar.ensureItemVisible(this)
+        }
+        onClicked: {
+            app.setAiMoveMode(aiMoveButton.mode)
+            app.focusBoardInput()
+        }
+
+        contentItem: Text {
+            text: aiMoveButton.text
+            color: "#26333b"
+            font.pixelSize: app.compactLayout ? 10 : 12
+            font.bold: aiMoveButton.selected
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 4
+            color: aiMoveButton.selected ? "#d8e9f1"
+                 : aiMoveButton.down ? "#d5e1e8"
+                 : aiMoveButton.hovered || aiMoveButton.activeFocus ? "#eef5f8"
+                 : "#f8fafb"
+            border.color: aiMoveButton.activeFocus ? "#0f6f9f"
+                          : aiMoveButton.selected ? "#2e8eb0" : "#b5c2c9"
+            border.width: aiMoveButton.activeFocus || aiMoveButton.selected ? 2 : 1
         }
     }
 

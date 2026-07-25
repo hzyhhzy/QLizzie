@@ -65,6 +65,7 @@ qt_add_qml_module(qlizzie
         qml/EnginePresets.js
         qml/EngineSpeed.js
         qml/EngineLogFormatter.js
+        qml/EnginePlay.js
         qml/EngineSync.js
         qml/EngineListDialog.qml
         qml/EngineSupport.js
@@ -84,6 +85,7 @@ qt_add_qml_module(qlizzie
         qml/InitialSetupDialog.qml
         qml/InfoPanel.qml
         qml/Main.qml
+        qml/Ownership.js
         qml/RuleSupport.js
         qml/RuleChangeSaveDialog.qml
         qml/RuleSettingsPage.qml

@@ -1,5 +1,6 @@
 import QtQuick
 import "BoardRenderer.js" as BoardRenderer
+import "Ownership.js" as Ownership
 
 Item {
     id: boardScene
@@ -444,6 +445,62 @@ Item {
             function onCoordinateDisplayModeChanged() { boardCanvas.requestPaint() }
             function onCoordinateFontFamilyChanged() { boardCanvas.requestPaint() }
             function onCompactLayoutChanged() { boardCanvas.requestPaint() }
+        }
+    }
+
+    Canvas {
+        id: ownershipCanvas
+        anchors.fill: parent
+        visible: app.ownershipVisibleForCurrentPosition()
+
+        function requestVisiblePaint() {
+            if (visible)
+                requestPaint()
+        }
+
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            if (!visible)
+                return
+
+            var markerSize = Math.max(5, boardScene.cellSize * 0.30)
+            var half = markerSize * 0.5
+            for (var i = 0; i < app.engineOwnership.length; ++i) {
+                var value = Number(app.engineOwnership[i])
+                var opacity = Ownership.markerOpacity(value)
+                if (opacity <= 0)
+                    continue
+
+                var coordinate = Ownership.pointForIndex(i, app.boardSizeX)
+                var point = boardScene.boardPointLocal(coordinate.x, coordinate.y)
+                ctx.save()
+                ctx.globalAlpha = opacity
+                ctx.fillStyle = value >= 0 ? "#070b0e" : "#ffffff"
+                ctx.fillRect(point.x - half, point.y - half, markerSize, markerSize)
+                ctx.globalAlpha = Math.min(0.72, opacity + 0.15)
+                ctx.strokeStyle = value >= 0 ? "#eaf0f3" : "#17232a"
+                ctx.lineWidth = Math.max(1, boardScene.cellSize * 0.018)
+                ctx.strokeRect(point.x - half, point.y - half, markerSize, markerSize)
+                ctx.restore()
+            }
+        }
+
+        onVisibleChanged: requestVisiblePaint()
+        onWidthChanged: requestVisiblePaint()
+        onHeightChanged: requestVisiblePaint()
+
+        Connections {
+            target: app
+            function onEngineOwnershipRevisionChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onOwnershipEnabledChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onGameRuleModeChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onBoardSizeXChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onBoardSizeYChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onBoardPresentationModeChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onStoneScaleChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onCoordinateDisplayModeChanged() { ownershipCanvas.requestVisiblePaint() }
+            function onCompactLayoutChanged() { ownershipCanvas.requestVisiblePaint() }
         }
     }
 

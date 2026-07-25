@@ -48,10 +48,16 @@ Item {
             if (!event.isAutoRepeat)
                 app.cycleMoveNumberDisplayMode()
             event.accepted = true
-        } else if (event.key === Qt.Key_U) {
+        } else if (event.key === Qt.Key_E) {
             if (!event.isAutoRepeat)
                 app.openEngineCommunicationLog()
             event.accepted = true
+        } else if (event.key === Qt.Key_Period) {
+            if (app.gameRuleMode === app.gameRuleGo) {
+                if (!event.isAutoRepeat)
+                    app.ownershipEnabled = !app.ownershipEnabled
+                event.accepted = true
+            }
         }
     }
 
