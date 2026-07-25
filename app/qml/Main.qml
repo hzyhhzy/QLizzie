@@ -427,11 +427,7 @@ ApplicationWindow {
             return
         }
         prepareApplicationShutdown()
-    }
-
-    onVisibleChanged: {
-        if (!visible && applicationShutdownPrepared)
-            Qt.callLater(Qt.quit)
+        Qt.quit()
     }
 
     onCoordinateDisplayModeChanged: refreshCoordinateDisplayText()

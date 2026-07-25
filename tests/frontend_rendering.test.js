@@ -181,7 +181,8 @@ assert.match(mainSource, /function stopApplicationTimersForShutdown\(\)/)
 assert.match(mainSource,
              /function prepareApplicationShutdown\(\)[\s\S]*?savePersistentSettings\(\)[\s\S]*?appSettings\.sync\(\)/)
 assert.match(mainSource,
-             /if \(!visible && applicationShutdownPrepared\)\s*Qt\.callLater\(Qt\.quit\)/)
+             /onClosing:\s*function\(event\)[\s\S]*?prepareApplicationShutdown\(\)\s*Qt\.quit\(\)/)
+assert.doesNotMatch(mainSource, /Qt\.callLater\(Qt\.quit\)/)
 assert.match(appWindowDialogSource,
              /!appWindowDialog\.owningWindow\.visible[\s\S]*?appWindowDialog\.closeDialog\(\)/)
 assert.match(engineCommunicationSource,
