@@ -423,14 +423,44 @@ AppWindowDialog {
                             spacing: 8
 
                             Label {
-                                text: app.trText("secondsPerMove")
+                                text: app.trText("aiMoveMethod")
+                                color: "#24313a"
+                                Layout.preferredWidth: 120
+                            }
+
+                            AppComboBox {
+                                model: [
+                                    app.trText("aiMoveModeGtp"),
+                                    app.trText("aiMoveModeAnalyze")
+                                ]
+                                currentIndex: app.aiMoveMode
+                                Layout.preferredWidth: 180
+                                onActivated: function(index) {
+                                    app.setAiMoveMode(index)
+                                }
+                            }
+
+                            Label {
+                                text: app.trText("aiMoveMethodTip")
+                                color: "#52636d"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label {
+                                text: app.trText("gtpSecondsPerMove")
                                 color: "#24313a"
                                 Layout.preferredWidth: 120
                             }
 
                             AppSpinBox {
                                 from: 1
-                                to: 999
+                                to: 9990
                                 value: Math.round(app.secondsPerMove * 10)
                                 editable: true
                                 Layout.preferredWidth: 110
@@ -464,6 +494,7 @@ AppWindowDialog {
                                 onValueModified: app.resignMinMove = value
                             }
 
+                            Label { text: app.trText("movesUnit"); color: "#52636d" }
                             Label { text: app.trText("resignBelowWinrate"); color: "#52636d" }
                             AppSpinBox {
                                 from: 0
@@ -472,6 +503,125 @@ AppWindowDialog {
                                 Layout.preferredWidth: 82
                                 onValueModified: app.resignWinrateThreshold = value
                             }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Item { Layout.preferredWidth: 120 }
+                            Label { text: app.trText("resignConsecutive"); color: "#52636d" }
+                            AppSpinBox {
+                                from: 1
+                                to: 100
+                                value: app.resignConsecutiveMoves
+                                Layout.preferredWidth: 82
+                                onValueModified: app.resignConsecutiveMoves = value
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            enabled: app.aiMoveMode === app.aiMoveModeAnalyze
+
+                            Label {
+                                text: app.trText("analysisMoveLimits")
+                                color: parent.enabled ? "#24313a" : "#87949b"
+                                Layout.preferredWidth: 120
+                            }
+
+                            Label {
+                                text: app.trText("secondsPerMove")
+                                color: parent.enabled ? "#52636d" : "#9aa5ab"
+                            }
+                            AppSpinBox {
+                                from: 0
+                                to: 9990
+                                value: Math.round(app.analysisSecondsPerMove * 10)
+                                editable: true
+                                Layout.preferredWidth: 100
+                                textFromValue: function(value) { return (value / 10).toFixed(1) }
+                                valueFromText: function(text) { return Math.round(Number(text) * 10) }
+                                onValueModified: app.analysisSecondsPerMove = value / 10
+                            }
+                            Label {
+                                text: app.trText("secondsUnit") + "，" + app.trText("zeroMeansUnlimited")
+                                color: "#7a8991"
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            enabled: app.aiMoveMode === app.aiMoveModeAnalyze
+
+                            Item { Layout.preferredWidth: 120 }
+                            Label {
+                                text: app.trText("analysisTotalVisits")
+                                color: parent.enabled ? "#52636d" : "#9aa5ab"
+                            }
+                            AppSpinBox {
+                                from: 0
+                                to: app.maxLargeIntegerSetting
+                                value: app.analysisTotalVisitsPerMove
+                                editable: true
+                                Layout.preferredWidth: 110
+                                onValueModified: app.analysisTotalVisitsPerMove = value
+                            }
+
+                            Label {
+                                text: app.trText("zeroMeansUnlimited")
+                                color: "#7a8991"
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            enabled: app.aiMoveMode === app.aiMoveModeAnalyze
+
+                            Item { Layout.preferredWidth: 120 }
+                            Label {
+                                text: app.trText("analysisFirstMoveVisits")
+                                color: parent.enabled ? "#52636d" : "#9aa5ab"
+                            }
+                            AppSpinBox {
+                                from: 0
+                                to: app.maxLargeIntegerSetting
+                                value: app.analysisFirstMoveVisitsPerMove
+                                editable: true
+                                Layout.preferredWidth: 110
+                                onValueModified: app.analysisFirstMoveVisitsPerMove = value
+                            }
+
+                            Label {
+                                text: app.trText("zeroMeansUnlimited")
+                                color: "#7a8991"
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label {
+                                text: app.trText("showOwnership")
+                                color: app.gameRuleMode === app.gameRuleGo ? "#24313a" : "#87949b"
+                                Layout.preferredWidth: 160
+                            }
+
+                            AppCheckBox {
+                                enabled: app.gameRuleMode === app.gameRuleGo
+                                checked: app.ownershipEnabled
+                                onToggled: app.ownershipEnabled = checked
+                            }
+
+                            Item { Layout.fillWidth: true }
                         }
                     }
                 }

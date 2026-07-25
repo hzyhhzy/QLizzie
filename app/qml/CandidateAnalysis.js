@@ -458,17 +458,55 @@ function cloneCandidateList(candidates) {
     return copy
 }
 
+function tokenizePvText(text) {
+    var source = String(text === undefined || text === null ? "" : text)
+    var moves = []
+    var position = 0
+    while (position < source.length) {
+        while (position < source.length && /\s/.test(source.charAt(position)))
+            position += 1
+        if (position >= source.length)
+            break
+
+        var start = position
+        if (source.charAt(position) === "(") {
+            while (position < source.length) {
+                var character = source.charAt(position++)
+                if (character === ")")
+                    break
+            }
+        } else {
+            while (position < source.length && !/\s/.test(source.charAt(position)))
+                position += 1
+        }
+        var move = source.substring(start, position).trim()
+        if (move.length > 0)
+            moves.push(move)
+    }
+    return moves
+}
+
 function pvMoves(candidate) {
     if (!candidate)
         return []
 
+    if (candidate._pvMoves !== undefined)
+        return candidate._pvMoves
+
     var moves = []
-    var pv = candidate.pv || []
-    for (var i = 0; i < pv.length; ++i) {
-        var pvMove = String(pv[i]).trim()
-        if (pvMove.length > 0)
-            moves.push(pvMove)
+    var pv = candidate.pv
+    if (typeof pv === "string") {
+        moves = tokenizePvText(pv)
+    } else if (pv && pv.length !== undefined) {
+        for (var i = 0; i < pv.length; ++i) {
+            var pvMove = String(pv[i]).trim()
+            if (pvMove.length > 0)
+                moves.push(pvMove)
+        }
+    } else if (candidate.pvText !== undefined) {
+        moves = tokenizePvText(candidate.pvText)
     }
+    candidate._pvMoves = moves
     return moves
 }
 
@@ -565,6 +603,9 @@ function buildCandidateItems(app, candidates) {
     var items = []
     var itemMap = ({})
     var table = []
+    var tableLimit = Math.round(Number(app.candidateTableRowLimit))
+    if (!isFinite(tableLimit) || tableLimit < 1)
+        tableLimit = 20
     for (var c = 0; c < sorted.length; ++c) {
         var candidate = sorted[c]
         var moveKind = specialMoveKind(candidate.move)
@@ -573,8 +614,9 @@ function buildCandidateItems(app, candidates) {
             var boardPoint = !!point
             var visits = visitCount(candidate)
             var visitRatio = maxVisits > 0 ? app.clamp(visits / maxVisits, 0, 1) : 1
-            var rawWinrate = winrateValue(app, candidate)
             var qualified = c < limit && (maxVisits <= 0 || visits >= threshold)
+            var tableEligible = table.length < tableLimit
+            var needsDetails = qualified || tableEligible
             var item = {
                 "x": boardPoint ? point.x : -1,
                 "y": boardPoint ? point.y : -1,
@@ -591,24 +633,28 @@ function buildCandidateItems(app, candidates) {
                 "opacity": boardPoint ? markerOpacity(app, c + 1, visitRatio) : 0,
                 "color": boardPoint ? markerColor(app, c + 1, visitRatio) : "transparent",
                 "outlineOpacity": boardPoint ? markerOutlineOpacity(app, visitRatio) : 0,
-                "winrate": rawWinrate,
-                "winrateText": winrateText(app, candidate),
-                "scoreMean": scoreValue(app, candidate),
-                "scoreText": scoreText(app, candidate),
-                "pv": pvMoves(candidate),
-                "labelLines": labelLines(app, candidate)
+                "winrate": candidate.winrate,
+                "winrateText": needsDetails ? winrateText(app, candidate) : "",
+                "scoreMean": candidate.scoreMean,
+                "scoreText": needsDetails ? scoreText(app, candidate) : "",
+                "pv": candidate.pv,
+                "pvText": candidate.pvText,
+                "labelLines": qualified ? labelLines(app, candidate) : []
             }
-            item.displayMoveText = candidateMoveText(app, item)
+            if (needsDetails)
+                item.displayMoveText = candidateMoveText(app, item)
             items.push(item)
             itemMap[item.key] = item
-            table.push({
-                "row": c + 1,
-                "key": item.key,
-                "coordinate": item.displayMoveText,
-                "winrateText": item.winrateText,
-                "scoreText": item.scoreText,
-                "visitsText": visits > 0 ? formatVisitCount(visits) : ""
-            })
+            if (tableEligible) {
+                table.push({
+                    "row": c + 1,
+                    "key": item.key,
+                    "coordinate": item.displayMoveText,
+                    "winrateText": item.winrateText,
+                    "scoreText": item.scoreText,
+                    "visitsText": visits > 0 ? formatVisitCount(visits) : ""
+                })
+            }
         }
     }
     return {
@@ -695,12 +741,13 @@ function showCachedAnalysisForCurrentNode(app) {
 }
 
 function applyEngineCandidateUpdate(app, candidates, revision) {
-    if (!app.analysisModeActive()) {
+    if (app.engineAnalysisRequestValid === false
+            || (!app.analysisModeActive() && app.aiAnalysisInFlight !== true)) {
         resetDisplay(app)
         return
     }
 
-    var incoming = cloneCandidateList(candidates)
+    var incoming = candidates || []
     if (incoming.length <= 0) {
         if (!showCachedAnalysisForCurrentNode(app))
             resetDisplay(app)
@@ -754,7 +801,7 @@ function activeCandidateForVariationPreview(app) {
 
 function activeCandidateVariationPreviewActive(app) {
     var candidate = activeCandidateForVariationPreview(app)
-    if (!candidate || !candidate.pv || candidate.pv.length <= 0)
+    if (!candidate || pvMoves(candidate).length <= 0)
         return false
     if (moveRuleVariationPreview(app))
         return activeMoveRuleVariationItems(app, candidate, true).length > 0
@@ -897,7 +944,8 @@ function consumeBreakthroughPreviewMove(app, map, moves, index, player, sourcePo
 }
 
 function activeMoveRuleVariationItems(app, candidate, respectMaxMoves) {
-    if (!candidate || !candidate.pv || candidate.pv.length <= 0)
+    var moves = pvMoves(candidate)
+    if (moves.length <= 0)
         return []
 
     var maxMoves = respectMaxMoves !== false ? Math.round(Number(app.candidateVariationPreviewMaxMoves)) : 0
@@ -914,7 +962,7 @@ function activeMoveRuleVariationItems(app, candidate, respectMaxMoves) {
                   ? consumeAtaxxPreviewMove
                   : consumeBreakthroughPreviewMove
 
-    var current = consume(app, map, candidate.pv, 0, player, sourcePoint, moveNumber)
+    var current = consume(app, map, moves, 0, player, sourcePoint, moveNumber)
     if (!current)
         return []
     items.push(current.item)
@@ -922,7 +970,7 @@ function activeMoveRuleVariationItems(app, candidate, respectMaxMoves) {
         return items
 
     var opponent = player === 1 ? 2 : 1
-    var opponentMove = consume(app, map, candidate.pv, current.nextIndex, opponent, null, moveNumber + 1)
+    var opponentMove = consume(app, map, moves, current.nextIndex, opponent, null, moveNumber + 1)
     if (opponentMove && (maxMoves === 0 || maxMoves >= 2))
         items.push(opponentMove.item)
     return items
@@ -930,7 +978,8 @@ function activeMoveRuleVariationItems(app, candidate, respectMaxMoves) {
 
 function activeCandidateVariationItems(app, respectMaxMoves) {
     var candidate = activeCandidateForVariationPreview(app)
-    if (!candidate || !candidate.pv || candidate.pv.length <= 0)
+    var moves = pvMoves(candidate)
+    if (moves.length <= 0)
         return []
     if (moveRuleVariationPreview(app))
         return activeMoveRuleVariationItems(app, candidate, respectMaxMoves)
@@ -944,10 +993,10 @@ function activeCandidateVariationItems(app, respectMaxMoves) {
         maxMoves = 0
     maxMoves = Math.max(0, maxMoves)
 
-    for (var i = 0; i < candidate.pv.length; ++i) {
+    for (var i = 0; i < moves.length; ++i) {
         if (maxMoves > 0 && moveNumber > maxMoves)
             break
-        var moveText = String(candidate.pv[i])
+        var moveText = String(moves[i])
         var point = app.parseEngineCoordinate(moveText)
         if (!point) {
             if (moveText.trim().toLowerCase() === "pass") {
@@ -979,10 +1028,10 @@ function playActiveCandidateVariation(app) {
         return false
 
     var candidate = activeCandidateForVariationPreview(app)
-    if (!candidate || !candidate.pv || candidate.pv.length <= 0)
+    var moves = pvMoves(candidate)
+    if (moves.length <= 0)
         return false
 
-    var moves = candidate.pv.slice()
     var played = false
     for (var i = 0; i < moves.length; ++i) {
         var moveText = String(moves[i]).trim()

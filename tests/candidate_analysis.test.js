@@ -23,6 +23,7 @@ function createApp(overrides = {}) {
     }
     return Object.assign({
         candidateDisplayCount: 10,
+        candidateTableRowLimit: 20,
         candidateMinVisitRatio: 0,
         candidateShowFilteredMarkers: true,
         candidateYzyAlphaFactor: 5,
@@ -157,4 +158,39 @@ test("candidate display preserves engine order and only sorts an out-of-order fa
         { move: "pass", order: 1, visits: 30, winrate: 0.55 }
     ])
     assert.equal(fallbackSorted.items.map(item => item.move).join(","), "pass,D4")
+})
+
+test("candidate table rows are capped without removing board candidates", () => {
+    const app = createApp({
+        candidateDisplayCount: 1,
+        candidateTableRowLimit: 2,
+        parseEngineCoordinate(move) {
+            const match = /^A([1-3])$/.exec(String(move))
+            return match ? { x: 0, y: Number(match[1]) - 1 } : null
+        }
+    })
+    const built = candidateAnalysis.buildCandidateItems(app, [
+        { move: "A1", order: 0, visits: 30, winrate: 0.55, pvText: "A1 A2" },
+        { move: "A2", order: 1, visits: 20, winrate: 0.50, pvText: "A2 A3" },
+        { move: "A3", order: 2, visits: 10, winrate: 0.45, pvText: "A3 A1" }
+    ])
+
+    assert.equal(built.items.length, 3)
+    assert.equal(Object.keys(built.itemMap).length, 3)
+    assert.equal(built.table.length, 2)
+    assert.equal(built.table.map(row => row.coordinate).join(","),
+                 "point(0,0),point(0,1)")
+    assert.equal(built.items[2].labelLines.length, 0)
+    assert.equal(built.items[2]._pvMoves, undefined)
+    assert.equal(candidateAnalysis.pvMoves(built.items[2]).join(","), "A3,A1")
+    assert.equal(built.items[2]._pvMoves.length, 2)
+})
+
+test("compact PV text preserves parenthesized moves and is expanded lazily", () => {
+    const candidate = { pvText: "D4 (A1 B2) pass" }
+
+    assert.equal(candidate._pvMoves, undefined)
+    assert.equal(candidateAnalysis.pvMoves(candidate).join(","),
+                 "D4,(A1 B2),pass")
+    assert.equal(candidate._pvMoves.length, 3)
 })

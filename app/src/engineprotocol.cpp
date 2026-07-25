@@ -38,6 +38,15 @@ void EngineProtocolState::beginAnalysis(int syncResponseCount)
     m_transactionKind = TransactionKind::Analysis;
 }
 
+void EngineProtocolState::beginSynchronization(int syncResponseCount)
+{
+    resetTransaction();
+    m_transactionId = ++m_nextTransactionId;
+    m_responsesBeforeCompletion = std::max(0, syncResponseCount);
+    if (m_responsesBeforeCompletion > 0)
+        m_transactionKind = TransactionKind::Synchronization;
+}
+
 void EngineProtocolState::beginMove(int preludeResponseCount, int requestId)
 {
     resetTransaction();
@@ -87,7 +96,10 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
         return { Event::None, true };
 
     if (expected.role == ResponseRole::AnalysisSync
-            && m_transactionKind == TransactionKind::Analysis) {
+            && (m_transactionKind == TransactionKind::Analysis
+                || m_transactionKind == TransactionKind::Synchronization)) {
+        const bool enableCandidateInfo =
+            m_transactionKind == TransactionKind::Analysis;
         if (!response.isSuccess() && !ignoreErrorResponses) {
             const QString failureLine = response.rawLine;
             resetTransaction();
@@ -100,9 +112,6 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
-        const bool toleratedError = !response.isSuccess();
-        if (toleratedError)
-            m_transactionHadToleratedSyncError = true;
         --m_responsesBeforeCompletion;
 
         if (m_responsesBeforeCompletion > 0)
@@ -112,21 +121,18 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 false,
                 0,
                 QString(),
-                response.rawLine,
-                toleratedError
+                response.rawLine
             };
 
-        const bool transactionHadToleratedError = m_transactionHadToleratedSyncError;
         resetTransaction();
-        m_acceptCandidateInfo = true;
+        m_acceptCandidateInfo = enableCandidateInfo;
         return {
             Event::AnalysisSyncCompleted,
             true,
             true,
             0,
             QString(),
-            response.rawLine,
-            transactionHadToleratedError
+            response.rawLine
         };
     }
 
@@ -145,9 +151,6 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 failureLine
             };
         }
-        const bool toleratedError = !response.isSuccess();
-        if (toleratedError)
-            m_transactionHadToleratedSyncError = true;
         if (m_responsesBeforeCompletion > 0)
             --m_responsesBeforeCompletion;
         if (m_responsesBeforeCompletion == 0) {
@@ -157,8 +160,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
                 true,
                 m_moveRequestId,
                 QString(),
-                response.rawLine,
-                m_transactionHadToleratedSyncError
+                response.rawLine
             };
         }
         return {
@@ -167,8 +169,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
             false,
             0,
             QString(),
-            response.rawLine,
-            toleratedError
+            response.rawLine
         };
     }
 
@@ -221,7 +222,6 @@ void EngineProtocolState::resetTransaction()
     m_responsesBeforeCompletion = 0;
     m_moveRequestId = 0;
     m_transactionFailed = false;
-    m_transactionHadToleratedSyncError = false;
     m_acceptCandidateInfo = false;
     m_firstFailureLine.clear();
 }

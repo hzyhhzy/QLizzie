@@ -44,13 +44,13 @@ public:
         int requestId = 0;
         QString payload;
         QString rawLine;
-        bool toleratedSyncError = false;
     };
 
     static Response parseResponse(const QString &line);
 
     void beginHandshake();
     void beginAnalysis(int syncResponseCount);
+    void beginSynchronization(int syncResponseCount);
     void beginMove(int preludeResponseCount, int requestId);
     void expectResponse(ResponseRole role);
     void stopAcceptingCandidateInfo();
@@ -70,6 +70,7 @@ private:
     enum class TransactionKind {
         None,
         Analysis,
+        Synchronization,
         Move
     };
 
@@ -88,7 +89,6 @@ private:
     int m_responsesBeforeCompletion = 0;
     int m_moveRequestId = 0;
     bool m_transactionFailed = false;
-    bool m_transactionHadToleratedSyncError = false;
     bool m_acceptCandidateInfo = false;
     QString m_firstFailureLine;
 };

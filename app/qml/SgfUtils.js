@@ -85,6 +85,38 @@ function candidateStringValue(value) {
     return String(value)
 }
 
+function candidatePvValues(candidate) {
+    if (!candidate)
+        return []
+    if (typeof candidate.pv === "string")
+        return tokenizeAnalysisSegment(candidate.pv)
+    if (candidate.pv && candidate.pv.length !== undefined) {
+        var values = []
+        for (var i = 0; i < candidate.pv.length; ++i)
+            values.push(candidate.pv[i])
+        return values
+    }
+    if (candidate.pvText !== undefined)
+        return tokenizeAnalysisSegment(candidate.pvText)
+    return []
+}
+
+function candidatePvVisitValues(candidate) {
+    if (!candidate)
+        return []
+    if (typeof candidate.pvVisits === "string")
+        return tokenizeAnalysisSegment(candidate.pvVisits)
+    if (candidate.pvVisits && candidate.pvVisits.length !== undefined) {
+        var values = []
+        for (var i = 0; i < candidate.pvVisits.length; ++i)
+            values.push(candidate.pvVisits[i])
+        return values
+    }
+    if (candidate.pvVisitsText !== undefined)
+        return tokenizeAnalysisSegment(candidate.pvVisitsText)
+    return []
+}
+
 function serializableCandidate(candidate) {
     if (!candidate || candidate.move === undefined)
         return null
@@ -100,20 +132,22 @@ function serializableCandidate(candidate) {
         item.scoreMean = candidateNumberValue(candidate.scoreMean, 0)
     if (candidate.scoreStdev !== undefined)
         item.scoreStdev = candidateNumberValue(candidate.scoreStdev, 0)
-    if (candidate.pv && candidate.pv.length !== undefined) {
+    var candidatePv = candidatePvValues(candidate)
+    if (candidatePv.length > 0) {
         var pv = []
-        for (var i = 0; i < candidate.pv.length; ++i) {
-            var move = candidateStringValue(candidate.pv[i]).trim()
+        for (var i = 0; i < candidatePv.length; ++i) {
+            var move = candidateStringValue(candidatePv[i]).trim()
             if (move.length > 0)
                 pv.push(move)
         }
         if (pv.length > 0)
             item.pv = pv
     }
-    if (candidate.pvVisits && candidate.pvVisits.length !== undefined) {
+    var candidatePvVisits = candidatePvVisitValues(candidate)
+    if (candidatePvVisits.length > 0) {
         var pvVisits = []
-        for (var p = 0; p < candidate.pvVisits.length; ++p) {
-            var visits = candidateNumberValue(candidate.pvVisits[p], NaN)
+        for (var p = 0; p < candidatePvVisits.length; ++p) {
+            var visits = candidateNumberValue(candidatePvVisits[p], NaN)
             if (!isNaN(visits))
                 pvVisits.push(visits)
         }
@@ -298,20 +332,22 @@ function normalizedCandidate(candidate, orderFallback) {
         if (!isNaN(scoreStdev))
             item.scoreStdev = scoreStdev
     }
-    if (candidate.pv && candidate.pv.length !== undefined) {
+    var candidatePv = candidatePvValues(candidate)
+    if (candidatePv.length > 0) {
         var pv = []
-        for (var p = 0; p < candidate.pv.length; ++p) {
-            var pvMove = candidateStringValue(candidate.pv[p]).trim()
+        for (var p = 0; p < candidatePv.length; ++p) {
+            var pvMove = candidateStringValue(candidatePv[p]).trim()
             if (pvMove.length > 0)
                 pv.push(pvMove)
         }
         if (pv.length > 0)
             item.pv = pv
     }
-    if (candidate.pvVisits && candidate.pvVisits.length !== undefined) {
+    var candidatePvVisits = candidatePvVisitValues(candidate)
+    if (candidatePvVisits.length > 0) {
         var pvVisits = []
-        for (var v = 0; v < candidate.pvVisits.length; ++v) {
-            var pvVisit = parseVisitNumber(candidate.pvVisits[v])
+        for (var v = 0; v < candidatePvVisits.length; ++v) {
+            var pvVisit = parseVisitNumber(candidatePvVisits[v])
             if (!isNaN(pvVisit))
                 pvVisits.push(pvVisit)
         }

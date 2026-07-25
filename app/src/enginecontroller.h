@@ -24,6 +24,8 @@ class EngineController : public QObject
     Q_PROPERTY(bool ignoreGtpErrors READ ignoreGtpErrors WRITE setIgnoreGtpErrors
                NOTIFY ignoreGtpErrorsChanged)
     Q_PROPERTY(QVariantList candidates READ candidates NOTIFY candidatesChanged)
+    Q_PROPERTY(QVariantList ownership READ ownership NOTIFY candidatesChanged)
+    Q_PROPERTY(int candidateCount READ candidateCount NOTIFY candidatesChanged)
     Q_PROPERTY(int candidateRevision READ candidateRevision NOTIFY candidatesChanged)
 
 public:
@@ -43,6 +45,8 @@ public:
     bool ignoreGtpErrors() const;
     void setIgnoreGtpErrors(bool ignore);
     QVariantList candidates() const;
+    QVariantList ownership() const;
+    int candidateCount() const;
     int candidateRevision() const;
 
     Q_INVOKABLE void ensureStarted();
@@ -53,6 +57,8 @@ public:
     Q_INVOKABLE void requestAnalysis(const QStringList &syncCommands,
                                      const QString &analyzeCommand,
                                      int syncRequestId);
+    Q_INVOKABLE void requestSynchronization(const QStringList &syncCommands,
+                                            int syncRequestId);
     Q_INVOKABLE void requestMove(const QStringList &syncCommands,
                                  const QString &timeSettingsCommand,
                                  const QString &genmoveCommand,
@@ -76,8 +82,8 @@ signals:
     void engineOutput(const QString &line);
     void engineErrorOutput(const QString &line);
     void gtpErrorResponse(const QString &line);
+    void analysisCommandFailed(int analysisRequestId, const QString &line);
     void engineSynchronizationCompleted(int syncRequestId);
-    void engineSyncStateUncertain(int syncRequestId);
     void moveGenerated(int requestId, const QString &move, bool ok, const QString &rawLine);
 
 private:
@@ -128,10 +134,12 @@ private:
     QString m_lastError;
     bool m_ignoreGtpErrors = true;
     QVariantList m_candidates;
+    QVariantList m_ownership;
     int m_candidateRevision = 0;
     QList<QueuedCommand> m_pendingCommands;
     int m_responsesPending = 0;
     int m_activeSyncRequestId = 0;
+    int m_activeAnalysisRequestId = 0;
     EngineProtocolState m_protocolState;
     QByteArray m_stdoutBuffer;
     QByteArray m_stderrBuffer;

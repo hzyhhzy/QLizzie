@@ -433,6 +433,26 @@ AppWindowDialog {
         confirmUnsavedOrRun(function() { engineListDialog.createPresetNow() })
     }
 
+    function uniqueEnginePresetId() {
+        var baseId = EnginePresets.newPreset(app).id
+        var candidate = baseId
+        var suffix = 2
+        while (app.enginePresetById(candidate)) {
+            candidate = baseId + "-" + suffix
+            ++suffix
+        }
+        return candidate
+    }
+
+    function cloneSelected() {
+        if (selectedIndex < 0)
+            return
+        var preset = collectPreset()
+        preset.id = uniqueEnginePresetId()
+        selectedIndex = app.addEnginePreset(preset)
+        syncEditor()
+    }
+
     function deleteSelectedNow() {
         selectedIndex = app.removeEnginePreset(selectedIndex)
         syncEditor()
@@ -635,6 +655,7 @@ AppWindowDialog {
                         placeholderText: app.trText("engineInitialCommandsPlaceholder")
                         selectByMouse: true
                     }
+
                 }
 
                 RowLayout {
@@ -699,6 +720,12 @@ AppWindowDialog {
                     CompactButton {
                         text: app.trText("newEngine")
                         onClicked: engineListDialog.createPreset()
+                    }
+
+                    CompactButton {
+                        text: app.trText("cloneCurrentEngine")
+                        enabled: engineListDialog.selectedPreset() !== null
+                        onClicked: engineListDialog.cloneSelected()
                     }
 
                     CompactButton {

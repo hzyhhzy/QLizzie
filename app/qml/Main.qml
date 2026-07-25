@@ -10,10 +10,12 @@ import "BoardVisuals.js" as BoardVisuals
 import "CandidateAnalysis.js" as CandidateAnalysis
 import "CoordinateUtils.js" as CoordinateUtils
 import "EnginePresets.js" as EnginePresets
+import "EnginePlay.js" as EnginePlay
 import "EngineSpeed.js" as EngineSpeed
 import "EngineSync.js" as EngineSync
 import "EngineSupport.js" as EngineSupport
 import "GameRules.js" as GameRules
+import "Ownership.js" as Ownership
 import "RuleSupport.js" as RuleSupport
 import "rules/RuleRegistry.js" as RuleRegistry
 import "SettingsStore.js" as SettingsStore
@@ -196,10 +198,19 @@ ApplicationWindow {
     readonly property int playModeAiWhite: 2
     readonly property int playModeAiSelf: 3
     property int playMode: playModeAnalysis
+    readonly property int aiMoveModeGtp: 0
+    readonly property int aiMoveModeAnalyze: 1
+    property int aiMoveMode: aiMoveModeGtp
     property real secondsPerMove: 5.0
+    property real analysisSecondsPerMove: 5.0
+    property int analysisTotalVisitsPerMove: 0
+    property int analysisFirstMoveVisitsPerMove: 0
+    readonly property int aiAnalysisWatchdogMilliseconds: 60000
     property int resignMinMove: 80
     property int resignConsecutiveMoves: 3
     property real resignWinrateThreshold: 5.0
+    property int aiAnalysisBlackResignCount: 0
+    property int aiAnalysisWhiteResignCount: 0
     property int gameWinner: 0
     property string gameOverReason: ""
 
@@ -269,6 +280,12 @@ ApplicationWindow {
     property int activeGenmoveSyncRequestId: 0
     property var activeGenmovePosition: null
     property int genmovePlayer: 0
+    property bool aiAnalysisInFlight: false
+    property int aiAnalysisRequestSerial: 0
+    property int activeAiAnalysisRequestId: 0
+    property int activeAiAnalysisSyncRequestId: 0
+    property var activeAiAnalysisPosition: null
+    property double aiAnalysisStartedAt: 0
     property bool applyingGeneratedMove: false
     property var engineCandidates: []
     property var engineCandidateItems: []
@@ -276,6 +293,9 @@ ApplicationWindow {
     property var engineCandidateTableItems: []
     property int engineCandidateRevision: 0
     property bool engineCandidatesFromCache: false
+    property double lastEngineCandidateUiUpdateAt: 0
+    readonly property int largeCandidateUiThreshold: 1000
+    readonly property int largeCandidateUiIntervalMs: 1000
     property bool bestCandidateRingVisible: false
     property string bestCandidateRingKey: ""
     property int bestCandidateRingX: -1
@@ -290,6 +310,17 @@ ApplicationWindow {
     property int engineAnalysisRequestGeneration: -1
     property string engineAnalysisRequestBoardSignature: ""
     property string engineAnalysisRequestKomiSignature: ""
+    property int engineAnalysisRequestPlayer: 0
+    property string engineAnalysisRequestEngineSignature: ""
+    property int engineAnalysisSyncRequestId: 0
+    property bool engineAnalysisRequestValid: false
+    property bool ownershipEnabled: false
+    property var engineOwnership: []
+    property bool engineOwnershipFromCache: false
+    property string engineOwnershipBoardSignature: ""
+    property string engineOwnershipKomiSignature: ""
+    property string engineOwnershipEngineSignature: ""
+    property int engineOwnershipRevision: 0
     property var engineSearchSpeedSamples: []
     property int engineSearchSpeed: -1
     property string engineSearchSpeedKey: ""
@@ -300,6 +331,8 @@ ApplicationWindow {
     property real analysisWideRootNoise: 0.05
     readonly property int maxLargeIntegerSetting: 1073741824
     property int candidateDisplayCount: 10
+    property int candidateTableRowLimit: 20
+    readonly property int maxCandidateTableRowLimit: 10000
     property real candidateMinVisitRatio: 0.001
     property bool candidateShowFilteredMarkers: true
     property bool candidateVariationPreviewVisible: true
@@ -394,27 +427,39 @@ ApplicationWindow {
             return
         }
         prepareApplicationShutdown()
-    }
-
-    onVisibleChanged: {
-        if (!visible && applicationShutdownPrepared)
-            Qt.callLater(Qt.quit)
+        Qt.quit()
     }
 
     onCoordinateDisplayModeChanged: refreshCoordinateDisplayText()
-    onCurrentNodeIdChanged: resetEngineSearchSpeed()
-    onGameTreeGenerationChanged: resetEngineSearchSpeed()
-    onActiveEngineIdChanged: resetEngineSearchSpeed()
+    onCurrentNodeIdChanged: {
+        resetEngineSearchSpeed()
+        handleAiAnalysisPositionChanged()
+    }
+    onGameTreeGenerationChanged: {
+        resetEngineSearchSpeed()
+        handleAiAnalysisPositionChanged()
+    }
+    onCurrentPlayerChanged: handleAiAnalysisPositionChanged()
+    onActiveEngineIdChanged: {
+        resetEngineSearchSpeed()
+        handleAiAnalysisPositionChanged()
+    }
     onEngineAutoAnalyzeChanged: resetEngineSearchSpeed()
     onEnginePausedChanged: resetEngineSearchSpeed()
     onEngineDisabledChanged: resetEngineSearchSpeed()
     onPlayModeChanged: resetEngineSearchSpeed()
+    onAiMoveModeChanged: resetEngineSearchSpeed()
+    onAnalysisSecondsPerMoveChanged: handleAiAnalysisLimitsChanged(true)
+    onAnalysisTotalVisitsPerMoveChanged: handleAiAnalysisLimitsChanged(false)
+    onAnalysisFirstMoveVisitsPerMoveChanged: handleAiAnalysisLimitsChanged(false)
+    onOwnershipEnabledChanged: refreshOwnershipRequest()
     onIgnoreGtpErrorsChanged: {
         if (engineController)
             engineController.ignoreGtpErrors = ignoreGtpErrors
     }
     onLanguageChanged: rebuildEngineCandidateItems()
     onCandidateDisplayCountChanged: rebuildEngineCandidateItems()
+    onCandidateTableRowLimitChanged: rebuildEngineCandidateItems()
     onCandidateMinVisitRatioChanged: rebuildEngineCandidateItems()
     onCandidateShowFilteredMarkersChanged: rebuildEngineCandidateItems()
     onCandidateWinrateLabelVisibleChanged: rebuildEngineCandidateItems()
@@ -432,11 +477,19 @@ ApplicationWindow {
     onCandidateScoreShowPercentChanged: rebuildEngineCandidateItems()
     onCandidateLabelTextColorChanged: rebuildEngineCandidateItems()
     onPackageModeChanged: rebuildEngineCandidateItems()
-    onGameRuleModeChanged: rebuildEngineCandidateItems()
+    onGameRuleModeChanged: {
+        rebuildEngineCandidateItems()
+        if (gameRuleMode !== gameRuleGo) {
+            ownershipEnabled = false
+            resetEngineOwnershipDisplay()
+        }
+    }
     onLegacyHexEngineCoordinatesChanged: {
         resetEngineSyncState()
+        handleAiAnalysisPositionChanged()
         clearEngineCandidates()
         scheduleAutoAnalysis()
+        requestAiMoveIfNeeded()
     }
 
     menuBar: MenuBar {
@@ -752,7 +805,7 @@ ApplicationWindow {
         id: autoAnalyzeTimer
         interval: 280
         repeat: false
-        onTriggered: root.requestEngineAnalysis(false)
+        onTriggered: root.requestScheduledEngineUpdate()
     }
 
     Timer {
@@ -761,6 +814,13 @@ ApplicationWindow {
         repeat: true
         running: true
         onTriggered: root.sampleEngineSearchSpeed()
+    }
+
+    Timer {
+        id: largeCandidateUiUpdateTimer
+        interval: root.largeCandidateUiIntervalMs
+        repeat: false
+        onTriggered: root.flushEngineCandidateUpdate()
     }
 
     Timer {
@@ -775,6 +835,20 @@ ApplicationWindow {
         interval: Math.max(1, root.maxAnalysisSeconds) * 1000
         repeat: false
         onTriggered: root.pauseEngineAnalysisByLimit()
+    }
+
+    Timer {
+        id: aiAnalysisMoveTimer
+        interval: Math.max(100, Math.round(Number(root.analysisSecondsPerMove) * 1000))
+        repeat: false
+        onTriggered: root.tryFinishAiAnalysisMove()
+    }
+
+    Timer {
+        id: aiAnalysisWatchdogTimer
+        interval: root.aiAnalysisWatchdogMilliseconds
+        repeat: false
+        onTriggered: root.handleAiAnalysisWatchdogTimeout()
     }
 
     Timer {
@@ -1603,12 +1677,13 @@ ApplicationWindow {
 
     function engineSearchSpeedActive() {
         return !applicationShutdownPrepared
-               && analysisModeActive()
-               && engineAutoAnalyze
+               && (analysisModeActive() || aiAnalysisInFlight)
+               && (aiAnalysisInFlight || engineAutoAnalyze)
                && !enginePaused
                && !engineDisabled
                && !engineLoading
                && !engineCandidatesFromCache
+               && engineAnalysisRequestValid
                && !!engineController
                && engineController.running
                && engineController.ready
@@ -1632,7 +1707,7 @@ ApplicationWindow {
         }
 
         var key = currentEngineSearchSpeedKey()
-        var total = EngineSpeed.totalVisits(engineController.candidates)
+        var total = EngineSpeed.totalVisits(engineCandidates)
         if (total < 0) {
             resetEngineSearchSpeed()
             return
@@ -1888,7 +1963,11 @@ ApplicationWindow {
             "analysisBlackWinrate": -1,
             "analysisCandidates": [],
             "analysisCandidateBoardSignature": "",
-            "analysisCandidateKomiSignature": ""
+            "analysisCandidateKomiSignature": "",
+            "analysisOwnership": [],
+            "analysisOwnershipBoardSignature": "",
+            "analysisOwnershipKomiSignature": "",
+            "analysisOwnershipEngineSignature": ""
         }
     }
 
@@ -2192,6 +2271,8 @@ ApplicationWindow {
         koLocY2 = -1
         gameWinner = 0
         gameOverReason = ""
+        aiAnalysisBlackResignCount = 0
+        aiAnalysisWhiteResignCount = 0
         gomokuWinLineItems = []
         gomokuForbiddenPointItems = []
         hexWinPathItems = []
@@ -2203,6 +2284,7 @@ ApplicationWindow {
         rebuildPointLegality()
         rebuildTreeLayout()
         boardRevision += 1
+        scheduleAutoAnalysis()
     }
 
     function branchChildMatching(parent, key, player, isPass, moveRole) {
@@ -2257,7 +2339,11 @@ ApplicationWindow {
             "analysisBlackWinrate": -1,
             "analysisCandidates": [],
             "analysisCandidateBoardSignature": "",
-            "analysisCandidateKomiSignature": ""
+            "analysisCandidateKomiSignature": "",
+            "analysisOwnership": [],
+            "analysisOwnershipBoardSignature": "",
+            "analysisOwnershipKomiSignature": "",
+            "analysisOwnershipEngineSignature": ""
         }
         gameNodes[id] = node
         parent.children = (parent.children || []).slice()
@@ -3576,6 +3662,11 @@ ApplicationWindow {
                 legacyHexEngineCoordinateMode() ? "legacyHex" : "normal"].join(":")
     }
 
+    function engineAnalysisSourceSignature() {
+        var command = engineController ? String(engineController.command) : ""
+        return [String(activeEngineId), command].join("\n")
+    }
+
     function engineKomiCommand() {
         if (!komiControlsVisible())
             return ""
@@ -3666,7 +3757,11 @@ ApplicationWindow {
 
     function analyzeCommand() {
         var interval = Math.max(1, Math.round(Number(analysisIntervalCentiseconds)))
-        return "kata-analyze " + interval
+        var player = currentPlayer === 1 ? "B" : "W"
+        var command = "kata-analyze " + player + " " + interval
+        if (gameRuleMode === gameRuleGo && ownershipEnabled)
+            command += " ownership true"
+        return command
     }
 
     function genmoveCommand() {
@@ -3686,6 +3781,8 @@ ApplicationWindow {
         engineSyncedKomiSignature = ""
         engineNeedsFullSync = true
         pendingEngineSyncSnapshot = null
+        engineAnalysisRequestValid = false
+        engineAnalysisSyncRequestId = 0
     }
 
     function invalidateEngineSyncRequest(syncRequestId) {
@@ -3696,11 +3793,16 @@ ApplicationWindow {
         var snapshot = pendingEngineSyncSnapshot
         if (snapshot && snapshot.requestId === syncRequestId)
             pendingEngineSyncSnapshot = null
+        if (engineAnalysisSyncRequestId === syncRequestId) {
+            engineAnalysisRequestValid = false
+            engineAnalysisSyncRequestId = 0
+        }
     }
 
     function resetEngineSyncState() {
         stopAnalysisLimitTimer()
         invalidateEngineSyncState()
+        handleAiAnalysisPositionChanged()
     }
 
     function markGeneratedMoveSynced() {
@@ -3749,7 +3851,11 @@ ApplicationWindow {
         engineAnalysisRequestGeneration = gameTreeGeneration
         engineAnalysisRequestBoardSignature = engineBoardSignature()
         engineAnalysisRequestKomiSignature = engineKomiSignature()
+        engineAnalysisRequestPlayer = currentPlayer
+        engineAnalysisRequestEngineSignature = engineAnalysisSourceSignature()
         var syncRequestId = ++engineSyncRequestSerial
+        engineAnalysisSyncRequestId = syncRequestId
+        engineAnalysisRequestValid = true
         engineController.requestAnalysis(engineSyncCommands(syncRequestId),
                                          analyzeCommand(),
                                          syncRequestId)
@@ -3758,10 +3864,39 @@ ApplicationWindow {
         resetAnalysisLimitTimer()
     }
 
+    function requestEngineSynchronization() {
+        if (applicationShutdownPrepared || !analysisModeActive()
+                || !enginePaused || engineDisabled || !engineAutoAnalyze
+                || !engineController)
+            return
+        if (!engineController.ready) {
+            engineLoading = true
+            return
+        }
+        if (engineInitialCommandsPendingForId.length > 0) {
+            engineInitialCommandsCompletionTimer.start()
+            return
+        }
+        engineLoading = false
+        engineAnalysisRequestValid = false
+        engineAnalysisSyncRequestId = 0
+        var syncRequestId = ++engineSyncRequestSerial
+        engineController.requestSynchronization(engineSyncCommands(syncRequestId),
+                                                syncRequestId)
+    }
+
+    function requestScheduledEngineUpdate() {
+        if (enginePaused)
+            requestEngineSynchronization()
+        else
+            requestEngineAnalysis(false)
+    }
+
     function scheduleAutoAnalysis() {
         if (applicationShutdownPrepared || !appReady || !analysisModeActive()
-                || enginePaused || engineDisabled || !engineAutoAnalyze)
+                || engineDisabled || !engineAutoAnalyze)
             return
+        autoAnalyzeTimer.interval = enginePaused ? 1 : 280
         autoAnalyzeTimer.restart()
     }
 
@@ -3784,6 +3919,7 @@ ApplicationWindow {
     function stopEngine() {
         if (!engineController)
             return
+        cancelActiveEnginePlayRequest(true)
         engineDisabled = true
         engineController.stop()
         engineInitialCommandsSentForId = ""
@@ -3799,6 +3935,7 @@ ApplicationWindow {
     function restartEngine() {
         if (applicationShutdownPrepared || !engineController)
             return
+        cancelActiveEnginePlayRequest(true)
         resetEngineSearchSpeed()
         engineDisabled = false
         engineLoading = true
@@ -3862,10 +3999,27 @@ ApplicationWindow {
         if (mode < playModeAnalysis || mode > playModeAiSelf)
             return
         var modeChanged = playMode !== mode
-        if (modeChanged && (genmoveInFlight || activeGenmoveRequestId > 0)) {
-            cancelActiveGenmoveRequest()
+        var leavingOrdinaryAnalysis = modeChanged
+                                      && playMode === playModeAnalysis
+                                      && mode !== playModeAnalysis
+        var hadPlayRequest = genmoveInFlight || activeGenmoveRequestId > 0
+                             || aiAnalysisInFlight || activeAiAnalysisRequestId > 0
+        if (modeChanged && hadPlayRequest) {
+            cancelActiveEnginePlayRequest(true)
             if (engineController)
                 engineController.sendCommand("stop")
+        }
+        if (leavingOrdinaryAnalysis) {
+            engineAnalysisRequestValid = false
+            engineAnalysisSyncRequestId = 0
+            resetEngineCandidateDisplay()
+            resetEngineOwnershipDisplay()
+            if (engineController)
+                engineController.clearCandidates()
+        }
+        if (modeChanged) {
+            aiAnalysisBlackResignCount = 0
+            aiAnalysisWhiteResignCount = 0
         }
         playMode = mode
         if (analysisModeActive()) {
@@ -3874,8 +4028,88 @@ ApplicationWindow {
         } else {
             enginePaused = false
             refreshGameOutcomeFromCurrentNode(false)
+            if (leavingOrdinaryAnalysis && !aiShouldMove() && engineController)
+                engineController.sendCommand("stop")
             requestAiMoveIfNeeded()
         }
+    }
+
+    function setAiMoveMode(mode) {
+        var nextMode = Number(mode)
+        if (nextMode !== aiMoveModeGtp && nextMode !== aiMoveModeAnalyze)
+            return
+        if (aiMoveMode === nextMode)
+            return
+
+        var playing = !analysisModeActive()
+        if (playing) {
+            cancelActiveEnginePlayRequest(true)
+            if (engineController)
+                engineController.sendCommand("stop")
+        }
+        aiMoveMode = nextMode
+        aiAnalysisBlackResignCount = 0
+        aiAnalysisWhiteResignCount = 0
+        if (playing)
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
+    }
+
+    function aiMoveModeOptions() {
+        return [
+            { "label": trText("aiMoveModeGtp"), "value": aiMoveModeGtp },
+            { "label": trText("aiMoveModeAnalyze"), "value": aiMoveModeAnalyze }
+        ]
+    }
+
+    function currentAiMoveSecondsPerMove() {
+        return aiMoveMode === aiMoveModeAnalyze ? analysisSecondsPerMove
+                                                : secondsPerMove
+    }
+
+    function setCurrentAiMoveSecondsPerMove(value) {
+        var seconds = Number(value)
+        if (!isFinite(seconds))
+            return
+        if (aiMoveMode === aiMoveModeAnalyze)
+            analysisSecondsPerMove = clamp(seconds, 0, 999)
+        else
+            secondsPerMove = clamp(seconds, 0.1, 999)
+    }
+
+    function analysisMoveLimitConfigured() {
+        return Number(analysisSecondsPerMove) > 0
+                || Number(analysisTotalVisitsPerMove) > 0
+                || Number(analysisFirstMoveVisitsPerMove) > 0
+    }
+
+    function handleAiAnalysisLimitsChanged(restartTimeLimit) {
+        if (!appReady || aiMoveMode !== aiMoveModeAnalyze)
+            return
+
+        var action = EnginePlay.limitChangeAction(analysisMoveLimitConfigured(),
+                                                  aiAnalysisInFlight,
+                                                  aiShouldMove())
+        if (action === "cancel") {
+            cancelActiveAiAnalysisRequest(true)
+            if (engineController)
+                engineController.sendCommand("stop")
+        }
+        if (action === "cancel" || action === "wait") {
+            if (aiShouldMove()) {
+                statusMode = "message"
+                statusMessage = trText("analysisMoveLimitRequired")
+            }
+            return
+        }
+
+        if (action === "evaluate") {
+            if (restartTimeLimit)
+                restartAiAnalysisTimeLimit()
+            tryFinishAiAnalysisMove()
+            return
+        }
+        if (action === "start")
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
     }
 
     function analysisModeActive() {
@@ -3907,12 +4141,20 @@ ApplicationWindow {
     }
 
     function requestAiMoveIfNeeded() {
-        if (!aiShouldMove() || genmoveInFlight || engineDisabled || !engineController)
+        if (!aiShouldMove() || genmoveInFlight || aiAnalysisInFlight
+                || engineDisabled || !engineController)
             return
         if (!engineReadyForPlayMode()) {
             startEngine()
             return
         }
+        if (aiMoveMode === aiMoveModeAnalyze) {
+            requestAiAnalysisMove()
+            return
+        }
+
+        engineAnalysisRequestValid = false
+        engineAnalysisSyncRequestId = 0
         genmoveInFlight = true
         genmovePlayer = currentPlayer
         activeGenmoveRequestId = ++genmoveRequestSerial
@@ -3934,14 +4176,224 @@ ApplicationWindow {
         statusMessage = trText("engineThinking")
     }
 
+    function requestAiAnalysisMove() {
+        if (!aiShouldMove() || aiMoveMode !== aiMoveModeAnalyze
+                || genmoveInFlight || aiAnalysisInFlight
+                || !engineReadyForPlayMode())
+            return
+        if (!analysisMoveLimitConfigured()) {
+            statusMode = "message"
+            statusMessage = trText("analysisMoveLimitRequired")
+            return
+        }
+
+        aiAnalysisInFlight = true
+        activeAiAnalysisRequestId = ++aiAnalysisRequestSerial
+        activeAiAnalysisSyncRequestId = ++engineSyncRequestSerial
+        activeAiAnalysisPosition = {
+            "requestId": activeAiAnalysisRequestId,
+            "nodeId": currentNodeId,
+            "generation": gameTreeGeneration,
+            "boardSignature": engineBoardSignature(),
+            "komiSignature": engineKomiSignature(),
+            "player": currentPlayer,
+            "engineSignature": engineAnalysisSourceSignature()
+        }
+        engineAnalysisRequestNodeId = currentNodeId
+        engineAnalysisRequestGeneration = gameTreeGeneration
+        engineAnalysisRequestBoardSignature = engineBoardSignature()
+        engineAnalysisRequestKomiSignature = engineKomiSignature()
+        engineAnalysisRequestPlayer = currentPlayer
+        engineAnalysisRequestEngineSignature = engineAnalysisSourceSignature()
+        engineAnalysisSyncRequestId = activeAiAnalysisSyncRequestId
+        engineAnalysisRequestValid = true
+        aiAnalysisStartedAt = Date.now()
+        restartAiAnalysisTimeLimit()
+        restartAiAnalysisWatchdog()
+        engineController.requestAnalysis(engineSyncCommands(activeAiAnalysisSyncRequestId),
+                                         analyzeCommand(),
+                                         activeAiAnalysisSyncRequestId)
+        statusMode = "message"
+        statusMessage = trText("engineThinking")
+    }
+
+    function restartAiAnalysisTimeLimit() {
+        if (!aiAnalysisInFlight) {
+            aiAnalysisMoveTimer.stop()
+            return
+        }
+        var seconds = Math.max(0, Number(analysisSecondsPerMove))
+        if (!isFinite(seconds))
+            seconds = 5.0
+        aiAnalysisStartedAt = Date.now()
+        if (seconds <= 0) {
+            aiAnalysisMoveTimer.stop()
+            return
+        }
+        aiAnalysisMoveTimer.interval = Math.max(100, Math.round(seconds * 1000))
+        aiAnalysisMoveTimer.restart()
+    }
+
+    function restartAiAnalysisWatchdog() {
+        if (!aiAnalysisInFlight) {
+            aiAnalysisWatchdogTimer.stop()
+            return
+        }
+        aiAnalysisWatchdogTimer.interval = aiAnalysisWatchdogMilliseconds
+        aiAnalysisWatchdogTimer.restart()
+    }
+
+    function handleAiAnalysisWatchdogTimeout() {
+        if (!aiAnalysisInFlight)
+            return
+        pauseAfterEngineProtocolFailure("analysisNoResponse", "", true)
+        statusMode = "message"
+        statusMessage = trText("analysisNoResponse")
+    }
+
+    function activeAiAnalysisPositionMatches() {
+        return EnginePlay.positionMatches(activeAiAnalysisPosition,
+                                          currentNodeId,
+                                          gameTreeGeneration,
+                                          engineBoardSignature(),
+                                          engineKomiSignature(),
+                                          currentPlayer,
+                                          engineAnalysisSourceSignature())
+    }
+
+    function pauseAfterEngineProtocolFailure(messageKey, detail, sendStop) {
+        cancelActiveEnginePlayRequest(true)
+        playMode = playModeAnalysis
+        enginePaused = true
+        refreshGameOutcomeFromCurrentNode(false)
+        resetEngineCandidateDisplay()
+        resetEngineOwnershipDisplay()
+        if (engineController) {
+            engineController.clearCandidates()
+            if (sendStop)
+                engineController.sendCommand("stop")
+        }
+        if (!ignoreGtpErrors) {
+            statusMode = "message"
+            statusMessage = trText(messageKey)
+            if (detail && String(detail).length > 0)
+                statusMessage += ": " + String(detail)
+        }
+    }
+
+    function deferAnalysisCommandFailure(analysisRequestId, line) {
+        if (analysisRequestId <= 0
+                || analysisRequestId !== engineAnalysisSyncRequestId)
+            return
+        Qt.callLater(function() {
+            if (root.engineAnalysisSyncRequestId !== analysisRequestId
+                    || !root.engineAnalysisRequestValid)
+                return
+            root.pauseAfterEngineProtocolFailure("analysisMoveFailed", line, false)
+        })
+    }
+
+    function handleAiAnalysisPositionChanged() {
+        if (!aiAnalysisInFlight || applyingGeneratedMove
+                || activeAiAnalysisPositionMatches())
+            return
+        cancelActiveAiAnalysisRequest(true)
+        if (engineController)
+            engineController.sendCommand("stop")
+        if (appReady)
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
+    }
+
+    function aiAnalysisResignCount(player) {
+        return player === 1 ? aiAnalysisBlackResignCount
+                            : aiAnalysisWhiteResignCount
+    }
+
+    function setAiAnalysisResignCount(player, count) {
+        if (player === 1)
+            aiAnalysisBlackResignCount = count
+        else if (player === 2)
+            aiAnalysisWhiteResignCount = count
+    }
+
+    function aiAnalysisShouldResign(player, candidate) {
+        var node = currentNode()
+        var moveNumber = node ? Number(node.moveNumber) : 0
+        var rawWinrate = candidate && candidate.winrate !== undefined
+                       ? Number(candidate.winrate) : NaN
+        if (!isFinite(rawWinrate)) {
+            setAiAnalysisResignCount(player, 0)
+            return false
+        }
+        var winrate = clamp(rawWinrate * 100, 0, 100)
+        var nextCount = EnginePlay.nextResignCount(aiAnalysisResignCount(player),
+                                                   moveNumber,
+                                                   winrate,
+                                                   resignMinMove,
+                                                   resignWinrateThreshold)
+        setAiAnalysisResignCount(player, nextCount)
+        return nextCount >= Math.max(1, Math.round(Number(resignConsecutiveMoves)))
+    }
+
+    function tryFinishAiAnalysisMove() {
+        if (!aiAnalysisInFlight || aiMoveMode !== aiMoveModeAnalyze
+                || !aiShouldMove() || !engineController)
+            return false
+        if (!activeAiAnalysisPositionMatches()) {
+            handleAiAnalysisPositionChanged()
+            return false
+        }
+
+        var candidates = CandidateAnalysis.cloneCandidateList(engineController.candidates)
+        var elapsed = Math.max(0, Date.now() - aiAnalysisStartedAt)
+        if (!EnginePlay.limitReached(candidates,
+                                     elapsed,
+                                     analysisSecondsPerMove,
+                                     analysisTotalVisitsPerMove,
+                                     analysisFirstMoveVisitsPerMove))
+            return false
+
+        var best = EnginePlay.bestCandidate(candidates)
+        if (!best)
+            return false
+        var move = String(best.move).trim()
+        var player = activeAiAnalysisPosition.player
+        var shouldResign = aiAnalysisShouldResign(player, best)
+
+        cancelActiveAiAnalysisRequest(false)
+        if (shouldResign || move.toLowerCase() === "resign") {
+            finishEngineResignation(player)
+            return true
+        }
+
+        if (!applyGeneratedMove(move)) {
+            engineController.sendCommand("stop")
+            invalidateEngineSyncState()
+            statusMode = "message"
+            statusMessage = trText("engineMoveInvalid") + ": " + move
+            return false
+        }
+
+        if (aiShouldMove())
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
+        else
+            engineController.sendCommand("stop")
+        return true
+    }
+
     function stopAiPlay() {
-        cancelActiveGenmoveRequest()
+        cancelActiveEnginePlayRequest(true)
         playMode = playModeAnalysis
         if (engineController)
             engineController.sendCommand("stop")
         statusMode = "message"
         statusMessage = trText("gameStopped")
         scheduleAutoAnalysis()
+    }
+
+    function cancelActiveEnginePlayRequest(invalidateSync) {
+        cancelActiveGenmoveRequest()
+        cancelActiveAiAnalysisRequest(invalidateSync)
     }
 
     function cancelActiveGenmoveRequest() {
@@ -3952,6 +4404,31 @@ ApplicationWindow {
         activeGenmoveSyncRequestId = 0
         activeGenmovePosition = null
         genmovePlayer = 0
+    }
+
+    function cancelActiveAiAnalysisRequest(invalidateSync) {
+        aiAnalysisMoveTimer.stop()
+        aiAnalysisWatchdogTimer.stop()
+        if (invalidateSync !== false && activeAiAnalysisSyncRequestId > 0)
+            invalidateEngineSyncRequest(activeAiAnalysisSyncRequestId)
+        engineAnalysisRequestValid = false
+        engineAnalysisSyncRequestId = 0
+        aiAnalysisInFlight = false
+        activeAiAnalysisRequestId = 0
+        activeAiAnalysisSyncRequestId = 0
+        activeAiAnalysisPosition = null
+        aiAnalysisStartedAt = 0
+    }
+
+    function finishEngineResignation(losingPlayer) {
+        cancelActiveEnginePlayRequest(false)
+        if (engineController)
+            engineController.sendCommand("stop")
+        gameWinner = losingPlayer === 1 ? 2 : 1
+        gameOverReason = trText("engineSuggestsResign")
+        statusMode = "message"
+        statusMessage = gameOverReason
+        gameOverDialog.open()
     }
 
     function applyGeneratedMove(moveText) {
@@ -4116,15 +4593,204 @@ ApplicationWindow {
     }
 
     function showCachedAnalysisForCurrentNode() {
-        return CandidateAnalysis.showCachedAnalysisForCurrentNode(root)
+        var candidatesShown = CandidateAnalysis.showCachedAnalysisForCurrentNode(root)
+        var ownershipShown = showCachedOwnershipForCurrentNode()
+        return candidatesShown || ownershipShown
     }
 
     function applyEngineCandidateUpdate(candidates, revision) {
-        CandidateAnalysis.applyEngineCandidateUpdate(root, candidates, revision)
+        CandidateAnalysis.applyEngineCandidateUpdate(
+                    root,
+                    candidates,
+                    revision)
+    }
+
+    function flushEngineCandidateUpdate() {
+        if (!engineController)
+            return
+        var candidateSnapshot = engineController.candidates
+        applyEngineCandidateUpdate(candidateSnapshot,
+                                   engineController.candidateRevision)
+        applyEngineOwnershipUpdate(engineController.ownership)
+        lastEngineCandidateUiUpdateAt = Date.now()
+        tryFinishAiAnalysisMove()
+    }
+
+    function scheduleEngineCandidateUpdate() {
+        if (applicationShutdownPrepared || !engineController)
+            return
+
+        var candidateCount = engineController.candidateCount
+        if (candidateCount <= largeCandidateUiThreshold
+                || aiAnalysisInFlight) {
+            largeCandidateUiUpdateTimer.stop()
+            flushEngineCandidateUpdate()
+            return
+        }
+
+        var elapsed = Date.now() - lastEngineCandidateUiUpdateAt
+        if (lastEngineCandidateUiUpdateAt <= 0
+                || elapsed >= largeCandidateUiIntervalMs) {
+            largeCandidateUiUpdateTimer.stop()
+            flushEngineCandidateUpdate()
+            return
+        }
+
+        if (!largeCandidateUiUpdateTimer.running) {
+            largeCandidateUiUpdateTimer.interval = Math.max(
+                        1, largeCandidateUiIntervalMs - elapsed)
+            largeCandidateUiUpdateTimer.start()
+        }
     }
 
     function rebuildEngineCandidateItems() {
         CandidateAnalysis.rebuildItems(root)
+    }
+
+    function resetEngineOwnershipDisplay() {
+        if ((!engineOwnership || engineOwnership.length <= 0)
+                && !engineOwnershipFromCache
+                && engineOwnershipBoardSignature.length <= 0
+                && engineOwnershipKomiSignature.length <= 0
+                && engineOwnershipEngineSignature.length <= 0)
+            return
+        engineOwnership = []
+        engineOwnershipFromCache = false
+        engineOwnershipBoardSignature = ""
+        engineOwnershipKomiSignature = ""
+        engineOwnershipEngineSignature = ""
+        engineOwnershipRevision += 1
+    }
+
+    function setEngineOwnershipDisplay(values, fromCache, boardSignature,
+                                       komiSignature, engineSignature) {
+        var cached = fromCache === true
+        var nextBoardSignature = boardSignature || engineBoardSignature()
+        var nextKomiSignature = komiSignature || engineKomiSignature()
+        var nextEngineSignature = engineSignature || engineAnalysisSourceSignature()
+        if (engineOwnership === values
+                && engineOwnershipFromCache === cached
+                && engineOwnershipBoardSignature === nextBoardSignature
+                && engineOwnershipKomiSignature === nextKomiSignature
+                && engineOwnershipEngineSignature === nextEngineSignature)
+            return
+        engineOwnership = values || []
+        engineOwnershipFromCache = cached
+        engineOwnershipBoardSignature = nextBoardSignature
+        engineOwnershipKomiSignature = nextKomiSignature
+        engineOwnershipEngineSignature = nextEngineSignature
+        engineOwnershipRevision += 1
+    }
+
+    function nodeOwnershipCacheUsable(node) {
+        return ownershipEnabled
+                && gameRuleMode === gameRuleGo
+                && !!node
+                && node.analysisOwnership !== undefined
+                && Ownership.usable(node.analysisOwnership, boardSizeX, boardSizeY)
+                && node.analysisOwnershipBoardSignature === engineBoardSignature()
+                && node.analysisOwnershipKomiSignature === engineKomiSignature()
+                && node.analysisOwnershipEngineSignature === engineAnalysisSourceSignature()
+    }
+
+    function showCachedOwnershipForCurrentNode() {
+        var node = currentNode()
+        if (!nodeOwnershipCacheUsable(node)) {
+            resetEngineOwnershipDisplay()
+            return false
+        }
+        setEngineOwnershipDisplay(node.analysisOwnership,
+                                  true,
+                                  node.analysisOwnershipBoardSignature,
+                                  node.analysisOwnershipKomiSignature,
+                                  node.analysisOwnershipEngineSignature)
+        return true
+    }
+
+    function applyEngineOwnershipUpdate(values) {
+        var updateActive = engineAnalysisRequestValid
+                           && (analysisModeActive() || aiAnalysisInFlight)
+        if (!ownershipEnabled || gameRuleMode !== gameRuleGo || !updateActive) {
+            resetEngineOwnershipDisplay()
+            return
+        }
+
+        var normalized = Ownership.normalized(values,
+                                              boardSizeX,
+                                              boardSizeY,
+                                              engineAnalysisRequestPlayer)
+        if (normalized.length <= 0) {
+            if (!showCachedOwnershipForCurrentNode())
+                resetEngineOwnershipDisplay()
+            return
+        }
+
+        var targetId = engineAnalysisRequestNodeId >= 0
+                     ? engineAnalysisRequestNodeId : currentNodeId
+        var targetGeneration = engineAnalysisRequestGeneration >= 0
+                             ? engineAnalysisRequestGeneration : gameTreeGeneration
+        if (targetGeneration !== gameTreeGeneration) {
+            if (!showCachedOwnershipForCurrentNode())
+                resetEngineOwnershipDisplay()
+            return
+        }
+
+        var targetBoardSignature = engineAnalysisRequestBoardSignature.length > 0
+                                 ? engineAnalysisRequestBoardSignature
+                                 : engineBoardSignature()
+        var targetKomiSignature = engineAnalysisRequestKomiSignature.length > 0
+                                ? engineAnalysisRequestKomiSignature
+                                : engineKomiSignature()
+        var targetEngineSignature = engineAnalysisRequestEngineSignature.length > 0
+                                  ? engineAnalysisRequestEngineSignature
+                                  : engineAnalysisSourceSignature()
+        var targetNode = nodeById(targetId)
+        if (targetNode) {
+            targetNode.analysisOwnership = normalized
+            targetNode.analysisOwnershipBoardSignature = targetBoardSignature
+            targetNode.analysisOwnershipKomiSignature = targetKomiSignature
+            targetNode.analysisOwnershipEngineSignature = targetEngineSignature
+        }
+
+        if (targetId !== currentNodeId
+                || targetBoardSignature !== engineBoardSignature()
+                || targetKomiSignature !== engineKomiSignature()
+                || targetEngineSignature !== engineAnalysisSourceSignature()) {
+            if (!showCachedOwnershipForCurrentNode())
+                resetEngineOwnershipDisplay()
+            return
+        }
+        setEngineOwnershipDisplay(normalized,
+                                  false,
+                                  targetBoardSignature,
+                                  targetKomiSignature,
+                                  targetEngineSignature)
+    }
+
+    function ownershipVisibleForCurrentPosition() {
+        return ownershipEnabled
+                && gameRuleMode === gameRuleGo
+                && Ownership.usable(engineOwnership, boardSizeX, boardSizeY)
+                && engineOwnershipBoardSignature === engineBoardSignature()
+                && engineOwnershipKomiSignature === engineKomiSignature()
+                && engineOwnershipEngineSignature === engineAnalysisSourceSignature()
+    }
+
+    function refreshOwnershipRequest() {
+        resetEngineOwnershipDisplay()
+        if (!appReady || !engineController)
+            return
+        if (aiAnalysisInFlight) {
+            cancelActiveAiAnalysisRequest(true)
+            engineController.sendCommand("stop")
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
+            return
+        }
+        if (analysisModeActive() && engineAutoAnalyze
+                && !enginePaused && !engineDisabled) {
+            clearEngineCandidates()
+            scheduleAutoAnalysis()
+        }
     }
 
     function candidatePvMoves(candidate) {
@@ -4167,6 +4833,7 @@ ApplicationWindow {
     function clearEngineCandidates() {
         resetEngineSearchSpeed()
         resetEngineCandidateDisplay()
+        resetEngineOwnershipDisplay()
         if (engineController)
             engineController.clearCandidates()
     }
@@ -4175,7 +4842,7 @@ ApplicationWindow {
         engineDisabled = true
         engineLoading = false
         engineNoticeDismissed = keepEngineNotice === true ? false : true
-        cancelActiveGenmoveRequest()
+        cancelActiveEnginePlayRequest(true)
         engineInitialCommandsPendingForId = ""
         engineInitialCommandsCompletionTimer.stop()
         if (!analysisModeActive())
@@ -4342,6 +5009,7 @@ ApplicationWindow {
         if (Math.abs(komi - nextKomi) < 0.0001)
             return
         komi = nextKomi
+        handleAiAnalysisPositionChanged()
         scheduleAutoAnalysis()
     }
 
@@ -4373,8 +5041,10 @@ ApplicationWindow {
         if (Math.abs(analysisWideRootNoise - nextValue) < 0.0001)
             return
         analysisWideRootNoise = nextValue
-        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001)
+        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001) {
+            handleAiAnalysisPositionChanged()
             scheduleAutoAnalysis()
+        }
         if (persistentSettingsLoaded)
             savePersistentSettings()
     }
@@ -4385,8 +5055,10 @@ ApplicationWindow {
             return
         var previousEffectiveValue = effectiveAnalysisWideRootNoise()
         analysisWideRootNoiseEnabled = nextEnabled
-        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001)
+        if (Math.abs(previousEffectiveValue - effectiveAnalysisWideRootNoise()) >= 0.0001) {
+            handleAiAnalysisPositionChanged()
             scheduleAutoAnalysis()
+        }
         if (persistentSettingsLoaded)
             savePersistentSettings()
     }
@@ -4625,8 +5297,11 @@ ApplicationWindow {
     function stopApplicationTimersForShutdown() {
         autoAnalyzeTimer.stop()
         engineSearchSpeedTimer.stop()
+        largeCandidateUiUpdateTimer.stop()
         engineInitialCommandsCompletionTimer.stop()
         analysisLimitTimer.stop()
+        aiAnalysisMoveTimer.stop()
+        aiAnalysisWatchdogTimer.stop()
         focusBoardInputTimer.stop()
         treeLayoutTimer.stop()
         firstLaunchTimer.stop()
@@ -4812,15 +5487,21 @@ ApplicationWindow {
             root.showGtpErrorResponse(line)
         }
 
-        function onEngineSynchronizationCompleted(syncRequestId) {
-            root.commitEngineSyncSnapshot(syncRequestId)
+        function onAnalysisCommandFailed(analysisRequestId, line) {
+            root.deferAnalysisCommandFailure(analysisRequestId, line)
         }
 
-        function onEngineSyncStateUncertain(syncRequestId) {
-            root.invalidateEngineSyncRequest(syncRequestId)
+        function onEngineSynchronizationCompleted(syncRequestId) {
+            var committed = root.commitEngineSyncSnapshot(syncRequestId)
+            var aiAnalysisSync = syncRequestId === root.activeAiAnalysisSyncRequestId
+            if (committed && aiAnalysisSync) {
+                root.activeAiAnalysisSyncRequestId = 0
+                root.restartAiAnalysisTimeLimit()
+            }
         }
 
         function onCommandChanged() {
+            root.cancelActiveEnginePlayRequest(true)
             root.resetEngineSearchSpeed()
             root.engineInitialCommandsSentForId = ""
             root.engineInitialCommandsPendingForId = ""
@@ -4829,15 +5510,18 @@ ApplicationWindow {
         }
 
         function onCandidatesChanged() {
-            if (!engineController.candidates || engineController.candidates.length <= 0)
+            if (engineController.candidateCount <= 0)
                 root.resetEngineSearchSpeed()
-            root.applyEngineCandidateUpdate(engineController.candidates,
-                                            engineController.candidateRevision)
+            else if (root.aiAnalysisInFlight && root.engineAnalysisRequestValid)
+                root.restartAiAnalysisWatchdog()
+            root.scheduleEngineCandidateUpdate()
         }
 
         function onReadyChanged() {
-            if (!engineController.ready)
+            if (!engineController.ready) {
                 root.resetEngineSearchSpeed()
+                root.cancelActiveEnginePlayRequest(true)
+            }
             if (engineController.ready) {
                 root.engineLoading = false
                 root.sendActiveEngineInitialCommands()
@@ -4848,14 +5532,17 @@ ApplicationWindow {
 
         function onFailedChanged() {
             if (engineController.failed) {
+                root.cancelActiveEnginePlayRequest(true)
                 root.resetEngineSearchSpeed()
                 root.handleEngineLoadFailure(root.engineFailureMessage())
             }
         }
 
         function onRunningChanged() {
-            if (!engineController.running)
+            if (!engineController.running) {
+                root.cancelActiveEnginePlayRequest(true)
                 root.resetEngineSearchSpeed()
+            }
         }
 
         function onMoveGenerated(requestId, move, ok, rawLine) {
@@ -4876,13 +5563,15 @@ ApplicationWindow {
             root.activeGenmovePosition = null
             root.genmovePlayer = 0
             if (!ok) {
-                root.invalidateEngineSyncRequest(syncRequestId)
                 var ignoredGtpError = root.ignoreGtpErrors
                                       && String(rawLine).trim().indexOf("?") === 0
-                if (!ignoredGtpError) {
-                    root.statusMode = "message"
-                    root.statusMessage = rawLine
-                }
+                if (ignoredGtpError)
+                    return
+                root.invalidateEngineSyncRequest(syncRequestId)
+                root.pauseAfterEngineProtocolFailure(
+                            "engineMoveFailed",
+                            rawLine,
+                            false)
                 return
             }
             if (!positionStillCurrent) {
@@ -4891,6 +5580,10 @@ ApplicationWindow {
                 return
             }
             root.commitEngineSyncSnapshot(syncRequestId)
+            if (String(move).trim().toLowerCase() === "resign") {
+                root.finishEngineResignation(position.player)
+                return
+            }
             if (!root.applyGeneratedMove(move)) {
                 root.invalidateEngineSyncState()
                 return

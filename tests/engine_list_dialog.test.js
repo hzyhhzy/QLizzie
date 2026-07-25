@@ -49,6 +49,35 @@ test("new engine presets are inserted at the top", () => {
     assert.doesNotMatch(addPreset, /next\.push\(/)
 })
 
+test("cloning uses current editor values with a fresh internal id", () => {
+    const clone = sectionBetween("function cloneSelected()", "function deleteSelectedNow")
+    const idFactory = sectionBetween("function uniqueEnginePresetId()", "function cloneSelected()")
+
+    assert.match(clone, /var preset = collectPreset\(\)/)
+    assert.match(clone, /preset\.id = uniqueEnginePresetId\(\)/)
+    assert.match(clone, /selectedIndex = app\.addEnginePreset\(preset\)/)
+    assert.match(clone, /syncEditor\(\)/)
+    assert.doesNotMatch(clone, /preset\.name\s*=/)
+    assert.doesNotMatch(clone, /confirmUnsavedOrRun/)
+    assert.match(idFactory, /while \(app\.enginePresetById\(candidate\)\)/)
+})
+
+test("clone button sits between new and delete", () => {
+    const newButton = source.indexOf('text: app.trText("newEngine")')
+    const cloneButton = source.indexOf('text: app.trText("cloneCurrentEngine")')
+    const deleteButton = source.indexOf('text: app.trText("delete")', cloneButton)
+
+    assert.notEqual(newButton, -1)
+    assert.notEqual(cloneButton, -1)
+    assert.notEqual(deleteButton, -1)
+    assert.ok(newButton < cloneButton)
+    assert.ok(cloneButton < deleteButton)
+    assert.match(
+        source.slice(cloneButton, deleteButton),
+        /enabled:\s*engineListDialog\.selectedPreset\(\)\s*!==\s*null/
+    )
+})
+
 test("engine editor fields keep mouse drags for text selection", () => {
     const flickable = sectionBetween("id: dialogFlick", "id: dialogContent")
 

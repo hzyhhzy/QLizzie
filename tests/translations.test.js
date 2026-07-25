@@ -40,3 +40,24 @@ test("special candidate move labels are localized", () => {
     assert.equal(translations.zh.engineSuggestsResign, "引擎建议认输")
     assert.equal(translations.en.engineSuggestsResign, "Engine suggests resigning")
 })
+
+test("ownership and resignation units are localized", () => {
+    assert.equal(translations.zh.showOwnership, "领地（仅限围棋）")
+    assert.equal(translations.en.showOwnership, "Ownership (Go only)")
+    assert.equal(translations.zh.movesUnit, "步")
+    assert.equal(translations.en.movesUnit, "moves")
+    assert.equal(translations.zh.ownershipGoOnlyTip, undefined)
+    assert.equal(translations.en.ownershipGoOnlyTip, undefined)
+})
+
+test("engine clone action is localized", () => {
+    assert.equal(translations.zh.cloneCurrentEngine, "克隆当前引擎")
+    assert.equal(translations.en.cloneCurrentEngine, "Clone current engine")
+})
+
+test("engine log and ownership shortcuts are localized", () => {
+    assert.equal(translations.zh.helpKeyEngineLog, "E：打开引擎通信窗口")
+    assert.equal(translations.en.helpKeyEngineLog, "E: open engine communication")
+    assert.equal(translations.zh.helpKeyOwnershipDesc, "开关领地显示（仅限围棋）")
+    assert.equal(translations.en.helpKeyOwnershipDesc, "Toggle ownership display (Go only)")
+})

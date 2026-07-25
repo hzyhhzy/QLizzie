@@ -160,6 +160,31 @@ test("escaped QLZ analysis payloads round-trip", () => {
     assert.equal(parsedNode.analysisCandidates[0].scoreMean, -1.75)
 })
 
+test("compact engine PV text expands only when analysis is serialized", () => {
+    const analysis = {
+        analysisBlackWinrate: 0.5,
+        analysisCandidateBoardSignature: "compact-board",
+        analysisCandidateKomiSignature: "compact-komi",
+        analysisCandidates: [{
+            move: "D4",
+            order: 0,
+            visits: 120,
+            winrate: 0.5,
+            pvText: "D4 (A1 B2) pass",
+            pvVisitsText: "120 80 40"
+        }]
+    }
+    const result = parseBuilt(
+        [root([1]), move(1, 0, [], 1, 3, 3, "", analysis)],
+        0,
+        19
+    )
+    const candidate = result.parsed.nodes[1].analysisCandidates[0]
+
+    assert.equal(candidate.pv.join(","), "D4,(A1 B2),pass")
+    assert.equal(candidate.pvVisits.join(","), "120,80,40")
+})
+
 test("all current rule modes have stable and parseable RU/GM metadata", () => {
     const expected = [
         [1, "QLizzie-Go"],

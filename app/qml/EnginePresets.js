@@ -208,6 +208,7 @@ function normalizePreset(app, preset, index) {
     }
     copy.komi = app.clampKomiSettingValue(numeric(copy.komi, defaultKomiForRule(app, copy.ruleMode)))
     copy.legacyHexEngineCoordinates = copy.legacyHexEngineCoordinates === true
+    delete copy.ownershipPerspective
     copy.boardPresentationMode = Math.round(app.clamp(numeric(copy.boardPresentationMode, 0),
                                                        app.boardPresentationIntersections,
                                                        app.boardPresentationCells))
