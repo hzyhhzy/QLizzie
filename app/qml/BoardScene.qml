@@ -526,6 +526,10 @@ Item {
             var candidateRadius = Math.max(8, cell * app.stoneScale * 0.5)
 
             if (!boardScene.variationPreviewActive) {
+                var simpleMarkerBuckets = ({})
+                var simpleMarkerBucketKeys = []
+                var detailedCandidates = []
+                var bucketLevels = 32
                 for (var c = app.engineCandidateItems.length - 1; c >= 0; --c) {
                     var candidate = app.engineCandidateItems[c]
                     if (!candidate.boardVisible)
@@ -537,6 +541,85 @@ Item {
                     var isBestCandidate = app.bestCandidateRingVisible
                                           && app.candidateRingVisible
                                           && candidate.key === app.bestCandidateRingKey
+                    if (!showCandidateText && candidate.displayIndex > 9
+                            && !isBestCandidate) {
+                        var visitRatio = Math.max(0, Math.min(1, Number(candidate.visitRatio)))
+                        var colorLevel = Math.round(Math.sqrt(visitRatio)
+                                                    * (bucketLevels - 1))
+                        var alphaLevel = Math.round(app.candidateYzyAlphaRatio(visitRatio)
+                                                    * (bucketLevels - 1))
+                        var bucketKey = colorLevel * bucketLevels + alphaLevel
+                        var bucket = simpleMarkerBuckets[bucketKey]
+                        if (!bucket) {
+                            var colorFraction = colorLevel / (bucketLevels - 1)
+                            var alphaFraction = alphaLevel / (bucketLevels - 1)
+                            var colorVisitRatio = colorFraction * colorFraction
+                            var alphaVisitRatio = Math.exp(
+                                        (alphaFraction - 1)
+                                        * app.candidateYzyAlphaFactor)
+                            bucket = {
+                                "points": [],
+                                "fillColor": app.candidateMarkerColor(2,
+                                                                       colorVisitRatio),
+                                "fillOpacity": app.candidateMarkerOpacity(
+                                                   2, alphaVisitRatio),
+                                "outlineOpacity": app.candidateMarkerOutlineOpacity(
+                                                      alphaVisitRatio)
+                            }
+                            simpleMarkerBuckets[bucketKey] = bucket
+                            simpleMarkerBucketKeys.push(bucketKey)
+                        }
+                        bucket.points.push(cp.x)
+                        bucket.points.push(cp.y)
+                        continue
+                    }
+                    detailedCandidates.push({
+                        "candidate": candidate,
+                        "point": cp,
+                        "showText": showCandidateText,
+                        "isFirst": isFirstCandidate,
+                        "isBest": isBestCandidate
+                    })
+                }
+
+                simpleMarkerBucketKeys.sort(function(left, right) {
+                    return Number(left) - Number(right)
+                })
+                for (var bucketIndex = 0;
+                     bucketIndex < simpleMarkerBucketKeys.length;
+                     ++bucketIndex) {
+                    var simpleBucket =
+                        simpleMarkerBuckets[simpleMarkerBucketKeys[bucketIndex]]
+                    ctx.save()
+                    ctx.beginPath()
+                    for (var pointIndex = 0;
+                         pointIndex < simpleBucket.points.length;
+                         pointIndex += 2) {
+                        var pointX = simpleBucket.points[pointIndex]
+                        var pointY = simpleBucket.points[pointIndex + 1]
+                        ctx.moveTo(pointX + candidateRadius, pointY)
+                        ctx.arc(pointX, pointY, candidateRadius, 0, Math.PI * 2)
+                    }
+                    ctx.globalAlpha = simpleBucket.fillOpacity
+                    ctx.fillStyle = simpleBucket.fillColor
+                    ctx.fill()
+                    ctx.globalAlpha = simpleBucket.outlineOpacity
+                    ctx.strokeStyle = "#000000"
+                    ctx.lineWidth = Math.max(1, candidateRadius / 26.5)
+                    ctx.stroke()
+                    ctx.restore()
+                }
+
+                for (var detailIndex = 0;
+                     detailIndex < detailedCandidates.length;
+                     ++detailIndex) {
+                    var detail = detailedCandidates[detailIndex]
+                    candidate = detail.candidate
+                    cp = detail.point
+                    showCandidateText = detail.showText
+                    isFirstCandidate = detail.isFirst
+                    isBestCandidate = detail.isBest
+                    var candidateLines = showCandidateText ? (candidate.labelLines || []) : []
                     var markerOptions = {
                         "fillColor": candidate.color || app.candidateMarkerColor(candidate.displayIndex,
                                                                                   candidate.visitRatio),
@@ -682,10 +765,13 @@ Item {
 
                 if (i === 0 && activeCandidate) {
                     var labelPoint = boardScene.boardPointLocal(activeCandidate.x, activeCandidate.y)
+                    var activeCandidateLines = activeCandidate.labelLines || []
+                    if (activeCandidateLines.length <= 0)
+                        activeCandidateLines = app.candidateLabelLines(activeCandidate)
                     ctx.save()
                     if (app.ruleUsesDotsAndBoxes()) {
                         app.drawCandidateMarker(ctx, labelPoint.x, labelPoint.y, previewRadius,
-                                                activeCandidate.labelLines || [], {
+                                                activeCandidateLines, {
                                                     "fillColor": "#ffffff",
                                                     "fillOpacity": 0.88,
                                                     "drawOutline": true,
@@ -694,7 +780,7 @@ Item {
                                                 })
                     } else {
                         app.drawCandidateLabelLines(ctx,
-                                                    activeCandidate.labelLines || [],
+                                                    activeCandidateLines,
                                                     labelPoint.x,
                                                     labelPoint.y,
                                                     previewRadius,
@@ -777,6 +863,9 @@ Item {
             var stoneRadius = Math.max(8, cell * app.stoneScale * 0.5)
             var cp = boardScene.boardPointLocal(candidate.x, candidate.y)
             var isFirstCandidate = candidate.displayIndex === 1
+            var candidateLines = candidate.labelLines || []
+            if (candidateLines.length <= 0)
+                candidateLines = app.candidateLabelLines(candidate)
 
             if (!boardScene.variationPreviewActive && (!candidate.qualified || !candidate.boardVisible)) {
                 var markerOptions = {
@@ -790,12 +879,12 @@ Item {
                     "textColor": isFirstCandidate ? app.candidateFirstLabelTextColor : "",
                     "rankText": !candidate.boardVisible ? app.candidateRankLabelText(candidate.displayIndex) : ""
                 }
-                if (!candidate.labelLines || candidate.labelLines.length <= 0) {
+                if (candidateLines.length <= 0) {
                     markerOptions.fallbackText = String(candidate.displayIndex)
                     markerOptions.fallbackColor = isFirstCandidate ? app.candidateFirstLabelTextColor : "#104f29"
                     markerOptions.fallbackFontSize = Math.max(10, Math.min(16, cell * 0.20))
                 }
-                app.drawCandidateMarker(ctx, cp.x, cp.y, stoneRadius, candidate.labelLines || [], markerOptions)
+                app.drawCandidateMarker(ctx, cp.x, cp.y, stoneRadius, candidateLines, markerOptions)
             }
 
             ctx.save()

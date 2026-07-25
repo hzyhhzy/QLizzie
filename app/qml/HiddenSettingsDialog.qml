@@ -106,6 +106,29 @@ AppWindowDialog {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            Label {
+                text: app.trText("candidateTableRowLimit")
+                color: "#24313a"
+                Layout.fillWidth: true
+            }
+
+            AppSpinBox {
+                from: 1
+                to: app.maxCandidateTableRowLimit
+                editable: true
+                value: app.candidateTableRowLimit
+                Layout.preferredWidth: 150
+                onValueModified: {
+                    app.candidateTableRowLimit = value
+                    app.savePersistentSettings()
+                }
+            }
+        }
+
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 8

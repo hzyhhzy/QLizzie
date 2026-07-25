@@ -90,6 +90,11 @@ function normalizePersistentSettings(app) {
     if (app.activeEngineId.length > 0 && !EnginePresets.findById(app.enginePresets, app.activeEngineId))
         app.activeEngineId = ""
     app.candidateDisplayCount = Math.round(app.clamp(app.candidateDisplayCount, 0, 65536))
+    var candidateTableRowLimit = Number(app.candidateTableRowLimit)
+    if (isNaN(candidateTableRowLimit))
+        candidateTableRowLimit = 20
+    app.candidateTableRowLimit = Math.round(app.clamp(
+                candidateTableRowLimit, 1, app.maxCandidateTableRowLimit))
     app.candidateMinVisitRatio = app.clamp(app.candidateMinVisitRatio, 0, 1)
 
     var previewMaxMoves = Number(app.candidateVariationPreviewMaxMoves)
@@ -310,6 +315,8 @@ function loadPersistentSettings(app, settings) {
     app.analysisWideRootNoiseEnabled = settingBool(settings, "analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
     app.analysisWideRootNoise = app.clampAnalysisWideRootNoise(settingValue(settings, "analysisWideRootNoise", app.analysisWideRootNoise))
     app.candidateDisplayCount = Number(settingValue(settings, "candidateDisplayCount", app.candidateDisplayCount))
+    app.candidateTableRowLimit = Number(settingValue(
+                settings, "candidateTableRowLimit", app.candidateTableRowLimit))
     app.candidateMinVisitRatio = Number(settingValue(settings, "candidateMinVisitRatio", app.candidateMinVisitRatio))
     app.candidateShowFilteredMarkers = settingBool(settings, "candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)
     app.candidateVariationPreviewVisible = settingBool(settings, "candidateVariationPreviewVisible", app.candidateVariationPreviewVisible)
@@ -409,6 +416,7 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
     settings.setValue("analysisWideRootNoise", app.analysisWideRootNoise)
     settings.setValue("candidateDisplayCount", app.candidateDisplayCount)
+    settings.setValue("candidateTableRowLimit", app.candidateTableRowLimit)
     settings.setValue("candidateMinVisitRatio", app.candidateMinVisitRatio)
     settings.setValue("candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)
     settings.setValue("candidateVariationPreviewVisible", app.candidateVariationPreviewVisible)

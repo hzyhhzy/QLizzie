@@ -38,6 +38,15 @@ void EngineProtocolState::beginAnalysis(int syncResponseCount)
     m_transactionKind = TransactionKind::Analysis;
 }
 
+void EngineProtocolState::beginSynchronization(int syncResponseCount)
+{
+    resetTransaction();
+    m_transactionId = ++m_nextTransactionId;
+    m_responsesBeforeCompletion = std::max(0, syncResponseCount);
+    if (m_responsesBeforeCompletion > 0)
+        m_transactionKind = TransactionKind::Synchronization;
+}
+
 void EngineProtocolState::beginMove(int preludeResponseCount, int requestId)
 {
     resetTransaction();
@@ -87,7 +96,10 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
         return { Event::None, true };
 
     if (expected.role == ResponseRole::AnalysisSync
-            && m_transactionKind == TransactionKind::Analysis) {
+            && (m_transactionKind == TransactionKind::Analysis
+                || m_transactionKind == TransactionKind::Synchronization)) {
+        const bool enableCandidateInfo =
+            m_transactionKind == TransactionKind::Analysis;
         if (!response.isSuccess() && !ignoreErrorResponses) {
             const QString failureLine = response.rawLine;
             resetTransaction();
@@ -113,7 +125,7 @@ EngineProtocolState::Outcome EngineProtocolState::consumeLine(const QString &lin
             };
 
         resetTransaction();
-        m_acceptCandidateInfo = true;
+        m_acceptCandidateInfo = enableCandidateInfo;
         return {
             Event::AnalysisSyncCompleted,
             true,

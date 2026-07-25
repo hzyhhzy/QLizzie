@@ -144,6 +144,8 @@ assert.match(engineMenu, /model:\s*Math\.min\(10,\s*root\.enginePresets\.length\
 assert.match(engineMenu, /engineMenu\.insertItem\(index\s*\+\s*4,\s*object\)/)
 
 assert.match(mainSource, /property bool ignoreGtpErrors:\s*true/)
+assert.match(mainSource, /property int candidateTableRowLimit:\s*20/)
+assert.match(mainSource, /maxCandidateTableRowLimit:\s*10000/)
 assert.match(mainSource, /messages\.length > 2/)
 assert.match(mainSource, /interval:\s*5000/)
 assert.match(mainSource, /enabled:\s*false/)
@@ -151,7 +153,10 @@ assert.match(mainSource, /function onGtpErrorResponse\(line\)/)
 assert.match(mainSource,
              /var ignoredGtpError = root\.ignoreGtpErrors[\s\S]*?if \(ignoredGtpError\)\s*return/)
 assert.match(hiddenSettingsSource, /text:\s*app\.trText\("ignoreGtpErrors"\)/)
+assert.match(hiddenSettingsSource, /text:\s*app\.trText\("candidateTableRowLimit"\)/)
+assert.match(hiddenSettingsSource, /to:\s*app\.maxCandidateTableRowLimit/)
 assert.match(settingsStoreSource, /settingBool\(settings,\s*"ignoreGtpErrors"/)
+assert.match(settingsStoreSource, /"candidateTableRowLimit"/)
 assert.match(settingsStoreSource, /settings\.setValue\("ignoreGtpErrors",\s*app\.ignoreGtpErrors\)/)
 assert.match(mainSource, /property int engineCommunicationLogLimit:\s*1000/)
 assert.match(mainSource, /property int engineCommunicationLogCharacterLimit:\s*262144/)
@@ -198,6 +203,8 @@ assert.match(engineControllerSource,
              /kMaximumAnalysisInfoLineBytes\s*=\s*4\s*\*\s*1024\s*\*\s*1024/)
 assert.match(engineControllerSource,
              /communicationInfoLineFiltered\(text\)[\s\S]*?return kMaximumAnalysisInfoLineBytes/)
+assert.match(engineControllerSource, /item\.insert\(QStringLiteral\("pvText"\)/)
+assert.match(engineControllerSource, /item\.insert\(QStringLiteral\("pvVisitsText"\)/)
 assert.match(engineControllerSource,
              /newlineIndex > maximumBytes/)
 assert.match(engineControllerSource,
@@ -226,10 +233,45 @@ assert.doesNotMatch(engineSyncCommands, /engineSyncedNodeIds\s*=/)
 assert.doesNotMatch(engineSyncCommands, /engineNeedsFullSync\s*=\s*false/)
 assert.match(mainSource, /function resetGameTree\(\)\s*\{[\s\S]*?invalidateEngineSyncState\(\)/)
 assert.match(mainSource, /function onEngineSynchronizationCompleted\(syncRequestId\)/)
+assert.match(mainSource,
+             /function requestEngineSynchronization\(\)[\s\S]*?requestSynchronization\(engineSyncCommands\(syncRequestId\)/)
+assert.match(mainSource,
+             /function requestScheduledEngineUpdate\(\)\s*\{[\s\S]*?if \(enginePaused\)[\s\S]*?requestEngineSynchronization\(\)[\s\S]*?requestEngineAnalysis\(false\)/)
+assert.match(mainSource,
+             /function scheduleAutoAnalysis\(\)\s*\{[\s\S]*?autoAnalyzeTimer\.interval = enginePaused \? 1 : 280/)
+assert.match(mainSource,
+             /function resetGameTree\(\)\s*\{[\s\S]*?boardRevision \+= 1\s*scheduleAutoAnalysis\(\)/)
 assert.match(mainSource, /function markGeneratedMoveSynced\(\)/)
 assert.match(mainSource, /if \(!root\.applyGeneratedMove\(move\)\)/)
 assert.match(mainSource, /position\.generation === root\.gameTreeGeneration/)
 assert.match(mainSource, /position\.nodeId === root\.currentNodeId/)
+assert.match(engineControllerHeader,
+             /Q_PROPERTY\(int candidateCount READ candidateCount NOTIFY candidatesChanged\)/)
+assert.match(mainSource, /largeCandidateUiThreshold:\s*1000/)
+assert.match(mainSource, /largeCandidateUiIntervalMs:\s*1000/)
+assert.match(mainSource,
+             /function flushEngineCandidateUpdate\(\)[\s\S]*?var candidateSnapshot = engineController\.candidates/)
+assert.match(mainSource,
+             /function scheduleEngineCandidateUpdate\(\)[\s\S]*?engineController\.candidateCount/)
+assert.match(mainSource,
+             /function scheduleEngineCandidateUpdate\(\)\s*\{\s*if \(applicationShutdownPrepared/)
+assert.match(mainSource,
+             /if \(!largeCandidateUiUpdateTimer\.running\)[\s\S]*?largeCandidateUiUpdateTimer\.start\(\)/)
+assert.match(mainSource,
+             /function onCandidatesChanged\(\)[\s\S]*?root\.scheduleEngineCandidateUpdate\(\)/)
+assert.match(mainSource, /EngineSpeed\.totalVisits\(engineCandidates\)/)
+assert.match(mainSource,
+             /function stopApplicationTimersForShutdown\(\)[\s\S]*?largeCandidateUiUpdateTimer\.stop\(\)/)
+
+const candidateUpdateFunction = mainSource.slice(
+    mainSource.indexOf("function applyEngineCandidateUpdate(candidates, revision)"),
+    mainSource.indexOf("function rebuildEngineCandidateItems()")
+)
+assert.doesNotMatch(candidateUpdateFunction, /cloneCandidateList/)
+assert.match(boardSceneSource,
+             /!showCandidateText && candidate\.displayIndex > 9[\s\S]*?simpleMarkerBuckets/)
+assert.match(boardSceneSource,
+             /simpleMarkerBucketKeys\.sort[\s\S]*?ctx\.fill\(\)[\s\S]*?ctx\.stroke\(\)/)
 assert.match(mainSource, /function cancelActiveGenmoveRequest\(\)/)
 assert.match(mainSource, /if \(!engineController\.ready\)/)
 assert.match(mainSource, /engineInitialCommandsPendingForId/)

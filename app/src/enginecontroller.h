@@ -25,6 +25,7 @@ class EngineController : public QObject
                NOTIFY ignoreGtpErrorsChanged)
     Q_PROPERTY(QVariantList candidates READ candidates NOTIFY candidatesChanged)
     Q_PROPERTY(QVariantList ownership READ ownership NOTIFY candidatesChanged)
+    Q_PROPERTY(int candidateCount READ candidateCount NOTIFY candidatesChanged)
     Q_PROPERTY(int candidateRevision READ candidateRevision NOTIFY candidatesChanged)
 
 public:
@@ -45,6 +46,7 @@ public:
     void setIgnoreGtpErrors(bool ignore);
     QVariantList candidates() const;
     QVariantList ownership() const;
+    int candidateCount() const;
     int candidateRevision() const;
 
     Q_INVOKABLE void ensureStarted();
@@ -55,6 +57,8 @@ public:
     Q_INVOKABLE void requestAnalysis(const QStringList &syncCommands,
                                      const QString &analyzeCommand,
                                      int syncRequestId);
+    Q_INVOKABLE void requestSynchronization(const QStringList &syncCommands,
+                                            int syncRequestId);
     Q_INVOKABLE void requestMove(const QStringList &syncCommands,
                                  const QString &timeSettingsCommand,
                                  const QString &genmoveCommand,

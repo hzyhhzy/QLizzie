@@ -50,6 +50,7 @@ public:
 
     void beginHandshake();
     void beginAnalysis(int syncResponseCount);
+    void beginSynchronization(int syncResponseCount);
     void beginMove(int preludeResponseCount, int requestId);
     void expectResponse(ResponseRole role);
     void stopAcceptingCandidateInfo();
@@ -69,6 +70,7 @@ private:
     enum class TransactionKind {
         None,
         Analysis,
+        Synchronization,
         Move
     };
 

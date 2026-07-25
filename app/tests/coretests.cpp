@@ -16,6 +16,7 @@ private slots:
     void parsesGtpResponses();
     void rejectsFailedHandshake();
     void keepsUnrelatedResponsesOutOfAnalysisTransaction();
+    void keepsSynchronizationFromAcceptingCandidates();
     void rejectsAnalysisWhenAnySyncCommandFails();
     void ignoresConfiguredProtocolErrors();
     void ignoredSyncErrorsOnlyNotify();
@@ -80,10 +81,12 @@ void CoreTests::parsesOwnershipWithoutPollutingCandidates()
 
     const QVariantMap first = controller.candidates().at(0).toMap();
     const QVariantMap second = controller.candidates().at(1).toMap();
-    QCOMPARE(first.value(QStringLiteral("pv")).toList(),
-             QVariantList({ QStringLiteral("D4"), QStringLiteral("C3") }));
-    QCOMPARE(second.value(QStringLiteral("pv")).toList(),
-             QVariantList({ QStringLiteral("Q16"), QStringLiteral("R17") }));
+    QCOMPARE(first.value(QStringLiteral("pvText")).toString(),
+             QStringLiteral("D4 C3"));
+    QCOMPARE(second.value(QStringLiteral("pvText")).toString(),
+             QStringLiteral("Q16 R17"));
+    QVERIFY(!first.contains(QStringLiteral("pv")));
+    QVERIFY(!second.contains(QStringLiteral("pv")));
 }
 
 void CoreTests::clearsOwnershipWithNewCandidateBatch()
@@ -133,8 +136,8 @@ void CoreTests::rejectsMalformedOwnership()
     QCOMPARE(controller.candidates().size(), 1);
     const QVariantMap candidate = controller.candidates().first().toMap();
     QCOMPARE(candidate.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
-    QCOMPARE(candidate.value(QStringLiteral("pv")).toList(),
-             QVariantList({ QStringLiteral("Q16") }));
+    QCOMPARE(candidate.value(QStringLiteral("pvText")).toString(),
+             QStringLiteral("Q16"));
 }
 
 void CoreTests::ignoresUnhandledAnalysisErrorsWhenConfigured()
@@ -198,6 +201,25 @@ void CoreTests::keepsUnrelatedResponsesOutOfAnalysisTransaction()
     QCOMPARE(synchronized.event, EngineProtocolState::Event::AnalysisSyncCompleted);
     QVERIFY(synchronized.success);
     QVERIFY(state.acceptsCandidateInfo());
+}
+
+void CoreTests::keepsSynchronizationFromAcceptingCandidates()
+{
+    EngineProtocolState state;
+    state.beginSynchronization(2);
+    state.expectResponse(EngineProtocolState::ResponseRole::AnalysisSync);
+    state.expectResponse(EngineProtocolState::ResponseRole::AnalysisSync);
+
+    const EngineProtocolState::Outcome first = state.consumeLine(QStringLiteral("="));
+    QCOMPARE(first.event, EngineProtocolState::Event::None);
+    QVERIFY(first.handled);
+    QVERIFY(!state.acceptsCandidateInfo());
+
+    const EngineProtocolState::Outcome synchronized =
+        state.consumeLine(QStringLiteral("="));
+    QCOMPARE(synchronized.event, EngineProtocolState::Event::AnalysisSyncCompleted);
+    QVERIFY(synchronized.success);
+    QVERIFY(!state.acceptsCandidateInfo());
 }
 
 void CoreTests::rejectsAnalysisWhenAnySyncCommandFails()
@@ -473,6 +495,7 @@ void CoreTests::shutdownIsTerminal()
     controller.restart();
     controller.sendCommand(QStringLiteral("name"));
     controller.requestAnalysis({}, QStringLiteral("kata-analyze"), 1);
+    controller.requestSynchronization({}, 2);
     controller.requestMove({}, QString(), QStringLiteral("genmove B"), 2, 3);
 
     QVERIFY(!controller.running());

@@ -293,6 +293,9 @@ ApplicationWindow {
     property var engineCandidateTableItems: []
     property int engineCandidateRevision: 0
     property bool engineCandidatesFromCache: false
+    property double lastEngineCandidateUiUpdateAt: 0
+    readonly property int largeCandidateUiThreshold: 1000
+    readonly property int largeCandidateUiIntervalMs: 1000
     property bool bestCandidateRingVisible: false
     property string bestCandidateRingKey: ""
     property int bestCandidateRingX: -1
@@ -328,6 +331,8 @@ ApplicationWindow {
     property real analysisWideRootNoise: 0.05
     readonly property int maxLargeIntegerSetting: 1073741824
     property int candidateDisplayCount: 10
+    property int candidateTableRowLimit: 20
+    readonly property int maxCandidateTableRowLimit: 10000
     property real candidateMinVisitRatio: 0.001
     property bool candidateShowFilteredMarkers: true
     property bool candidateVariationPreviewVisible: true
@@ -458,6 +463,7 @@ ApplicationWindow {
     }
     onLanguageChanged: rebuildEngineCandidateItems()
     onCandidateDisplayCountChanged: rebuildEngineCandidateItems()
+    onCandidateTableRowLimitChanged: rebuildEngineCandidateItems()
     onCandidateMinVisitRatioChanged: rebuildEngineCandidateItems()
     onCandidateShowFilteredMarkersChanged: rebuildEngineCandidateItems()
     onCandidateWinrateLabelVisibleChanged: rebuildEngineCandidateItems()
@@ -803,7 +809,7 @@ ApplicationWindow {
         id: autoAnalyzeTimer
         interval: 280
         repeat: false
-        onTriggered: root.requestEngineAnalysis(false)
+        onTriggered: root.requestScheduledEngineUpdate()
     }
 
     Timer {
@@ -812,6 +818,13 @@ ApplicationWindow {
         repeat: true
         running: true
         onTriggered: root.sampleEngineSearchSpeed()
+    }
+
+    Timer {
+        id: largeCandidateUiUpdateTimer
+        interval: root.largeCandidateUiIntervalMs
+        repeat: false
+        onTriggered: root.flushEngineCandidateUpdate()
     }
 
     Timer {
@@ -1698,7 +1711,7 @@ ApplicationWindow {
         }
 
         var key = currentEngineSearchSpeedKey()
-        var total = EngineSpeed.totalVisits(engineController.candidates)
+        var total = EngineSpeed.totalVisits(engineCandidates)
         if (total < 0) {
             resetEngineSearchSpeed()
             return
@@ -2275,6 +2288,7 @@ ApplicationWindow {
         rebuildPointLegality()
         rebuildTreeLayout()
         boardRevision += 1
+        scheduleAutoAnalysis()
     }
 
     function branchChildMatching(parent, key, player, isPass, moveRole) {
@@ -3854,10 +3868,39 @@ ApplicationWindow {
         resetAnalysisLimitTimer()
     }
 
+    function requestEngineSynchronization() {
+        if (applicationShutdownPrepared || !analysisModeActive()
+                || !enginePaused || engineDisabled || !engineAutoAnalyze
+                || !engineController)
+            return
+        if (!engineController.ready) {
+            engineLoading = true
+            return
+        }
+        if (engineInitialCommandsPendingForId.length > 0) {
+            engineInitialCommandsCompletionTimer.start()
+            return
+        }
+        engineLoading = false
+        engineAnalysisRequestValid = false
+        engineAnalysisSyncRequestId = 0
+        var syncRequestId = ++engineSyncRequestSerial
+        engineController.requestSynchronization(engineSyncCommands(syncRequestId),
+                                                syncRequestId)
+    }
+
+    function requestScheduledEngineUpdate() {
+        if (enginePaused)
+            requestEngineSynchronization()
+        else
+            requestEngineAnalysis(false)
+    }
+
     function scheduleAutoAnalysis() {
         if (applicationShutdownPrepared || !appReady || !analysisModeActive()
-                || enginePaused || engineDisabled || !engineAutoAnalyze)
+                || engineDisabled || !engineAutoAnalyze)
             return
+        autoAnalyzeTimer.interval = enginePaused ? 1 : 280
         autoAnalyzeTimer.restart()
     }
 
@@ -4562,8 +4605,46 @@ ApplicationWindow {
     function applyEngineCandidateUpdate(candidates, revision) {
         CandidateAnalysis.applyEngineCandidateUpdate(
                     root,
-                    CandidateAnalysis.cloneCandidateList(candidates),
+                    candidates,
                     revision)
+    }
+
+    function flushEngineCandidateUpdate() {
+        if (!engineController)
+            return
+        var candidateSnapshot = engineController.candidates
+        applyEngineCandidateUpdate(candidateSnapshot,
+                                   engineController.candidateRevision)
+        applyEngineOwnershipUpdate(engineController.ownership)
+        lastEngineCandidateUiUpdateAt = Date.now()
+        tryFinishAiAnalysisMove()
+    }
+
+    function scheduleEngineCandidateUpdate() {
+        if (applicationShutdownPrepared || !engineController)
+            return
+
+        var candidateCount = engineController.candidateCount
+        if (candidateCount <= largeCandidateUiThreshold
+                || aiAnalysisInFlight) {
+            largeCandidateUiUpdateTimer.stop()
+            flushEngineCandidateUpdate()
+            return
+        }
+
+        var elapsed = Date.now() - lastEngineCandidateUiUpdateAt
+        if (lastEngineCandidateUiUpdateAt <= 0
+                || elapsed >= largeCandidateUiIntervalMs) {
+            largeCandidateUiUpdateTimer.stop()
+            flushEngineCandidateUpdate()
+            return
+        }
+
+        if (!largeCandidateUiUpdateTimer.running) {
+            largeCandidateUiUpdateTimer.interval = Math.max(
+                        1, largeCandidateUiIntervalMs - elapsed)
+            largeCandidateUiUpdateTimer.start()
+        }
     }
 
     function rebuildEngineCandidateItems() {
@@ -5220,6 +5301,7 @@ ApplicationWindow {
     function stopApplicationTimersForShutdown() {
         autoAnalyzeTimer.stop()
         engineSearchSpeedTimer.stop()
+        largeCandidateUiUpdateTimer.stop()
         engineInitialCommandsCompletionTimer.stop()
         analysisLimitTimer.stop()
         aiAnalysisMoveTimer.stop()
@@ -5432,14 +5514,11 @@ ApplicationWindow {
         }
 
         function onCandidatesChanged() {
-            if (!engineController.candidates || engineController.candidates.length <= 0)
+            if (engineController.candidateCount <= 0)
                 root.resetEngineSearchSpeed()
             else if (root.aiAnalysisInFlight && root.engineAnalysisRequestValid)
                 root.restartAiAnalysisWatchdog()
-            root.applyEngineCandidateUpdate(engineController.candidates,
-                                            engineController.candidateRevision)
-            root.applyEngineOwnershipUpdate(engineController.ownership)
-            root.tryFinishAiAnalysisMove()
+            root.scheduleEngineCandidateUpdate()
         }
 
         function onReadyChanged() {

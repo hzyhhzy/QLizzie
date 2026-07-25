@@ -423,6 +423,11 @@ QVariantList EngineController::ownership() const
     return m_ownership;
 }
 
+int EngineController::candidateCount() const
+{
+    return m_candidates.size();
+}
+
 int EngineController::candidateRevision() const
 {
     return m_candidateRevision;
@@ -641,6 +646,47 @@ void EngineController::requestAnalysis(const QStringList &syncCommands,
     m_activeSyncRequestId = syncRequestId;
     m_activeAnalysisRequestId = syncRequestId;
     m_protocolState.beginAnalysis(syncResponseCount);
+
+    if (m_restartPending) {
+        setStatusText(QStringLiteral("Engine restarting"));
+        return;
+    }
+
+    if (m_process.state() == QProcess::Running) {
+        sendPendingCommands();
+    } else if (m_process.state() == QProcess::NotRunning) {
+        startProcess();
+    } else {
+        setStatusText(QStringLiteral("Starting engine"));
+    }
+}
+
+void EngineController::requestSynchronization(const QStringList &syncCommands,
+                                              int syncRequestId)
+{
+    if (m_shutdownRequested)
+        return;
+    const QString supersededMessage =
+        QStringLiteral("Move request superseded by board synchronization");
+    if (m_responsesPending > 0) {
+        interruptCurrentCommand({ QStringLiteral("stop"),
+                                  EngineProtocolState::ResponseRole::Ignored,
+                                  true },
+                                supersededMessage);
+    } else {
+        failActiveMoveRequest(supersededMessage);
+    }
+    clearCandidates();
+    m_pendingCommands.clear();
+    const QStringList normalizedSyncCommands = normalizedCommands(syncCommands);
+    for (const QString &command : normalizedSyncCommands) {
+        m_pendingCommands.append({ command,
+                                   EngineProtocolState::ResponseRole::AnalysisSync,
+                                   true });
+    }
+    m_activeSyncRequestId = syncRequestId;
+    m_activeAnalysisRequestId = 0;
+    m_protocolState.beginSynchronization(normalizedSyncCommands.size());
 
     if (m_restartPending) {
         setStatusText(QStringLiteral("Engine restarting"));
@@ -1143,46 +1189,38 @@ void EngineController::parseInfoLine(const QString &line)
             if (key.isEmpty())
                 break;
             if (key == QLatin1StringView("pv")) {
-                QVariantList pv;
-                while (tokenPosition < segment.size()) {
-                    const QString pvMove = nextMoveToken(segment, tokenPosition);
-                    if (pvMove.isEmpty())
-                        break;
-                    if (pvMove == QLatin1StringView("pvVisits")) {
-                        QVariantList pvVisits;
-                        while (tokenPosition < segment.size()) {
-                            const QStringView pvVisitToken = nextToken(segment, tokenPosition);
-                            if (pvVisitToken.isEmpty())
-                                break;
-                            bool visitOk = false;
-                            const int visitValue = pvVisitToken.toInt(&visitOk);
-                            if (visitOk)
-                                pvVisits.append(visitValue);
-                        }
-                        if (!pvVisits.isEmpty())
-                            item.insert(QStringLiteral("pvVisits"), pvVisits);
-                        break;
+                const qsizetype pvVisitsPosition =
+                    standaloneTokenPosition(segment,
+                                            QLatin1StringView("pvVisits"),
+                                            tokenPosition);
+                const QStringView pvText = trimmedView(
+                    pvVisitsPosition >= 0
+                        ? segment.sliced(tokenPosition,
+                                         pvVisitsPosition - tokenPosition)
+                        : segment.sliced(tokenPosition));
+                if (!pvText.isEmpty())
+                    item.insert(QStringLiteral("pvText"), pvText.toString());
+                if (pvVisitsPosition >= 0) {
+                    const qsizetype pvVisitsStart =
+                        pvVisitsPosition
+                        + qsizetype(QLatin1StringView("pvVisits").size());
+                    const QStringView pvVisitsText =
+                        trimmedView(segment.sliced(pvVisitsStart));
+                    if (!pvVisitsText.isEmpty()) {
+                        item.insert(QStringLiteral("pvVisitsText"),
+                                    pvVisitsText.toString());
                     }
-                    pv.append(pvMove);
                 }
-                if (!pv.isEmpty())
-                    item.insert(QStringLiteral("pv"), pv);
                 break;
             }
 
             if (key == QLatin1StringView("pvVisits")) {
-                QVariantList pvVisits;
-                while (tokenPosition < segment.size()) {
-                    const QStringView pvVisitToken = nextToken(segment, tokenPosition);
-                    if (pvVisitToken.isEmpty())
-                        break;
-                    bool visitOk = false;
-                    const int visitValue = pvVisitToken.toInt(&visitOk);
-                    if (visitOk)
-                        pvVisits.append(visitValue);
+                const QStringView pvVisitsText =
+                    trimmedView(segment.sliced(tokenPosition));
+                if (!pvVisitsText.isEmpty()) {
+                    item.insert(QStringLiteral("pvVisitsText"),
+                                pvVisitsText.toString());
                 }
-                if (!pvVisits.isEmpty())
-                    item.insert(QStringLiteral("pvVisits"), pvVisits);
                 break;
             }
 
