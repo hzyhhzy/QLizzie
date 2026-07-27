@@ -33,8 +33,8 @@ Rectangle {
     readonly property int activeStoneSize: 44
     readonly property int inactiveStoneSize: 34
     readonly property int panelGap: app.compactLayout ? 8 : 10
-    readonly property bool winrateBarVisible: app.analysisModeActive() || app.engineWinratePlaceholderActive()
-    readonly property bool winrateGraphVisible: app.analysisModeActive()
+    readonly property bool winrateBarVisible: app.analysisPresentationVisible()
+    readonly property bool winrateGraphVisible: app.analysisPresentationVisible()
     readonly property int topPanelHeight: panelPadding * 2
                                           + summaryRowHeight
                                           + (winrateBarVisible ? 6 + 1 + 6 + winrateBarHeight : 0)
@@ -297,6 +297,10 @@ Rectangle {
             color: "#636b6f"
             border.color: "#3f484d"
             clip: true
+            onVisibleChanged: {
+                if (visible)
+                    winrateCanvas.requestPaint()
+            }
 
             Canvas {
                 id: winrateCanvas
@@ -313,9 +317,11 @@ Rectangle {
                     var bottom = 18
                     var plotWidth = Math.max(1, width - left - right)
                     var plotHeight = Math.max(1, height - top - bottom)
-                    var currentMove = app.currentMoveNumberValue()
-                    var xMax = currentMove > 45 ? Math.max(50, currentMove * 1.1) : 50
-                    var points = app.winrateHistoryPoints()
+                    var history = app.winrateHistoryData()
+                    var currentMove = history.currentMove
+                    var maximumMove = Math.max(currentMove, history.maximumMove)
+                    var xMax = maximumMove > 45 ? maximumMove : 50
+                    var points = history.points
 
                     ctx.strokeStyle = "#dce2e5"
                     ctx.globalAlpha = 0.70
@@ -346,32 +352,57 @@ Rectangle {
                     ctx.fillText("50", left - 3, top + plotHeight / 2)
                     ctx.fillText("0", left - 3, top + plotHeight)
 
-                    if (points.length <= 0)
-                        return
+                    ctx.textBaseline = "top"
+                    ctx.textAlign = "left"
+                    ctx.fillText("0", left, top + plotHeight + 3)
+                    ctx.textAlign = "right"
+                    ctx.fillText(String(Math.round(xMax)),
+                                 left + plotWidth,
+                                 top + plotHeight + 3)
 
-                    ctx.strokeStyle = "#48d3ff"
-                    ctx.fillStyle = "#48d3ff"
-                    ctx.lineWidth = 2
-                    ctx.beginPath()
-                    var started = false
-                    for (var i = 0; i < points.length; ++i) {
-                        var px = left + app.clamp(points[i].move / xMax, 0, 1) * plotWidth
-                        var py = top + (100 - points[i].winrate) / 100 * plotHeight
-                        if (!started) {
-                            ctx.moveTo(px, py)
-                            started = true
-                        } else {
-                            ctx.lineTo(px, py)
+                    if (points.length > 0) {
+                        ctx.strokeStyle = "#48d3ff"
+                        ctx.fillStyle = "#48d3ff"
+                        ctx.lineWidth = 2
+                        ctx.beginPath()
+                        var started = false
+                        for (var i = 0; i < points.length; ++i) {
+                            var px = left + app.clamp(points[i].move / xMax, 0, 1) * plotWidth
+                            var py = top + (100 - points[i].winrate) / 100 * plotHeight
+                            if (!started) {
+                                ctx.moveTo(px, py)
+                                started = true
+                            } else {
+                                ctx.lineTo(px, py)
+                            }
+                        }
+                        ctx.stroke()
+
+                        for (var p = 0; p < points.length; ++p) {
+                            var dx = left + app.clamp(points[p].move / xMax, 0, 1) * plotWidth
+                            var dy = top + (100 - points[p].winrate) / 100 * plotHeight
+                            ctx.beginPath()
+                            ctx.arc(dx, dy, 2.3, 0, Math.PI * 2)
+                            ctx.fill()
                         }
                     }
-                    ctx.stroke()
 
-                    for (var p = 0; p < points.length; ++p) {
-                        var dx = left + app.clamp(points[p].move / xMax, 0, 1) * plotWidth
-                        var dy = top + (100 - points[p].winrate) / 100 * plotHeight
+                    if (maximumMove > currentMove) {
+                        var currentX = left + app.clamp(currentMove / xMax, 0, 1) * plotWidth
+                        ctx.strokeStyle = "#ffd166"
+                        ctx.fillStyle = "#ffd166"
+                        ctx.lineWidth = 1.5
+                        ctx.setLineDash([4, 3])
                         ctx.beginPath()
-                        ctx.arc(dx, dy, 2.3, 0, Math.PI * 2)
-                        ctx.fill()
+                        ctx.moveTo(currentX, top)
+                        ctx.lineTo(currentX, top + plotHeight)
+                        ctx.stroke()
+                        ctx.setLineDash([])
+                        ctx.textAlign = "center"
+                        ctx.textBaseline = "top"
+                        ctx.fillText(String(Math.round(currentMove)),
+                                     currentX,
+                                     top + plotHeight + 3)
                     }
                 }
 
@@ -383,8 +414,11 @@ Rectangle {
                     target: app
                     function onAnalysisRevisionChanged() { winrateCanvas.requestPaint() }
                     function onCurrentNodeIdChanged() { winrateCanvas.requestPaint() }
+                    function onGameNodesChanged() { winrateCanvas.requestPaint() }
                     function onLanguageChanged() { winrateCanvas.requestPaint() }
                     function onPlayModeChanged() { winrateCanvas.requestPaint() }
+                    function onAiMoveModeChanged() { winrateCanvas.requestPaint() }
+                    function onHideAnalysisDuringPlayChanged() { winrateCanvas.requestPaint() }
                 }
             }
         }
@@ -394,7 +428,7 @@ Rectangle {
 
     Rectangle {
         id: candidateTable
-        visible: app.analysisModeActive()
+        visible: app.analysisPresentationVisible()
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: summaryPanel.bottom

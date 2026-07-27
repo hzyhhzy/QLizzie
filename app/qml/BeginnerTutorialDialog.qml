@@ -11,6 +11,7 @@ Window {
     required property var app
     property int pageIndex: 0
     property bool positionedOnce: false
+    property bool acceptProgrammaticClose: false
     readonly property var pages: [
         { "title": app.trText("tutorialPageViewTitle"), "body": app.trText("tutorialPageViewBody") },
         { "title": app.trText("tutorialPageRulesTitle"), "body": app.trText("tutorialPageRulesBody") },
@@ -53,8 +54,19 @@ Window {
     }
 
     function finishTutorial() {
-        visible = false
-        app.focusBoardInput()
+        closeTutorialWindow()
+        if (!app.applicationShutdownPrepared)
+            app.focusBoardInput()
+    }
+
+    function closeTutorialWindow() {
+        if (!visible)
+            return
+        if (skipTutorialDialog.visible)
+            skipTutorialDialog.close()
+        acceptProgrammaticClose = true
+        tutorialDialog.close()
+        acceptProgrammaticClose = false
     }
 
     function currentPageTitle() {
@@ -91,6 +103,8 @@ Window {
     }
 
     onClosing: function(closeEvent) {
+        if (acceptProgrammaticClose)
+            return
         closeEvent.accepted = false
         skipTutorialDialog.open()
     }
@@ -100,7 +114,7 @@ Window {
 
         function onVisibleChanged() {
             if (!app.visible)
-                tutorialDialog.visible = false
+                tutorialDialog.closeTutorialWindow()
         }
     }
 

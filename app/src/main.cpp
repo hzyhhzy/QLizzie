@@ -57,11 +57,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    QQmlApplicationEngine engine;
+    // The QML engine must be destroyed before every QObject exposed through
+    // its root context. Construct it last so auxiliary QML windows cannot
+    // outlive the backend objects they reference during application teardown.
     AppSettings appSettings;
     FileIo fileIo;
     EngineController engineController;
     GomokuForbidden gomokuForbidden;
+    QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("fileIo"), &fileIo);
     engine.rootContext()->setContextProperty(QStringLiteral("engineController"), &engineController);

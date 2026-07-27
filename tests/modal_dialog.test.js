@@ -69,6 +69,29 @@ test("native close requests can be guarded by content-heavy dialogs", () => {
     assert.match(engineListSource, /onNativeCloseRequested:\s*requestClose\(\)/)
 })
 
+test("content-heavy dialogs release their native window whenever they close", () => {
+    assert.match(appWindowDialogSource, /property bool _acceptProgrammaticClose:\s*false/)
+    assert.match(
+        appWindowDialogSource,
+        /function closeDialog\(\)[\s\S]*?closeNativeWindow\(\)/
+    )
+    assert.match(
+        appWindowDialogSource,
+        /function closeNativeWindow\(\)[\s\S]*?_acceptProgrammaticClose\s*=\s*true[\s\S]*?appWindowDialog\.close\(\)/
+    )
+    assert.match(
+        appWindowDialogSource,
+        /onClosing:\s*function\(closeEvent\)[\s\S]*?if\s*\(_acceptProgrammaticClose\)/
+    )
+})
+
+test("dialog surface follows the Window size instead of a stale contentItem size", () => {
+    assert.match(appWindowDialogSource, /id:\s*dialogSurface/)
+    assert.match(appWindowDialogSource, /width:\s*appWindowDialog\.width/)
+    assert.match(appWindowDialogSource, /height:\s*appWindowDialog\.height/)
+    assert.doesNotMatch(appWindowDialogSource, /id:\s*dialogSurface\s*\n\s*anchors\.fill:\s*parent/)
+})
+
 test("Escape is handled after focused controls and their popups", () => {
     assert.doesNotMatch(appWindowDialogSource, /\bShortcut\s*\{/)
     assert.match(appWindowDialogSource, /\bFocusScope\s*\{/)

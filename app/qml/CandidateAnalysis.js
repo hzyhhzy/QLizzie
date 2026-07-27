@@ -784,7 +784,8 @@ function applyEngineCandidateUpdate(app, candidates, revision) {
     }
 
     setDisplay(app, incoming, false, revision)
-    if (app.engineCandidateItems.length > 0) {
+    if (app.engineCandidateItems.length > 0
+            && app.analysisPresentationVisible()) {
         app.statusMode = "message"
         app.statusMessage = app.engineCandidateSummaryText()
     }

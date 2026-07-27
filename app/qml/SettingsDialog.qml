@@ -452,6 +452,24 @@ AppWindowDialog {
                             Layout.fillWidth: true
                             spacing: 8
 
+                            AppCheckBox {
+                                text: app.trText("hideAnalysisDuringPlay")
+                                checked: app.hideAnalysisDuringPlay
+                                onToggled: app.hideAnalysisDuringPlay = checked
+                            }
+
+                            Label {
+                                text: app.trText("hideAnalysisDuringPlayTip")
+                                color: "#52636d"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
                             Label {
                                 text: app.trText("gtpSecondsPerMove")
                                 color: "#24313a"

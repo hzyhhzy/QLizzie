@@ -356,6 +356,9 @@ function loadPersistentSettings(app, settings) {
                 settings, "analysisSecondsPerMove",
                 app.analysisSecondsPerMove))
     app.aiMoveMode = Number(settingValue(settings, "aiMoveMode", app.aiMoveMode))
+    app.hideAnalysisDuringPlay = settingBool(
+                settings, "hideAnalysisDuringPlay",
+                app.hideAnalysisDuringPlay)
     app.analysisTotalVisitsPerMove = Number(settingValue(
                 settings, "analysisTotalVisitsPerMove",
                 app.analysisTotalVisitsPerMove))
@@ -454,6 +457,7 @@ function savePersistentSettings(app, settings, engineController) {
     settings.setValue("secondsPerMove", app.secondsPerMove)
     settings.setValue("analysisSecondsPerMove", app.analysisSecondsPerMove)
     settings.setValue("aiMoveMode", app.aiMoveMode)
+    settings.setValue("hideAnalysisDuringPlay", app.hideAnalysisDuringPlay)
     settings.setValue("analysisTotalVisitsPerMove", app.analysisTotalVisitsPerMove)
     settings.setValue("analysisFirstMoveVisitsPerMove", app.analysisFirstMoveVisitsPerMove)
     settings.setValue("resignMinMove", app.resignMinMove)

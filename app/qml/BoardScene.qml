@@ -89,8 +89,11 @@ Item {
     readonly property real boardTop: Math.round((height - gridHeight) / 2)
     readonly property real boardRight: boardLeft + gridWidth
     readonly property real boardBottom: boardTop + gridHeight
-    readonly property bool variationPreviewActive: app.activeCandidateVariationPreviewActive()
-    readonly property bool hoverCandidateActive: app.hoverKey !== ""
+    readonly property bool variationPreviewActive:
+        app.analysisPresentationVisible()
+        && app.activeCandidateVariationPreviewActive()
+    readonly property bool hoverCandidateActive:
+        app.analysisPresentationVisible() && app.hoverKey !== ""
                                                   && app.pointIsEngineCandidateKey(app.hoverKey)
 
     function hexDisplayCoordForBoard(x, y) {
@@ -507,7 +510,9 @@ Item {
     Canvas {
         id: candidateCanvas
         anchors.fill: parent
-        visible: (!boardScene.variationPreviewActive && app.engineCandidateItems.length > 0)
+        visible: app.analysisPresentationVisible()
+                 && !boardScene.variationPreviewActive
+                 && app.engineCandidateItems.length > 0
                  || app.koLocKey !== ""
                  || app.koLocKey2 !== ""
 

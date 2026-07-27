@@ -24,19 +24,49 @@ function currentAnalysisWhiteWinrate(app) {
     return 100 - currentAnalysisBlackWinrate(app)
 }
 
-function winrateHistoryPoints(app) {
+function activeVariationNodes(app) {
+    var path = app.nodePath(app.currentNodeId).slice()
+    var seen = ({})
+    for (var i = 0; i < path.length; ++i) {
+        if (path[i])
+            seen[String(path[i].id)] = true
+    }
+
+    var node = app.currentNode()
+    while (node && node.children && node.children.length > 0) {
+        var child = app.nodeById(node.children[0])
+        if (!child || seen[String(child.id)])
+            break
+        path.push(child)
+        seen[String(child.id)] = true
+        node = child
+    }
+    return path
+}
+
+function winrateHistoryData(app) {
     var points = []
-    var path = app.nodePath(app.currentNodeId)
+    var maximumMove = 0
+    var path = activeVariationNodes(app)
     for (var i = 0; i < path.length; ++i) {
         var node = path[i]
+        maximumMove = Math.max(maximumMove, Number(node.moveNumber) || 0)
         if (node.analysisBlackWinrate !== undefined && node.analysisBlackWinrate >= 0)
             points.push({ "move": node.moveNumber, "winrate": node.analysisBlackWinrate })
     }
-    return points
+    return {
+        "points": points,
+        "maximumMove": maximumMove,
+        "currentMove": Math.max(0, Number(app.currentMoveNumberValue()) || 0)
+    }
+}
+
+function winrateHistoryPoints(app) {
+    return winrateHistoryData(app).points
 }
 
 function engineWinratePlaceholderActive(app) {
-    return app.analysisModeActive() && !currentAnalysisHasWinrate(app)
+    return app.analysisPresentationVisible() && !currentAnalysisHasWinrate(app)
 }
 
 function engineWinratePlaceholderText(app, engineController) {

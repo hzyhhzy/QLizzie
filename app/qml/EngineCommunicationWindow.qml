@@ -232,6 +232,11 @@ Window {
         })
     }
 
+    function closeWindow() {
+        if (visible)
+            engineCommunicationDialog.close()
+    }
+
     onLogRevisionChanged: notifyLogChanged()
 
     onVisibleChanged: {
@@ -250,7 +255,7 @@ Window {
 
     Shortcut {
         sequence: "Esc"
-        onActivated: engineCommunicationDialog.visible = false
+        onActivated: engineCommunicationDialog.closeWindow()
     }
 
     Timer {
@@ -298,7 +303,7 @@ Window {
 
         function onVisibleChanged() {
             if (!app.visible)
-                engineCommunicationDialog.visible = false
+                engineCommunicationDialog.closeWindow()
         }
     }
 
@@ -551,7 +556,7 @@ Window {
                 text: app.trText("close")
                 primary: true
                 onClicked: {
-                    engineCommunicationDialog.visible = false
+                    engineCommunicationDialog.closeWindow()
                     app.focusBoardInput()
                 }
             }

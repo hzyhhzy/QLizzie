@@ -50,6 +50,7 @@ Window {
     readonly property real availableScreenHeight: availableScreenGeometry.height
 
     property bool _openCycleActive: false
+    property bool _acceptProgrammaticClose: false
 
     signal opened()
     signal closed()
@@ -143,8 +144,21 @@ Window {
     function closeDialog() {
         if (!visible)
             return
-        aboutToHide()
-        visible = false
+        closeNativeWindow()
+    }
+
+    function closeNativeWindow() {
+        _acceptProgrammaticClose = true
+        var accepted = appWindowDialog.close()
+        _acceptProgrammaticClose = false
+        if (!accepted && visible) {
+            aboutToHide()
+            visible = false
+        }
+    }
+
+    function closeWindowForShutdown() {
+        closeNativeWindow()
     }
 
     function requestUiClose() {
@@ -173,6 +187,11 @@ Window {
     }
 
     onClosing: function(closeEvent) {
+        if (_acceptProgrammaticClose) {
+            if (visible)
+                aboutToHide()
+            return
+        }
         if (blockNativeClose) {
             closeEvent.accepted = false
             Qt.callLater(function() {
@@ -189,9 +208,8 @@ Window {
 
         function onVisibleChanged() {
             if (appWindowDialog.owningWindow
-                    && !appWindowDialog.owningWindow.visible
-                    && appWindowDialog.visible)
-                appWindowDialog.closeDialog()
+                    && !appWindowDialog.owningWindow.visible)
+                appWindowDialog.closeWindowForShutdown()
         }
     }
 
@@ -214,7 +232,14 @@ Window {
 
     FocusScope {
         id: dialogSurface
-        anchors.fill: parent
+        // QQuickWindow's contentItem can briefly retain the previous native
+        // window size after close/reopen on Windows. Bind the actual dialog
+        // surface to the Window itself so compact/full mode switches cannot
+        // leave the contents at the stale height.
+        x: 0
+        y: 0
+        width: appWindowDialog.width
+        height: appWindowDialog.height
         focus: true
 
         // Let the focused control (especially a ComboBox popup) consume Escape

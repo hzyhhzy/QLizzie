@@ -32,6 +32,7 @@ const settingsDialogSource = fs.readFileSync(path.join(root, "app", "qml", "Sett
 const analysisToolbarSource = fs.readFileSync(path.join(root, "app", "qml", "AnalysisToolbar.qml"), "utf8")
 const helpKeysSource = fs.readFileSync(path.join(root, "app", "qml", "HelpKeysDialog.qml"), "utf8")
 const boardSceneSource = fs.readFileSync(path.join(root, "app", "qml", "BoardScene.qml"), "utf8")
+const infoPanelSource = fs.readFileSync(path.join(root, "app", "qml", "InfoPanel.qml"), "utf8")
 const engineCommunicationSource = fs.readFileSync(
     path.join(root, "app", "qml", "EngineCommunicationWindow.qml"),
     "utf8"
@@ -175,8 +176,12 @@ assert.match(settingsStoreSource, /"engineCommunicationLogCharacterLimit"/)
 assert.match(settingsStoreSource, /"engineCommunicationLineCharacterLimit"/)
 assert.match(mainSource, /function prepareApplicationShutdown\(\)/)
 assert.match(mainSource, /function closeAuxiliaryWindowsForShutdown\(\)/)
-assert.match(mainSource, /engineCommunicationWindow\.visible = false/)
-assert.match(mainSource, /beginnerTutorialDialog\.visible = false/)
+assert.match(mainSource, /engineCommunicationWindow\.closeWindow\(\)/)
+assert.match(mainSource, /beginnerTutorialDialog\.closeTutorialWindow\(\)/)
+assert.match(mainSource, /settingsDialog\.closeWindowForShutdown\(\)/)
+assert.match(mainSource, /hiddenSettingsDialog\.closeWindowForShutdown\(\)/)
+assert.match(mainSource, /engineListDialog\.closeWindowForShutdown\(\)/)
+assert.match(mainSource, /helpKeysDialog\.closeWindowForShutdown\(\)/)
 assert.match(mainSource, /function stopApplicationTimersForShutdown\(\)/)
 assert.match(mainSource,
              /function prepareApplicationShutdown\(\)[\s\S]*?savePersistentSettings\(\)[\s\S]*?appSettings\.sync\(\)/)
@@ -184,13 +189,30 @@ assert.match(mainSource,
              /onClosing:\s*function\(event\)[\s\S]*?prepareApplicationShutdown\(\)\s*Qt\.quit\(\)/)
 assert.doesNotMatch(mainSource, /Qt\.callLater\(Qt\.quit\)/)
 assert.match(appWindowDialogSource,
-             /!appWindowDialog\.owningWindow\.visible[\s\S]*?appWindowDialog\.closeDialog\(\)/)
+             /!appWindowDialog\.owningWindow\.visible[\s\S]*?appWindowDialog\.closeWindowForShutdown\(\)/)
 assert.match(engineCommunicationSource,
-             /function onVisibleChanged\(\)\s*\{\s*if \(!app\.visible\)\s*engineCommunicationDialog\.visible = false/)
+             /function onVisibleChanged\(\)\s*\{\s*if \(!app\.visible\)\s*engineCommunicationDialog\.closeWindow\(\)/)
 assert.match(beginnerTutorialSource,
-             /function onVisibleChanged\(\)\s*\{\s*if \(!app\.visible\)\s*tutorialDialog\.visible = false/)
+             /function onVisibleChanged\(\)\s*\{\s*if \(!app\.visible\)\s*tutorialDialog\.closeTutorialWindow\(\)/)
 assert.match(applicationMainSource,
              /QCoreApplication::aboutToQuit[\s\S]*?EngineController::shutdown/)
+const appSettingsConstruction = applicationMainSource.indexOf("AppSettings appSettings;")
+const fileIoConstruction = applicationMainSource.indexOf("FileIo fileIo;")
+const engineControllerConstruction = applicationMainSource.indexOf(
+    "EngineController engineController;"
+)
+const gomokuForbiddenConstruction = applicationMainSource.indexOf(
+    "GomokuForbidden gomokuForbidden;"
+)
+const qmlEngineConstruction = applicationMainSource.indexOf(
+    "QQmlApplicationEngine engine;"
+)
+assert.ok(appSettingsConstruction >= 0)
+assert.ok(fileIoConstruction > appSettingsConstruction)
+assert.ok(engineControllerConstruction > fileIoConstruction)
+assert.ok(gomokuForbiddenConstruction > engineControllerConstruction)
+assert.ok(qmlEngineConstruction > gomokuForbiddenConstruction,
+          "the QML engine must be destroyed before its context objects")
 assert.match(settingsDialogSource, /if \(!app\.applicationShutdownPrepared\)/)
 assert.match(hiddenSettingsSource, /if \(!app\.applicationShutdownPrepared\)/)
 assert.match(engineControllerHeader, /bool m_shutdownRequested = false/)
@@ -277,6 +299,17 @@ assert.match(mainSource, /function cancelActiveGenmoveRequest\(\)/)
 assert.match(mainSource, /if \(!engineController\.ready\)/)
 assert.match(mainSource, /engineInitialCommandsPendingForId/)
 assert.match(mainSource, /property int aiMoveMode:\s*aiMoveModeGtp/)
+assert.match(mainSource, /property bool hideAnalysisDuringPlay:\s*true/)
+assert.match(mainSource,
+             /function analysisPresentationVisible\(\)[\s\S]*?!hideAnalysisDuringPlay[\s\S]*?aiMoveMode === aiMoveModeAnalyze/)
+assert.match(settingsDialogSource, /text:\s*app\.trText\("hideAnalysisDuringPlay"\)/)
+assert.match(settingsStoreSource, /"hideAnalysisDuringPlay"/)
+assert.match(boardSceneSource,
+             /visible:\s*app\.analysisPresentationVisible\(\)[\s\S]*?app\.engineCandidateItems\.length > 0/)
+assert.match(infoPanelSource,
+             /readonly property bool winrateGraphVisible:\s*app\.analysisPresentationVisible\(\)/)
+assert.match(infoPanelSource,
+             /id:\s*candidateTable\s*visible:\s*app\.analysisPresentationVisible\(\)/)
 assert.match(mainSource,
              /if \(aiMoveMode === aiMoveModeAnalyze\)\s*\{\s*requestAiAnalysisMove\(\)/)
 assert.match(mainSource, /EnginePlay\.limitReached\(/)

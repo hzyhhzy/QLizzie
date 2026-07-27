@@ -21,6 +21,7 @@ TestCase {
     property int openingVisibleCount: 0
     property int openingWidthWhenShown: 0
     property int openingHeightWhenShown: 0
+    property int dialogPreferredHeight: 500
 
     Widgets.AppWindowDialog {
         id: dialog
@@ -32,7 +33,7 @@ TestCase {
         title: "Geometry test"
         closePolicy: Popup.NoAutoClose
         preferredWidth: 760
-        preferredHeight: 500
+        preferredHeight: testRoot.dialogPreferredHeight
         dialogMinimumWidth: 640
         dialogMinimumHeight: 400
 
@@ -83,6 +84,7 @@ TestCase {
         observeClosingGeometry = false
         observeOpeningVisibility = false
         dialog.closeDialog()
+        dialogPreferredHeight = 500
         wait(0)
     }
 
@@ -163,6 +165,23 @@ TestCase {
         compare(openingVisibleCount, 1)
         compare(openingWidthWhenShown, 760)
         compare(openingHeightWhenShown, 500)
+    }
+
+    function test_reopenFromCompactToFullHeightFillsTheWindow() {
+        dialogPreferredHeight = 430
+        dialog.open()
+        tryCompare(dialog, "visible", true)
+        tryCompare(dialog, "height", 430)
+        tryCompare(dialogBody, "height", 430 - dialog.padding * 2)
+
+        dialog.closeDialog()
+        tryCompare(dialog, "visible", false)
+
+        dialogPreferredHeight = 650
+        dialog.open()
+        tryCompare(dialog, "visible", true)
+        tryCompare(dialog, "height", 650)
+        tryCompare(dialogBody, "height", 650 - dialog.padding * 2)
     }
 
     function test_nativeCloseIsDelegatedToTheDialog() {

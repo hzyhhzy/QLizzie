@@ -201,6 +201,7 @@ ApplicationWindow {
     readonly property int aiMoveModeGtp: 0
     readonly property int aiMoveModeAnalyze: 1
     property int aiMoveMode: aiMoveModeGtp
+    property bool hideAnalysisDuringPlay: true
     property real secondsPerMove: 5.0
     property real analysisSecondsPerMove: 5.0
     property int analysisTotalVisitsPerMove: 0
@@ -4116,6 +4117,12 @@ ApplicationWindow {
         return playMode === playModeAnalysis
     }
 
+    function analysisPresentationVisible() {
+        return analysisModeActive()
+                || (!hideAnalysisDuringPlay
+                    && aiMoveMode === aiMoveModeAnalyze)
+    }
+
     function engineReadyForPlayMode() {
         return !!engineController
                && !engineDisabled
@@ -4768,7 +4775,8 @@ ApplicationWindow {
     }
 
     function ownershipVisibleForCurrentPosition() {
-        return ownershipEnabled
+        return analysisPresentationVisible()
+                && ownershipEnabled
                 && gameRuleMode === gameRuleGo
                 && Ownership.usable(engineOwnership, boardSizeX, boardSizeY)
                 && engineOwnershipBoardSignature === engineBoardSignature()
@@ -4912,6 +4920,10 @@ ApplicationWindow {
 
     function winrateHistoryPoints() {
         return AnalysisStatus.winrateHistoryPoints(root)
+    }
+
+    function winrateHistoryData() {
+        return AnalysisStatus.winrateHistoryData(root)
     }
 
     function engineWinratePlaceholderActive() {
@@ -5282,12 +5294,12 @@ ApplicationWindow {
     }
 
     function closeAuxiliaryWindowsForShutdown() {
-        engineCommunicationWindow.visible = false
-        beginnerTutorialDialog.visible = false
-        settingsDialog.visible = false
-        hiddenSettingsDialog.visible = false
-        engineListDialog.visible = false
-        helpKeysDialog.visible = false
+        engineCommunicationWindow.closeWindow()
+        beginnerTutorialDialog.closeTutorialWindow()
+        settingsDialog.closeWindowForShutdown()
+        hiddenSettingsDialog.closeWindowForShutdown()
+        engineListDialog.closeWindowForShutdown()
+        helpKeysDialog.closeWindowForShutdown()
         if (saveSgfDialog.visible)
             saveSgfDialog.close()
         if (loadSgfDialog.visible)
