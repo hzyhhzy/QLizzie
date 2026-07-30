@@ -725,10 +725,13 @@ function cacheAnalysisCandidatesForNode(app, node, candidates, boardSignature, k
     if (!node || !candidates || candidates.length <= 0)
         return false
 
-    node.analysisCandidates = candidates
+    // The controller owns and later clears its candidate list. Persist one
+    // detached snapshot on the game node, then let the display reuse it.
+    node.analysisCandidates = cloneCandidateList(candidates)
     node.analysisCandidateBoardSignature = boardSignature || app.engineBoardSignature()
     node.analysisCandidateKomiSignature = komiSignature || app.engineKomiSignature()
     recordAnalysisWinrateForNode(app, node, node.analysisCandidates, app.playerToMoveAfterNode(node))
+    app.gameNodes = app.gameNodes.slice()
     return true
 }
 
@@ -743,7 +746,11 @@ function showCachedAnalysisForCurrentNode(app) {
 function applyEngineCandidateUpdate(app, candidates, revision) {
     if (app.engineAnalysisRequestValid === false
             || (!app.analysisModeActive() && app.aiAnalysisInFlight !== true)) {
-        resetDisplay(app)
+        // Paused board synchronization deliberately invalidates the live
+        // analysis request and clears the controller's transient candidates.
+        // Keep the current node's persisted snapshot visible in that case.
+        if (!showCachedAnalysisForCurrentNode(app))
+            resetDisplay(app)
         return
     }
 
@@ -773,8 +780,13 @@ function applyEngineCandidateUpdate(app, candidates, revision) {
                             ? app.engineAnalysisRequestKomiSignature
                             : app.engineKomiSignature()
 
-    if (targetNode)
+    var displayCandidates = incoming
+    if (targetNode) {
         cacheAnalysisCandidatesForNode(app, targetNode, incoming, targetBoardSignature, targetKomiSignature)
+        displayCandidates = targetNode.analysisCandidates
+    } else {
+        displayCandidates = cloneCandidateList(incoming)
+    }
 
     if (targetId !== app.currentNodeId || targetBoardSignature !== app.engineBoardSignature()
             || targetKomiSignature !== app.engineKomiSignature()) {
@@ -783,7 +795,7 @@ function applyEngineCandidateUpdate(app, candidates, revision) {
         return
     }
 
-    setDisplay(app, incoming, false, revision)
+    setDisplay(app, displayCandidates, false, revision)
     if (app.engineCandidateItems.length > 0
             && app.analysisPresentationVisible()) {
         app.statusMode = "message"

@@ -194,3 +194,98 @@ test("compact PV text preserves parenthesized moves and is expanded lazily", () 
                  "D4,(A1 B2),pass")
     assert.equal(candidate._pvMoves.length, 3)
 })
+
+test("paused synchronization keeps the current node candidate cache visible", () => {
+    const cachedCandidates = [
+        { move: "D4", order: 0, visits: 100, winrate: 0.55 }
+    ]
+    const node = {
+        analysisCandidates: cachedCandidates,
+        analysisCandidateBoardSignature: "19x19-go",
+        analysisCandidateKomiSignature: "komi-7.5"
+    }
+    const app = createApp({
+        engineAnalysisRequestValid: false,
+        aiAnalysisInFlight: false,
+        analysisModeActive() {
+            return true
+        },
+        currentNode() {
+            return node
+        },
+        engineBoardSignature() {
+            return "19x19-go"
+        },
+        engineKomiSignature() {
+            return "komi-7.5"
+        },
+        engineCandidates: [],
+        engineCandidatesFromCache: false,
+        engineCandidateItems: [],
+        engineCandidateItemMap: {},
+        engineCandidateTableItems: [],
+        engineCandidateRevision: 0,
+        bestCandidateRingVisible: false,
+        bestCandidateRingKey: "",
+        updateBestCandidateRing(items) {
+            this.bestCandidateRingVisible = items.length > 0
+            this.bestCandidateRingKey = items.length > 0 ? items[0].key : ""
+        }
+    })
+
+    candidateAnalysis.applyEngineCandidateUpdate(app, [], 12)
+
+    assert.equal(app.engineCandidates, cachedCandidates)
+    assert.equal(app.engineCandidatesFromCache, true)
+    assert.equal(app.engineCandidateItems.length, 1)
+    assert.equal(app.engineCandidateItems[0].move, "D4")
+
+    app.candidateDisplayCount = 1
+    candidateAnalysis.rebuildItems(app)
+    assert.equal(app.engineCandidates, cachedCandidates)
+    assert.equal(node.analysisCandidates, cachedCandidates)
+    assert.equal(app.engineCandidateItems.length, 1)
+})
+
+test("node candidate cache is detached from the controller snapshot", () => {
+    const sourceCandidates = [
+        {
+            move: "D4",
+            order: 0,
+            visits: 100,
+            winrate: 0.55,
+            pv: ["D4", "pass"]
+        }
+    ]
+    const node = {}
+    const originalGameNodes = [node]
+    const app = createApp({
+        gameNodes: originalGameNodes,
+        analysisRevision: 0,
+        engineBoardSignature() {
+            return "19x19-go"
+        },
+        engineKomiSignature() {
+            return "komi-7.5"
+        },
+        playerToMoveAfterNode() {
+            return 1
+        }
+    })
+
+    assert.equal(candidateAnalysis.cacheAnalysisCandidatesForNode(
+                     app, node, sourceCandidates, "19x19-go", "komi-7.5"),
+                 true)
+    assert.notEqual(app.gameNodes, originalGameNodes)
+    assert.notEqual(node.analysisCandidates, sourceCandidates)
+    assert.notEqual(node.analysisCandidates[0], sourceCandidates[0])
+    assert.notEqual(node.analysisCandidates[0].pv, sourceCandidates[0].pv)
+
+    sourceCandidates[0].move = "pass"
+    sourceCandidates[0].pv[0] = "pass"
+    sourceCandidates.length = 0
+
+    assert.equal(node.analysisCandidates.length, 1)
+    assert.equal(node.analysisCandidates[0].move, "D4")
+    assert.equal(node.analysisCandidates[0].pv.join(","), "D4,pass")
+})
