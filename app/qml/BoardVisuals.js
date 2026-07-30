@@ -21,6 +21,37 @@ function buildHexWinPath(app, map) {
     return GameRules.buildHexWinPath(map, app.boardDims(), app.gameRuleMode)
 }
 
+function nextMoveMarkerItems(app) {
+    var current = app.currentNode()
+    var children = current ? (current.children || []) : []
+    var items = []
+    var itemByKey = ({})
+    for (var i = 0; i < children.length; ++i) {
+        var child = app.nodeById(children[i])
+        if (!child || child.isPass === true
+                || !app.pointInRuleBoard(child.x, child.y))
+            continue
+
+        var key = app.keyFor(child.x, child.y)
+        var existing = itemByKey[key]
+        if (existing) {
+            if (i === 0)
+                existing.mainBranch = true
+            continue
+        }
+
+        var item = {
+            "x": child.x,
+            "y": child.y,
+            "player": child.player,
+            "mainBranch": i === 0
+        }
+        items.push(item)
+        itemByKey[key] = item
+    }
+    return items
+}
+
 function stoneOverlayVisible(app, moveNumber, lastMove) {
     if (app.moveNumberDisplayMode === app.moveNumberModeHidden)
         return lastMove

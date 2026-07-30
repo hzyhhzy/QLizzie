@@ -5083,6 +5083,10 @@ ApplicationWindow {
         return BoardVisuals.buildHexWinPath(root, map)
     }
 
+    function nextMoveMarkerItems() {
+        return BoardVisuals.nextMoveMarkerItems(root)
+    }
+
     function gomokuForbiddenActiveForPlayer(player) {
         return gameRuleMode === gameRuleGomoku && gomokuRuleMode === gomokuRuleRenju && player === 1
     }

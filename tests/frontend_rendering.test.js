@@ -54,6 +54,9 @@ const engineControllerHeader = fs.readFileSync(
 const boardRenderer = loadQmlJs(path.join(root, "app", "qml", "BoardRenderer.js"), {
     imports: { CoordinateUtils: {} }
 })
+const boardVisuals = loadQmlJs(path.join(root, "app", "qml", "BoardVisuals.js"), {
+    imports: { GameRules: {} }
+})
 const treeLayout = loadQmlJs(path.join(root, "app", "qml", "TreeLayout.js"))
 
 function countingContext() {
@@ -106,6 +109,38 @@ const crossingEdge = { x1: 0, y1: 100, x2: 200, y2: 100 }
 const outsideEdge = { x1: 0, y1: 10, x2: 200, y2: 10 }
 assert.equal(treeLayout.edgeVisibleInViewport(crossingEdge, 80, 80, 40, 40, 0), true)
 assert.equal(treeLayout.edgeVisibleInViewport(outsideEdge, 80, 80, 40, 40, 0), false)
+
+const nextMoveNodes = [
+    { id: 0, children: [1, 2, 3, 4] },
+    { id: 1, x: 3, y: 3, player: 1 },
+    { id: 2, x: 10, y: 10, player: 1 },
+    { id: 3, x: -1, y: -1, player: 1, isPass: true },
+    { id: 4, x: 10, y: 10, player: 1 }
+]
+const nextMoveMarkers = boardVisuals.nextMoveMarkerItems({
+    currentNode() { return nextMoveNodes[0] },
+    nodeById(id) { return nextMoveNodes[id] },
+    pointInRuleBoard(x, y) { return x >= 0 && y >= 0 && x < 19 && y < 19 },
+    keyFor(x, y) { return `${x},${y}` }
+})
+assert.deepEqual(Array.from(nextMoveMarkers, marker => ({
+    x: marker.x,
+    y: marker.y,
+    player: marker.player,
+    mainBranch: marker.mainBranch
+})), [
+    { x: 3, y: 3, player: 1, mainBranch: true },
+    { x: 10, y: 10, player: 1, mainBranch: false }
+])
+assert.match(boardSceneSource, /function drawNextMoveMarkers\(ctx,\s*stoneRadius\)/)
+assert.match(boardSceneSource,
+             /marker\.mainBranch[\s\S]*?stoneRadius\s*\/\s*7[\s\S]*?stoneRadius\s*\/\s*15/)
+assert.match(boardSceneSource,
+             /radius\s*=\s*Math\.max\(1,\s*stoneRadius\s*-\s*lineWidth\s*\*\s*0\.5\)/)
+assert.match(boardSceneSource,
+             /if \(!boardScene\.variationPreviewActive\)\s*drawNextMoveMarkers\(ctx,\s*stoneRadius\)/)
+assert.match(boardSceneSource,
+             /function onGameNodesChanged\(\) \{ boardCanvas\.requestPaint\(\) \}/)
 
 const commaHandler = boardInputSource.slice(
     boardInputSource.indexOf("event.key === Qt.Key_Comma"),

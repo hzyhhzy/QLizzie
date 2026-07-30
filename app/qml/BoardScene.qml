@@ -253,6 +253,25 @@ Item {
             ctx.restore()
         }
 
+        function drawNextMoveMarkers(ctx, stoneRadius) {
+            var markers = app.nextMoveMarkerItems()
+            for (var i = 0; i < markers.length; ++i) {
+                var marker = markers[i]
+                var point = boardScene.boardPointLocal(marker.x, marker.y)
+                var lineWidth = marker.mainBranch
+                              ? Math.max(stoneRadius / 7, 2)
+                              : Math.max(stoneRadius / 15, 1)
+                var radius = Math.max(1, stoneRadius - lineWidth * 0.5)
+                ctx.save()
+                ctx.strokeStyle = marker.player === 1 ? "#111820" : "#f8fbfd"
+                ctx.lineWidth = lineWidth
+                ctx.beginPath()
+                ctx.arc(point.x, point.y, radius, 0, Math.PI * 2)
+                ctx.stroke()
+                ctx.restore()
+            }
+        }
+
         function drawVariationArrow(ctx, move, radius, opacity) {
             var from = boardScene.boardPointLocal(move.fromX, move.fromY)
             var to = boardScene.boardPointLocal(move.x, move.y)
@@ -422,6 +441,9 @@ Item {
                 }
             }
 
+            if (!boardScene.variationPreviewActive)
+                drawNextMoveMarkers(ctx, stoneRadius)
+
             renderState = null
             renderGeometry = null
         }
@@ -432,6 +454,8 @@ Item {
         Connections {
             target: app
             function onBoardRevisionChanged() { boardCanvas.requestPaint() }
+            function onCurrentNodeIdChanged() { boardCanvas.requestPaint() }
+            function onGameNodesChanged() { boardCanvas.requestPaint() }
             function onGameRuleModeChanged() { boardCanvas.requestPaint() }
             function onBoardPresentationModeChanged() { boardCanvas.requestPaint() }
             function onHexBoardStyleChanged() { boardCanvas.requestPaint() }
