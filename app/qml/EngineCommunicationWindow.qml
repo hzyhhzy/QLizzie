@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 import "EngineLogFormatter.js" as EngineLogFormatter
+import "WindowGeometry.js" as WindowGeometry
 
 Window {
     id: engineCommunicationDialog
@@ -214,12 +215,13 @@ Window {
 
     function openWindow(focusCommand) {
         if (!positionedOnce) {
-            width = Math.min(860, Math.max(minimumWidth, app.width - 80))
-            height = Math.min(560, Math.max(minimumHeight, app.height - 90))
-            x = Math.round(app.x + (app.width - width) / 2)
-            y = Math.round(app.y + (app.height - height) / 2)
+            WindowGeometry.centerWindow(
+                        engineCommunicationDialog, app,
+                        Math.min(860, Math.max(minimumWidth, app.width - 80)),
+                        Math.min(560, Math.max(minimumHeight, app.height - 90)))
             positionedOnce = true
-        }
+        } else
+            WindowGeometry.clampWindow(engineCommunicationDialog, app)
         visible = true
         raise()
         requestActivate()
@@ -355,8 +357,11 @@ Window {
     }
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 14
+        objectName: "engineCommunicationLayout"
+        x: 14
+        y: 14
+        width: Math.max(0, engineCommunicationDialog.width - 28)
+        height: Math.max(0, engineCommunicationDialog.height - 28)
         spacing: 10
 
         RowLayout {
@@ -405,8 +410,16 @@ Window {
                 anchors.fill: parent
                 anchors.margins: 1
                 clip: true
-                contentWidth: availableWidth
+                // Keep wrapping width and minimum document height independent
+                // from automatic scrollbar visibility. Using availableWidth/
+                // availableHeight here feeds the document size back into the
+                // scrollbar decision and creates a binding loop.
+                readonly property real stableViewportWidth: Math.max(0, width - 16)
+                readonly property real stableViewportHeight: Math.max(0, height - 2)
+                contentWidth: stableViewportWidth
                 contentHeight: engineCommunicationContent.height
+                onStableViewportHeightChanged:
+                    engineCommunicationContent.scheduleHeightUpdate()
 
                 onHeightChanged: {
                     if (engineCommunicationDialog.logFollowsTail
@@ -442,9 +455,25 @@ Window {
 
                 Item {
                     id: engineCommunicationContent
-                    width: Math.max(0, engineCommunicationScroll.availableWidth - 14)
-                    height: Math.max(engineCommunicationScroll.availableHeight,
-                                     engineCommunicationText.contentHeight + 12)
+                    property bool heightUpdatePending: false
+
+                    function scheduleHeightUpdate() {
+                        if (heightUpdatePending)
+                            return
+                        heightUpdatePending = true
+                        Qt.callLater(function() {
+                            heightUpdatePending = false
+                            var nextHeight = Math.max(
+                                        engineCommunicationScroll.stableViewportHeight,
+                                        engineCommunicationText.contentHeight + 12)
+                            if (Math.abs(engineCommunicationContent.height - nextHeight) > 0.5)
+                                engineCommunicationContent.height = nextHeight
+                        })
+                    }
+
+                    width: engineCommunicationScroll.stableViewportWidth
+                    height: engineCommunicationScroll.stableViewportHeight
+                    Component.onCompleted: scheduleHeightUpdate()
 
                     Basic.TextArea {
                         id: engineCommunicationText
@@ -452,8 +481,7 @@ Window {
                         x: 8
                         y: 6
                         width: Math.max(0, parent.width - 16)
-                        height: Math.max(contentHeight,
-                                         engineCommunicationScroll.availableHeight - 12)
+                        height: Math.max(0, parent.height - 12)
                         padding: 0
                         textFormat: TextEdit.RichText
                         readOnly: true
@@ -469,6 +497,8 @@ Window {
                         font.weight: Font.Medium
                         wrapMode: TextEdit.WrapAnywhere
                         background: null
+                        onContentHeightChanged:
+                            engineCommunicationContent.scheduleHeightUpdate()
 
                         onSelectedTextChanged: {
                             if (selectedText.length > 0)

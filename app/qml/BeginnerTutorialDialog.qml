@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 import "CandidateAnalysis.js" as CandidateAnalysis
+import "WindowGeometry.js" as WindowGeometry
 
 Window {
     id: tutorialDialog
@@ -42,12 +43,13 @@ Window {
 
     function openTutorialWindow() {
         if (!positionedOnce) {
-            width = Math.min(760, Math.max(minimumWidth, app.width - 80))
-            height = Math.min(640, Math.max(minimumHeight, app.height - 90))
-            x = Math.round(app.x + (app.width - width) / 2)
-            y = Math.round(app.y + (app.height - height) / 2)
+            WindowGeometry.centerWindow(
+                        tutorialDialog, app,
+                        Math.min(760, Math.max(minimumWidth, app.width - 80)),
+                        Math.min(640, Math.max(minimumHeight, app.height - 90)))
             positionedOnce = true
-        }
+        } else
+            WindowGeometry.clampWindow(tutorialDialog, app)
         visible = true
         raise()
         requestActivate()
@@ -183,7 +185,10 @@ Window {
 
     Rectangle {
         id: tutorialRoot
-        anchors.fill: parent
+        x: 0
+        y: 0
+        width: tutorialDialog.width
+        height: tutorialDialog.height
         color: "#f8fbfd"
         border.color: "#8ea5b1"
         border.width: 1

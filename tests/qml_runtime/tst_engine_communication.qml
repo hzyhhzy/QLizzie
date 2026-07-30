@@ -127,7 +127,7 @@ TestCase {
     }
 
     function cleanup() {
-        dialog.visible = false
+        dialog.closeWindow()
         logModel.clear()
         logCharacterCount = 0
         logChangeMask = 7
@@ -139,6 +139,26 @@ TestCase {
         fakeApp.showEngineCommunicationStdout = true
         fakeApp.showEngineCommunicationStderr = true
         wait(0)
+    }
+
+    function test_reopenAfterResizeKeepsTheContentSurfaceInSync() {
+        dialog.openWindow()
+        tryCompare(dialog, "visible", true)
+        dialog.width = 700
+        dialog.height = 460
+        wait(20)
+
+        var layout = findChild(dialog.contentItem, "engineCommunicationLayout")
+        verify(layout !== null)
+        compare(Math.round(layout.width), 672)
+        compare(Math.round(layout.height), 432)
+
+        dialog.closeWindow()
+        tryCompare(dialog, "visible", false)
+        dialog.openWindow()
+        tryCompare(dialog, "visible", true)
+        tryCompare(layout, "width", 672)
+        tryCompare(layout, "height", 432)
     }
 
     function test_selectionCrossesSeveralLogLines() {

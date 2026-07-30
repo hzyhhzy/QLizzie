@@ -97,6 +97,7 @@ qt_add_qml_module(qlizzie
         qml/Translations.js
         qml/TreeLayout.js
         qml/UnsavedSgfDialog.qml
+        qml/WindowGeometry.js
         qml/rules/RuleCatalog.js
         qml/rules/RuleRegistry.js
 )

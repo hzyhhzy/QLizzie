@@ -113,7 +113,7 @@ AppWindowDialog {
                     title: app.trText("boardSize")
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        Layout.fillWidth: true
                         spacing: 10
 
                         RowLayout {
@@ -183,7 +183,7 @@ AppWindowDialog {
                     title: app.trText("basicGameSettings")
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        Layout.fillWidth: true
                         spacing: 10
 
                         RowLayout {
@@ -415,7 +415,7 @@ AppWindowDialog {
                     title: app.trText("gamePlaySettings")
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        Layout.fillWidth: true
                         spacing: 10
 
                         RowLayout {
@@ -649,7 +649,7 @@ AppWindowDialog {
                     title: app.trText("candidateSettings")
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        Layout.fillWidth: true
                         spacing: 12
 
                         RowLayout {
@@ -840,7 +840,7 @@ AppWindowDialog {
                     title: app.trText("visualSettings")
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        Layout.fillWidth: true
                         spacing: 12
 
                         ColorRow {

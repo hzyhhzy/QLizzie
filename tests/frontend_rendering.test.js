@@ -37,6 +37,10 @@ const engineCommunicationSource = fs.readFileSync(
     path.join(root, "app", "qml", "EngineCommunicationWindow.qml"),
     "utf8"
 )
+const windowGeometrySource = fs.readFileSync(
+    path.join(root, "app", "qml", "WindowGeometry.js"),
+    "utf8"
+)
 const settingsStoreSource = fs.readFileSync(path.join(root, "app", "qml", "SettingsStore.js"), "utf8")
 const applicationMainSource = fs.readFileSync(path.join(root, "app", "src", "main.cpp"), "utf8")
 const engineControllerSource = fs.readFileSync(
@@ -174,6 +178,41 @@ assert.match(hiddenSettingsSource, /app\.maxEngineCommunicationLineCharacters/)
 assert.match(settingsStoreSource, /"engineCommunicationLogLimit"/)
 assert.match(settingsStoreSource, /"engineCommunicationLogCharacterLimit"/)
 assert.match(settingsStoreSource, /"engineCommunicationLineCharacterLimit"/)
+for (const sectionTitle of [
+    "boardSize",
+    "basicGameSettings",
+    "gamePlaySettings",
+    "candidateSettings",
+    "visualSettings"
+]) {
+    assert.match(
+        settingsDialogSource,
+        new RegExp(
+            `title:\\s*app\\.trText\\("${sectionTitle}"\\)`
+            + `[\\s\\S]{0,180}ColumnLayout\\s*\\{`
+            + `\\s*Layout\\.fillWidth:\\s*true`
+        )
+    )
+}
+assert.match(engineCommunicationSource, /stableViewportWidth:\s*Math\.max\(0,\s*width - 16\)/)
+assert.match(engineCommunicationSource, /stableViewportHeight:\s*Math\.max\(0,\s*height - 2\)/)
+assert.match(engineCommunicationSource, /function scheduleHeightUpdate\(\)/)
+assert.match(engineCommunicationSource, /onContentHeightChanged:\s*engineCommunicationContent\.scheduleHeightUpdate\(\)/)
+assert.doesNotMatch(
+    engineCommunicationSource,
+    /height:\s*Math\.max\([^\n]*engineCommunicationText\.(?:contentHeight|implicitHeight)/
+)
+assert.doesNotMatch(
+    engineCommunicationSource,
+    /engineCommunicationContent[\s\S]{0,500}engineCommunicationScroll\.available(?:Width|Height)/
+)
+assert.match(engineCommunicationSource, /width:\s*Math\.max\(0,\s*engineCommunicationDialog\.width - 28\)/)
+assert.match(engineCommunicationSource, /height:\s*Math\.max\(0,\s*engineCommunicationDialog\.height - 28\)/)
+assert.match(beginnerTutorialSource, /width:\s*tutorialDialog\.width/)
+assert.match(beginnerTutorialSource, /height:\s*tutorialDialog\.height/)
+assert.match(engineCommunicationSource, /WindowGeometry\.clampWindow\(engineCommunicationDialog,\s*app\)/)
+assert.match(beginnerTutorialSource, /WindowGeometry\.clampWindow\(tutorialDialog,\s*app\)/)
+assert.match(windowGeometrySource, /function clampWindow\(windowObject,\s*ownerWindow\)/)
 assert.match(mainSource, /function prepareApplicationShutdown\(\)/)
 assert.match(mainSource, /function closeAuxiliaryWindowsForShutdown\(\)/)
 assert.match(mainSource, /engineCommunicationWindow\.closeWindow\(\)/)
