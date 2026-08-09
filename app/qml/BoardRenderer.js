@@ -978,6 +978,14 @@ function drawDotsAndBoxesPosition(ctx, state, geometry, stones) {
     var edgeWidth = Math.max(5, cell * 0.28)
     var halfWidth = edgeWidth * 0.5
     var boxRadius = cell * 0.7
+    var guideDotClearance = Math.max(3.5, cell * 0.13)
+    var claimedEdges = ({})
+
+    for (var occupiedIndex = 0; stones && occupiedIndex < stones.length; ++occupiedIndex) {
+        var occupied = stones[occupiedIndex]
+        if (occupied.x % 2 !== occupied.y % 2)
+            claimedEdges[String(occupied.x) + "," + String(occupied.y)] = true
+    }
 
     function edgePath(point, horizontal) {
         ctx.beginPath()
@@ -1000,6 +1008,32 @@ function drawDotsAndBoxesPosition(ctx, state, geometry, stones) {
     }
 
     ctx.save()
+
+    // Unclaimed links remain visible as a quiet construction guide. Keeping
+    // these on the position layer lets claimed links replace them cleanly.
+    ctx.strokeStyle = "#5f5144"
+    ctx.globalAlpha = 0.48
+    ctx.lineWidth = Math.max(0.75, cell * 0.025)
+    ctx.setLineDash([Math.max(1.5, cell * 0.10), Math.max(1.5, cell * 0.09)])
+    for (var guideY = 0; guideY < state.boardSizeY; ++guideY) {
+        for (var guideX = 0; guideX < state.boardSizeX; ++guideX) {
+            if (guideX % 2 === guideY % 2
+                    || claimedEdges[String(guideX) + "," + String(guideY)])
+                continue
+            var guidePoint = geometry.point(guideX, guideY)
+            ctx.beginPath()
+            if (guideX % 2 === 1) {
+                ctx.moveTo(guidePoint.x - cell + guideDotClearance, guidePoint.y)
+                ctx.lineTo(guidePoint.x + cell - guideDotClearance, guidePoint.y)
+            } else {
+                ctx.moveTo(guidePoint.x, guidePoint.y - cell + guideDotClearance)
+                ctx.lineTo(guidePoint.x, guidePoint.y + cell - guideDotClearance)
+            }
+            ctx.stroke()
+        }
+    }
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
 
     // Claimed boxes sit below the edges so the board structure remains clear.
     for (var i = 0; stones && i < stones.length; ++i) {
@@ -1037,7 +1071,9 @@ function drawDotsAndBoxesPosition(ctx, state, geometry, stones) {
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
         ctx.fillStyle = black ? "#ffffff" : "#111820"
-        ctx.fillText(moveText, point.x, point.y, cell * 1.45)
+        ctx.fillText(moveText, point.x,
+                     point.y + (horizontal ? Math.max(1, cell * 0.04) : 0),
+                     cell * 1.45)
     }
 
     ctx.restore()

@@ -140,6 +140,8 @@ test("escaped QLZ analysis payloads round-trip", () => {
             order: 0,
             visits: 1234,
             winrate: 0.625,
+            lcb: 0.6,
+            prior: 0.125,
             scoreMean: -1.75,
             scoreStdev: 0.5,
             pv: [pvMove, "pass"],
@@ -157,6 +159,8 @@ test("escaped QLZ analysis payloads round-trip", () => {
     assert.equal(parsedNode.analysisCandidates[0].move, candidateMove)
     assert.equal(parsedNode.analysisCandidates[0].pv[0], pvMove)
     assert.equal(parsedNode.analysisCandidates[0].visits, 1234)
+    assert.equal(parsedNode.analysisCandidates[0].lcb, 0.6)
+    assert.equal(parsedNode.analysisCandidates[0].prior, 0.125)
     assert.equal(parsedNode.analysisCandidates[0].scoreMean, -1.75)
 })
 

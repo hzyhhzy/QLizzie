@@ -128,6 +128,11 @@ function serializableCandidate(candidate) {
         item.visits = candidateNumberValue(candidate.visits, 0)
     if (candidate.winrate !== undefined)
         item.winrate = candidateNumberValue(candidate.winrate, 0)
+    if (candidate.lcb !== undefined)
+        item.lcb = candidateNumberValue(candidate.lcb, 0)
+    if (candidate.prior !== undefined || candidate.policy !== undefined)
+        item.prior = candidateNumberValue(candidate.prior !== undefined
+                                          ? candidate.prior : candidate.policy, 0)
     if (candidate.scoreMean !== undefined)
         item.scoreMean = candidateNumberValue(candidate.scoreMean, 0)
     if (candidate.scoreStdev !== undefined)
@@ -321,6 +326,17 @@ function normalizedCandidate(candidate, orderFallback) {
         if (!isNaN(winrate))
             item.winrate = winrate
     }
+    if (candidate.lcb !== undefined) {
+        var lcb = normalizeSavedWinrate(candidate.lcb)
+        if (!isNaN(lcb))
+            item.lcb = lcb
+    }
+    if (candidate.prior !== undefined || candidate.policy !== undefined) {
+        var prior = normalizeSavedWinrate(candidate.prior !== undefined
+                                          ? candidate.prior : candidate.policy)
+        if (!isNaN(prior))
+            item.prior = prior
+    }
     if (candidate.scoreMean !== undefined || candidate.scoreLead !== undefined) {
         var scoreMean = candidateNumberValue(candidate.scoreMean !== undefined
                                              ? candidate.scoreMean : candidate.scoreLead, NaN)
@@ -456,6 +472,10 @@ function parseLizzieCandidateSegment(segment, orderFallback) {
             candidate.visits = value
         else if (key === "winrate")
             candidate.winrate = value
+        else if (key === "lcb")
+            candidate.lcb = value
+        else if (key === "prior" || key === "policy")
+            candidate.prior = value
         else if (key === "scoreMean" || key === "scoreLead")
             candidate.scoreMean = value
         else if (key === "scoreStdev")

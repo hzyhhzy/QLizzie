@@ -52,6 +52,10 @@ Item {
             if (!event.isAutoRepeat)
                 app.openEngineCommunicationLog()
             event.accepted = true
+        } else if (event.key === Qt.Key_U) {
+            if (!event.isAutoRepeat)
+                app.toggleCandidateListWindow()
+            event.accepted = true
         } else if (event.key === Qt.Key_Period) {
             if (app.gameRuleMode === app.gameRuleGo) {
                 if (!event.isAutoRepeat)

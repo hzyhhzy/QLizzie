@@ -24,6 +24,7 @@ private slots:
     void completesAndCancelsMoveRequests();
     void rejectsOversizedStdoutAndRecoversFromOversizedStderr();
     void preservesCandidateSymmetryMetadata();
+    void preservesCandidateTableMetrics();
     void parsesOwnershipWithoutPollutingCandidates();
     void clearsOwnershipWithNewCandidateBatch();
     void clearsOwnershipWithoutCandidates();
@@ -60,6 +61,21 @@ void CoreTests::preservesCandidateSymmetryMetadata()
     QVERIFY(!first.contains(QStringLiteral("isSymmetryOf")));
     QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
     QCOMPARE(second.value(QStringLiteral("isSymmetryOf")).toString(), QStringLiteral("D4"));
+}
+
+void CoreTests::preservesCandidateTableMetrics()
+{
+    EngineController controller;
+    controller.parseInfoLine(QStringLiteral(
+        "info move D4 visits 120 winrate 0.56 lcb 0.53 prior 0.125 "
+        "scoreMean 1.75 scoreStdev 0.42 order 0 pv D4"));
+
+    QCOMPARE(controller.m_candidates.size(), 1);
+    const QVariantMap candidate = controller.m_candidates.first().toMap();
+    QCOMPARE(candidate.value(QStringLiteral("lcb")).toDouble(), 0.53);
+    QCOMPARE(candidate.value(QStringLiteral("prior")).toDouble(), 0.125);
+    QCOMPARE(candidate.value(QStringLiteral("scoreMean")).toDouble(), 1.75);
+    QCOMPARE(candidate.value(QStringLiteral("scoreStdev")).toDouble(), 0.42);
 }
 
 void CoreTests::parsesOwnershipWithoutPollutingCandidates()

@@ -19,6 +19,7 @@ AppWindowDialog {
         { "keys": ",", "textKey": "helpKeyPlayBestDesc" },
         { "keys": "P", "textKey": "helpKeyPassDesc" },
         { "keys": "E", "textKey": "helpKeyEngineLogDesc" },
+        { "keys": "U", "textKey": "helpKeyCandidateListDesc" },
         { "keys": ".", "textKey": "helpKeyOwnershipDesc" },
         { "keys": "Backspace", "textKey": "helpKeyDeleteDesc" },
         { "keys": "M", "textKey": "helpKeyMoveLabelsDesc" },

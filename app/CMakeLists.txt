@@ -58,6 +58,8 @@ qt_add_qml_module(qlizzie
         qml/BoardScene.qml
         qml/BranchPanel.qml
         qml/CandidateAnalysis.js
+        qml/CandidateTable.js
+        qml/CandidateListWindow.qml
         qml/CandidateMarkerView.qml
         qml/CommandToolbar.qml
         qml/ConfirmDeleteNodeDialog.qml

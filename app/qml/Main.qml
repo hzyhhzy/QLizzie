@@ -1640,6 +1640,11 @@ ApplicationWindow {
         onClearLogRequested: root.clearEngineCommunicationLog()
     }
 
+    CandidateListWindow {
+        id: candidateListWindow
+        app: root
+    }
+
     function trText(key) {
         language
         var table = translations[language] || translations.zh
@@ -4874,7 +4879,7 @@ ApplicationWindow {
         })
     }
 
-    function selectEngineCandidateRow(row) {
+    function selectEngineCandidateRow(row, focusMainWindow) {
         var displayIndex = Math.round(row)
         if (displayIndex <= 0)
             return
@@ -4891,11 +4896,13 @@ ApplicationWindow {
             clearHover(true)
             statusMode = "message"
             statusMessage = trText("engineBestMove") + ": " + candidate.displayMoveText
-            focusBoardInput()
+            if (focusMainWindow !== false)
+                focusBoardInput()
             return
         }
         setSelectedPoint(candidate.x, candidate.y, true, true)
-        focusBoardInput()
+        if (focusMainWindow !== false)
+            focusBoardInput()
     }
 
     function playBestEngineMove() {
@@ -5217,6 +5224,10 @@ ApplicationWindow {
         engineCommunicationWindow.openWindow()
     }
 
+    function toggleCandidateListWindow() {
+        candidateListWindow.toggleWindow()
+    }
+
     function openEngineListDialog(ownerWindow) {
         engineListDialog.openManage(ownerWindow)
     }
@@ -5299,6 +5310,7 @@ ApplicationWindow {
 
     function closeAuxiliaryWindowsForShutdown() {
         engineCommunicationWindow.closeWindow()
+        candidateListWindow.closeWindow()
         beginnerTutorialDialog.closeTutorialWindow()
         settingsDialog.closeWindowForShutdown()
         hiddenSettingsDialog.closeWindowForShutdown()

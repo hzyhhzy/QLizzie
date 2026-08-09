@@ -2,6 +2,7 @@
 /release/
 /ref_lizzie3d/
 /gtp_logs/
+/.codex-tmp-pointer/
 /handoff*
 /HANDOFF*
 /app_backup_*/

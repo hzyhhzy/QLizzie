@@ -1252,6 +1252,15 @@ void EngineController::parseInfoLine(const QString &line)
                 const double winrate = value.toDouble(&ok);
                 if (ok)
                     item.insert(QStringLiteral("winrate"), winrate);
+            } else if (key == QLatin1StringView("lcb")) {
+                const double lcb = value.toDouble(&ok);
+                if (ok)
+                    item.insert(QStringLiteral("lcb"), lcb);
+            } else if (key == QLatin1StringView("prior")
+                       || key == QLatin1StringView("policy")) {
+                const double prior = value.toDouble(&ok);
+                if (ok)
+                    item.insert(QStringLiteral("prior"), prior);
             } else if (key == QLatin1StringView("scoreMean") || key == QLatin1StringView("scoreLead")) {
                 const double scoreMean = value.toDouble(&ok);
                 if (ok)

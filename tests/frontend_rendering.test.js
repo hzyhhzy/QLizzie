@@ -14,6 +14,7 @@ const directWindowFiles = fs.readdirSync(qmlDirectory)
 assert.deepEqual(directWindowFiles, [
     "AppWindowDialog.qml",
     "BeginnerTutorialDialog.qml",
+    "CandidateListWindow.qml",
     "EngineCommunicationWindow.qml",
     "Main.qml"
 ])
@@ -35,6 +36,10 @@ const boardSceneSource = fs.readFileSync(path.join(root, "app", "qml", "BoardSce
 const infoPanelSource = fs.readFileSync(path.join(root, "app", "qml", "InfoPanel.qml"), "utf8")
 const engineCommunicationSource = fs.readFileSync(
     path.join(root, "app", "qml", "EngineCommunicationWindow.qml"),
+    "utf8"
+)
+const candidateListWindowSource = fs.readFileSync(
+    path.join(root, "app", "qml", "CandidateListWindow.qml"),
     "utf8"
 )
 const windowGeometrySource = fs.readFileSync(
@@ -62,15 +67,28 @@ const treeLayout = loadQmlJs(path.join(root, "app", "qml", "TreeLayout.js"))
 function countingContext() {
     return {
         arcCount: 0,
+        lineDashCalls: [],
+        lineSegments: [],
+        textCalls: [],
+        pendingMove: null,
         save() {},
         restore() {},
         beginPath() {},
-        moveTo() {},
-        lineTo() {},
+        moveTo(x, y) { this.pendingMove = { x, y } },
+        lineTo(x, y) {
+            this.lineSegments.push({
+                from: this.pendingMove,
+                to: { x, y },
+                dash: this.lineDashCalls.length > 0
+                    ? this.lineDashCalls[this.lineDashCalls.length - 1] : []
+            })
+        },
         closePath() {},
         fill() {},
         stroke() {},
-        arc() { this.arcCount += 1 }
+        arc() { this.arcCount += 1 },
+        setLineDash(pattern) { this.lineDashCalls.push(Array.from(pattern)) },
+        fillText(text, x, y) { this.textCalls.push({ text, x, y }) }
     }
 }
 
@@ -99,6 +117,26 @@ assert.equal(gridContext.arcCount, 4, "the static grid owns the four board dots"
 const positionContext = countingContext()
 boardRenderer.drawDotsAndBoxesPosition(positionContext, dotsState, dotsGeometry, [])
 assert.equal(positionContext.arcCount, 0, "the position layer must not redraw static dots")
+assert.equal(positionContext.lineSegments.length, 4,
+             "the four unclaimed links are drawn as construction guides")
+assert.ok(positionContext.lineSegments.every(segment => segment.dash.length === 2),
+          "unclaimed links use a dashed stroke")
+
+const claimedPositionContext = countingContext()
+boardRenderer.drawDotsAndBoxesPosition(claimedPositionContext, dotsState, dotsGeometry, [
+    { x: 1, y: 0, player: 1, moveNumber: 7 },
+    { x: 0, y: 1, player: 2, moveNumber: 8 }
+])
+const dashedSegments = claimedPositionContext.lineSegments.filter(
+    segment => segment.dash.length === 2
+)
+assert.equal(dashedSegments.length, 2,
+             "claimed links replace their dashed construction guides")
+assert.equal(claimedPositionContext.textCalls.length, 2)
+assert.ok(claimedPositionContext.textCalls[0].y > dotsGeometry.point(1, 0).y,
+          "horizontal edge numbers are optically shifted downward")
+assert.equal(claimedPositionContext.textCalls[1].y, dotsGeometry.point(0, 1).y,
+             "vertical edge numbers keep their centered position")
 
 const node = { x: 100, y: 100, radius: 12 }
 assert.equal(treeLayout.nodeVisibleInViewport(node, 80, 80, 40, 40, 0), true)
@@ -159,12 +197,18 @@ assert.match(boardInputSource, /function ownsKeyboardFocus\(\)/)
 assert.match(boardInputSource, /if \(!inputLayer\.ownsKeyboardFocus\(\)\)/)
 assert.match(boardInputSource,
              /event\.key === Qt\.Key_E[\s\S]*?app\.openEngineCommunicationLog\(\)/)
-assert.doesNotMatch(boardInputSource, /Qt\.Key_U/)
+assert.match(boardInputSource,
+             /event\.key === Qt\.Key_U[\s\S]*?app\.toggleCandidateListWindow\(\)/)
 assert.match(boardInputSource,
              /event\.key === Qt\.Key_Period[\s\S]*?app\.gameRuleMode === app\.gameRuleGo[\s\S]*?app\.ownershipEnabled = !app\.ownershipEnabled/)
 assert.match(helpKeysSource, /\{\s*"keys":\s*"E",\s*"textKey":\s*"helpKeyEngineLogDesc"\s*\}/)
+assert.match(helpKeysSource, /\{\s*"keys":\s*"U",\s*"textKey":\s*"helpKeyCandidateListDesc"\s*\}/)
 assert.match(helpKeysSource, /\{\s*"keys":\s*"\.",\s*"textKey":\s*"helpKeyOwnershipDesc"\s*\}/)
-assert.doesNotMatch(helpKeysSource, /\{\s*"keys":\s*"U"/)
+assert.match(candidateListWindowSource, /flags:\s*Qt\.Window/)
+assert.match(candidateListWindowSource, /transientParent:\s*null/)
+assert.match(candidateListWindowSource, /CandidateTable\.buildTable/)
+assert.match(candidateListWindowSource, /function setSortColumn\(columnIndex\)/)
+assert.match(mainSource, /candidateListWindow\.closeWindow\(\)/)
 
 const engineMenu = mainSource.slice(
     mainSource.indexOf("id: engineMenu"),
