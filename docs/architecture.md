@@ -91,7 +91,7 @@ cmake --build build/qlizzie --config Release
 ctest --test-dir build/qlizzie -C Release --output-on-failure
 ```
 
-CMake registers 23 JavaScript suites, 7 QML runtime suites and the C++ core suite
+CMake registers 21 JavaScript suites, 7 QML runtime suites and the C++ core suite
 when their respective tools are installed. Check `ctest -N` if a suite is
 missing. The QML runner must come from the selected Qt 6 installation; a Qt 5
 runner elsewhere on PATH cannot load this application.

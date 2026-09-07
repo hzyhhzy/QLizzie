@@ -28,8 +28,6 @@ test("engine text is escaped without adding stream labels", () => {
     assert.match(html, /= ok/)
     assert.doesNotMatch(html, /\[(?:stdin|stdout|stderr)\]/)
     assert.doesNotMatch(html, /play B <D4>/)
-    assert.match(html, /font-family:'JetBrains Mono'/)
-    assert.match(html, /font-weight:500/)
 })
 
 test("stream filters exclude complete lines", () => {

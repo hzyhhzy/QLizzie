@@ -24,6 +24,7 @@ foreach(entry IN LISTS runtime_entries)
         continue()
     endif()
     if(entry_lower STREQUAL "settings.ini"
+            OR entry_lower STREQUAL "qlizzie_core_tests.exe"
             OR entry_lower STREQUAL "runtime-check.err"
             OR entry_lower STREQUAL "runtime-check.out"
             OR entry_lower STREQUAL "gtp_logs")

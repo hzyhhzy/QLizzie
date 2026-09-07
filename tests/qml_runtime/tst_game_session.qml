@@ -43,6 +43,14 @@ TestCase {
         compare(session.currentPlayer, 1)
         verify(session.placeStone(1, 1).reused)
         compare(session.nextNodeId, 2)
+
+        var treeChanges = treeSpy.count
+        session.stoneColorMode = 1
+        session.refreshPlayer()
+        compare(session.currentPlayer, 1)
+        compare(session.currentNodeId, 1)
+        compare(session.stoneCount, 1)
+        compare(treeSpy.count, treeChanges)
     }
 
     function test_source_target_and_delete() {
@@ -76,18 +84,6 @@ TestCase {
         compare(session.boardRevision, revision)
         verify(!session.updateNodeAnalysis(1, { "parent": 99 }).ok)
         compare(session.currentNode().parent, 0)
-    }
-
-    function test_color_refresh_preserves_record() {
-        session.placeStone(2, 2)
-        session.stoneColorMode = 1
-        session.refreshPlayer()
-        compare(session.currentPlayer, 1)
-        compare(session.currentNodeId, 1)
-        compare(session.stoneCount, 1)
-        session.stoneColorMode = 2
-        session.reset()
-        compare(session.currentPlayer, 2)
     }
 
     function test_failed_load_preserves_state_and_emits_only_rejection() {

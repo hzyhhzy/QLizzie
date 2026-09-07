@@ -14,7 +14,6 @@ import "EnginePlay.js" as EnginePlay
 import "EngineSpeed.js" as EngineSpeed
 import "EngineSupport.js" as EngineSupport
 import "GameRules.js" as GameRules
-import "Ownership.js" as Ownership
 import "RuleSupport.js" as RuleSupport
 import "rules/RuleRegistry.js" as RuleRegistry
 import "SettingsStore.js" as SettingsStore
@@ -2347,10 +2346,6 @@ ApplicationWindow {
         }
     }
 
-    function stageEngineSyncSnapshot(syncRequestId, pathIds, boardSignature, komiSignature) {
-        engineSession.stageSync(syncRequestId, pathIds, boardSignature, komiSignature)
-    }
-
     function commitEngineSyncSnapshot(syncRequestId) {
         return engineSession.commitSync(syncRequestId)
     }
@@ -2918,10 +2913,6 @@ ApplicationWindow {
 
     function cancelActiveEnginePlayRequest(invalidateSync) {
         engineSession.cancelPlay(invalidateSync)
-    }
-
-    function cancelActiveGenmoveRequest() {
-        engineSession.cancelGenmove()
     }
 
     function cancelActiveAiAnalysisRequest(invalidateSync) {

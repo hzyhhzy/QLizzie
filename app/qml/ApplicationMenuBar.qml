@@ -275,7 +275,7 @@ MenuBar {
 
         Action {
             text: applicationMenu.translate("engineRestartCurrent")
-            enabled: applicationMenu.hasActiveEngine !== null
+            enabled: applicationMenu.hasActiveEngine
             onTriggered: applicationMenu.engineRestartRequested()
         }
 
@@ -296,7 +296,7 @@ MenuBar {
                 checkable: true
                 checked: {
                     var preset = applicationMenu.enginePresets[index]
-                    return preset && applicationMenu.activeEngineId === preset.id
+                    return !!preset && applicationMenu.activeEngineId === preset.id
                 }
                 onTriggered: {
                     var preset = applicationMenu.enginePresets[index]

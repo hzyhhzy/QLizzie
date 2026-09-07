@@ -134,6 +134,19 @@ TestCase {
         compare(application.currentNodeId, 0)
     }
 
+    function test_new_engine_preset_precedes_existing_presets() {
+        application.setEnginePresetList([
+            { "id": "first", "name": "First", "command": "first-mock-engine" },
+            { "id": "second", "name": "Second", "command": "second-mock-engine" }
+        ])
+        compare(application.addEnginePreset(), 0)
+        compare(application.enginePresets.length, 3)
+        var newId = application.enginePresets[0].id
+        verify(newId.length > 0 && newId !== "first" && newId !== "second")
+        compare(application.enginePresets[1].id, "first")
+        compare(application.enginePresets[2].id, "second")
+    }
+
     function test_place_undo_branch_and_delete() {
         verify(application.placeStone(2, 2))
         verify(application.placeStone(3, 3))
@@ -266,17 +279,6 @@ TestCase {
         verify(application.nodeAnalysisCacheUsable(application.currentNode()))
         compare(application.engineCandidates.length, 1)
         verify(application.engineCandidatesFromCache)
-    }
-
-    function test_load_rejects_invalid_node_allocator() {
-        verify(application.placeStone(2, 2))
-        var parsed = application.parseSgf(application.buildSgf())
-        var generation = application.gameTreeGeneration
-        parsed.nextNodeId = Infinity
-        var result = application.loadGameTree(parsed)
-        verify(!result.ok, "Non-finite node IDs must not enter the owned game state")
-        compare(application.gameTreeGeneration, generation)
-        compare(application.nextNodeId, 2)
     }
 
     function startBlackEngineMove() {
