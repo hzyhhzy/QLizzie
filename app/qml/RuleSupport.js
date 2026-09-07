@@ -1,4 +1,5 @@
 .pragma library
+.import "rules/RulePreferences.js" as RulePreferences
 .import "rules/RuleCatalog.js" as RuleCatalog
 .import "rules/RuleRegistry.js" as RuleRegistry
 
@@ -193,6 +194,8 @@ function gameRuleTree(app) {
             ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_ATAXX,
                                        ["ruleGroupCommonNewGames"])),
             ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_BREAKTHROUGH,
+                                       ["ruleGroupCommonNewGames"])),
+            ruleLeaf(ruleOptionFromRegistry(app, RuleRegistry.RULE_SURAKARTA,
                                        ["ruleGroupCommonNewGames"]))
         ]),
         ruleGroup("ruleGroupOther", [
@@ -288,7 +291,7 @@ function ruleVisibilityKey(app, mode) {
 }
 
 function defaultCommonRuleOrder(app) {
-    return [RuleRegistry.RULE_GO, RuleRegistry.RULE_GOMOKU, RuleRegistry.RULE_HEX]
+    return RulePreferences.defaultOrder()
 }
 
 function defaultRuleModeVisible(app, mode) {
@@ -296,15 +299,7 @@ function defaultRuleModeVisible(app, mode) {
 }
 
 function normalizedRuleVisibilityMap(app, source) {
-    var map = source || {}
-    var options = gameRuleOptions(app)
-    var next = {}
-    for (var i = 0; i < options.length; ++i) {
-        var key = ruleVisibilityKey(app, options[i].value)
-        next[key] = typeof map[key] === "boolean" ? map[key]
-                                                  : defaultRuleModeVisible(app, options[i].value)
-    }
-    return next
+    return RulePreferences.normalizeVisibility(gameRuleOptions(app), source, false)
 }
 
 function ruleOptionForMode(app, mode) {
@@ -317,28 +312,7 @@ function ruleOptionForMode(app, mode) {
 }
 
 function normalizedCommonRuleOrder(app, source) {
-    var order = Array.isArray(source) ? source : []
-    var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
-    var used = {}
-    var next = []
-    for (var i = 0; i < order.length; ++i) {
-        var mode = Number(order[i])
-        var key = ruleVisibilityKey(app, mode)
-        if (!used[key] && map[key] === true && ruleOptionForMode(app, mode)) {
-            next.push(mode)
-            used[key] = true
-        }
-    }
-    var options = gameRuleOptions(app)
-    for (var j = 0; j < options.length; ++j) {
-        var option = options[j]
-        var optionKey = ruleVisibilityKey(app, option.value)
-        if (!used[optionKey] && map[optionKey] === true) {
-            next.push(option.value)
-            used[optionKey] = true
-        }
-    }
-    return next
+    return RulePreferences.normalizeOrder(gameRuleOptions(app), source, app.ruleVisibilityMap)
 }
 
 function syncCommonRuleOrder(app) {
@@ -360,27 +334,7 @@ function ruleGroupVisible(app, modes) {
 }
 
 function setRuleModeVisible(app, mode, visible) {
-    var key = ruleVisibilityKey(app, mode)
-    var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
-    map[key] = visible === true
-    app.ruleVisibilityMap = map
-    if (visible === true) {
-        var order = normalizedCommonRuleOrder(app, app.commonRuleOrder)
-        var found = false
-        for (var i = 0; i < order.length; ++i) {
-            if (order[i] === mode) {
-                found = true
-                break
-            }
-        }
-        if (!found)
-            order.push(mode)
-        app.commonRuleOrder = normalizedCommonRuleOrder(app, order)
-    } else {
-        app.commonRuleOrder = normalizedCommonRuleOrder(app, app.commonRuleOrder)
-    }
-    if (app.persistentSettingsLoaded)
-        app.savePersistentSettings()
+    setRuleModesVisible(app, [mode], visible)
 }
 
 function ruleNodeModes(node, modes) {
@@ -397,14 +351,10 @@ function ruleNodeModes(node, modes) {
 }
 
 function setRuleModesVisible(app, modes, visible) {
-    var map = normalizedRuleVisibilityMap(app, app.ruleVisibilityMap)
-    for (var i = 0; modes && i < modes.length; ++i) {
-        var mode = modes[i]
-        var key = ruleVisibilityKey(app, mode)
-        map[key] = visible === true
-    }
-    app.ruleVisibilityMap = map
-    app.commonRuleOrder = normalizedCommonRuleOrder(app, app.commonRuleOrder)
+    var next = RulePreferences.setVisible(gameRuleOptions(app), app.commonRuleOrder,
+                                          app.ruleVisibilityMap, modes, visible)
+    app.ruleVisibilityMap = next.visibility
+    app.commonRuleOrder = next.order
     if (app.persistentSettingsLoaded)
         app.savePersistentSettings()
 }
@@ -441,21 +391,10 @@ function commonGameRuleOptions(app) {
 
 function moveCommonRule(app, mode, delta) {
     var order = normalizedCommonRuleOrder(app, app.commonRuleOrder)
-    var from = -1
-    for (var i = 0; i < order.length; ++i) {
-        if (order[i] === mode) {
-            from = i
-            break
-        }
-    }
-    if (from < 0)
+    var next = RulePreferences.move(order, mode, delta)
+    if (JSON.stringify(next) === JSON.stringify(order))
         return
-    var to = Math.max(0, Math.min(order.length - 1, from + delta))
-    if (to === from)
-        return
-    var item = order.splice(from, 1)[0]
-    order.splice(to, 0, item)
-    app.commonRuleOrder = order
+    app.commonRuleOrder = next
     if (app.persistentSettingsLoaded)
         app.savePersistentSettings()
 }
@@ -715,6 +654,7 @@ function engineCommandEditable(app) {
 
 function customBoardSizeAllowed(app) {
     return app.packageMode === app.packageModeUniversal
+           && app.gameRuleMode !== app.gameRuleSurakarta
 }
 
 function boardSizePresets(app) {
@@ -744,6 +684,8 @@ function boardSizePresets(app) {
         return [6, 8, 10]
     if (app.gameRuleMode === app.gameRuleDotsAndBoxes)
         return [5, 6]
+    if (app.gameRuleMode === app.gameRuleSurakarta)
+        return [6]
     return [9, 13, 19]
 }
 
@@ -844,8 +786,10 @@ function activateRuleMode(app, mode) {
 function applyRuleModeChange(app, mode) {
     if (!activateRuleMode(app, mode))
         return
-    var requestedX = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeX
-    var requestedY = mode === app.gameRuleDotsAndBoxes ? 11 : app.boardSizeY
+    var requestedX = mode === app.gameRuleDotsAndBoxes ? 11
+                     : mode === app.gameRuleSurakarta ? 6 : app.boardSizeX
+    var requestedY = mode === app.gameRuleDotsAndBoxes ? 11
+                     : mode === app.gameRuleSurakarta ? 6 : app.boardSizeY
     var adjusted = adjustedBoardDimensionsForRule(app, mode, requestedX, requestedY)
     app.boardSizeX = adjusted.x
     app.boardSizeY = adjusted.y
@@ -892,6 +836,9 @@ function adjustedBoardDimensionsForRule(app, mode, xSize, ySize) {
             nextX += 1
         if (nextY % 2 === 0)
             nextY += 1
+    } else if (mode === app.gameRuleSurakarta) {
+        nextX = 6
+        nextY = 6
     }
     return { "x": nextX, "y": nextY }
 }
@@ -905,6 +852,8 @@ function boardDimensionsAllowedForRule(app, mode, xSize, ySize) {
         return ySize > 3
     if (mode === app.gameRuleDotsAndBoxes)
         return xSize >= 3 && ySize >= 3 && xSize % 2 === 1 && ySize % 2 === 1
+    if (mode === app.gameRuleSurakarta)
+        return xSize === 6 && ySize === 6
     return true
 }
 
@@ -969,6 +918,8 @@ function ruleBoardSizeRejectText(app, mode, xSize, ySize) {
         return app.trText("hexGoTriangleBoardSizeRejected") + ": " + dims
     if (mode === app.gameRuleBreakthrough)
         return app.trText("breakthroughBoardSizeRejected") + ": " + dims
+    if (mode === app.gameRuleSurakarta)
+        return app.trText("surakartaBoardSizeRejected") + ": " + dims
     return packageBoardSizeRejectText(app, xSize, ySize)
 }
 

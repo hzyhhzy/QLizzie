@@ -121,6 +121,9 @@ AppWindowDialog {
             if (mode === app.gameRuleDotsAndBoxes) {
                 widthSpin.value = 5
                 heightSpin.value = 5
+            } else if (mode === app.gameRuleSurakarta) {
+                widthSpin.value = 6
+                heightSpin.value = 6
             }
         }
     }
@@ -665,9 +668,11 @@ AppWindowDialog {
                     Label { text: app.trText("engineWidthShort"); color: "#52636d"; font.bold: true }
                     AppSpinBox {
                         id: widthSpin
-                        from: app.minBoardSize
-                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
-                            ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
+                        from: engineListDialog.currentEditorRuleMode() === app.gameRuleSurakarta
+                              ? 6 : app.minBoardSize
+                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleSurakarta
+                            ? 6 : engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
+                              ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
                         font.bold: true
@@ -677,9 +682,11 @@ AppWindowDialog {
                     Label { text: app.trText("engineHeightShort"); color: "#52636d"; font.bold: true }
                     AppSpinBox {
                         id: heightSpin
-                        from: app.minBoardSize
-                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
-                            ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
+                        from: engineListDialog.currentEditorRuleMode() === app.gameRuleSurakarta
+                              ? 6 : app.minBoardSize
+                        to: engineListDialog.currentEditorRuleMode() === app.gameRuleSurakarta
+                            ? 6 : engineListDialog.currentEditorRuleMode() === app.gameRuleDotsAndBoxes
+                              ? Math.floor((app.maxBoardSize - 1) / 2) : app.maxBoardSize
                         editable: true
                         enabled: engineListDialog.selectedPreset() !== null
                         font.bold: true

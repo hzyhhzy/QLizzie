@@ -113,9 +113,12 @@ test("loading activates the detected rule before rebuilding", () => {
         engineBoardSignature() { return "board" },
         engineKomiSignature() { return "komi" },
         clearHover() {},
-        rebuildPositionFromNode() { events.push(`rebuild:${this.gameRuleMode}`) },
-        rebuildTreeLayout() {},
-        gotoLastMove() {},
+        showCachedAnalysisForCurrentNode() { events.push("show-cache") },
+        loadGameTree(parsed) {
+            events.push(`rebuild:${this.gameRuleMode}`)
+            this.gameNodes = parsed.nodes
+            return { ok: true }
+        },
         focusBoardInput() {}
     })
     const parsed = {
@@ -132,7 +135,7 @@ test("loading activates the detected rule before rebuilding", () => {
     parsingSession.applyParsed(app, parsed, "file:///connect6.sgf")
 
     assert.equal(app.gameRuleMode, registry.RULE_CONNECT6)
-    assert.deepEqual(events, ["activate:5", "reset-engine", "rebuild:5"])
+    assert.deepEqual(events, ["activate:5", "reset-engine", "rebuild:5", "show-cache"])
     assert.equal(app.gameDirty, false)
 })
 

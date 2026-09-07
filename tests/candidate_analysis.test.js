@@ -7,9 +7,19 @@ const { loadQmlJs } = require("./qmlJsLoader")
 
 const candidatePath = path.join(__dirname, "..", "app", "qml", "CandidateAnalysis.js")
 const analysisStatusPath = path.join(__dirname, "..", "app", "qml", "AnalysisStatus.js")
+const registryPath = path.join(__dirname, "..", "app", "qml", "rules", "RuleRegistry.js")
+const gameRulesPath = path.join(__dirname, "..", "app", "qml", "GameRules.js")
+const registry = loadQmlJs(registryPath)
+const gameRules = loadQmlJs(gameRulesPath, { imports: { RuleRegistry: registry } })
+const candidateModel = loadQmlJs(path.join(__dirname, "..", "app", "qml", "CandidateModel.js"))
+const movePreview = loadQmlJs(path.join(__dirname, "..", "app", "qml", "MovePreview.js"), {
+    imports: { GameRules: gameRules }
+})
 const candidateAnalysis = loadQmlJs(candidatePath, {
     imports: {
-        GameRules: {}
+        GameRules: gameRules,
+        CandidateModel: candidateModel,
+        MovePreview: movePreview
     }
 })
 const analysisStatus = loadQmlJs(analysisStatusPath)
@@ -195,97 +205,196 @@ test("compact PV text preserves parenthesized moves and is expanded lazily", () 
     assert.equal(candidate._pvMoves.length, 3)
 })
 
-test("paused synchronization keeps the current node candidate cache visible", () => {
-    const cachedCandidates = [
-        { move: "D4", order: 0, visits: 100, winrate: 0.55 }
-    ]
-    const node = {
-        analysisCandidates: cachedCandidates,
-        analysisCandidateBoardSignature: "19x19-go",
-        analysisCandidateKomiSignature: "komi-7.5"
+test("Surakarta PV preview consumes source and loop-capture target as one arrow", () => {
+    const stones = {
+        "1,2": { x: 1, y: 2, key: "1,2", player: 1, moveNumber: 0, nodeId: 0 },
+        "2,3": { x: 2, y: 3, key: "2,3", player: 2, moveNumber: 0, nodeId: 0 }
     }
     const app = createApp({
-        engineAnalysisRequestValid: false,
-        aiAnalysisInFlight: false,
-        analysisModeActive() {
-            return true
-        },
-        currentNode() {
-            return node
-        },
-        engineBoardSignature() {
-            return "19x19-go"
-        },
-        engineKomiSignature() {
-            return "komi-7.5"
-        },
-        engineCandidates: [],
-        engineCandidatesFromCache: false,
-        engineCandidateItems: [],
-        engineCandidateItemMap: {},
-        engineCandidateTableItems: [],
-        engineCandidateRevision: 0,
-        bestCandidateRingVisible: false,
-        bestCandidateRingKey: "",
-        updateBestCandidateRing(items) {
-            this.bestCandidateRingVisible = items.length > 0
-            this.bestCandidateRingKey = items.length > 0 ? items[0].key : ""
+        gameRuleAtaxx: registry.RULE_ATAXX,
+        gameRuleBreakthrough: registry.RULE_BREAKTHROUGH,
+        gameRuleSurakarta: registry.RULE_SURAKARTA,
+        gameRuleMode: registry.RULE_SURAKARTA,
+        currentPlayer: 1,
+        stones,
+        candidateVariationPreviewMaxMoves: 2,
+        boardDims() { return { x: 6, y: 6 } },
+        pointInRuleBoard(x, y) { return x >= 0 && x < 6 && y >= 0 && y < 6 },
+        currentMoveSourcePoint() { return null },
+        parseEngineCoordinate(move) {
+            if (move === "source") return { x: 1, y: 2 }
+            if (move === "target") return { x: 2, y: 3 }
+            return null
         }
     })
+    const items = candidateAnalysis.activeMoveRuleVariationItems(
+        app, { pv: ["source", "target"] }, false
+    )
 
-    candidateAnalysis.applyEngineCandidateUpdate(app, [], 12)
-
-    assert.equal(app.engineCandidates, cachedCandidates)
-    assert.equal(app.engineCandidatesFromCache, true)
-    assert.equal(app.engineCandidateItems.length, 1)
-    assert.equal(app.engineCandidateItems[0].move, "D4")
-
-    app.candidateDisplayCount = 1
-    candidateAnalysis.rebuildItems(app)
-    assert.equal(app.engineCandidates, cachedCandidates)
-    assert.equal(node.analysisCandidates, cachedCandidates)
-    assert.equal(app.engineCandidateItems.length, 1)
+    assert.equal(items.length, 1)
+    assert.equal(items[0].kind, "arrow")
+    assert.deepEqual(
+        { fromX: items[0].fromX, fromY: items[0].fromY, x: items[0].x, y: items[0].y },
+        { fromX: 1, fromY: 2, x: 2, y: 3 }
+    )
 })
 
-test("node candidate cache is detached from the controller snapshot", () => {
-    const sourceCandidates = [
-        {
-            move: "D4",
-            order: 0,
-            visits: 100,
-            winrate: 0.55,
-            pv: ["D4", "pass"]
-        }
-    ]
-    const node = {}
-    const originalGameNodes = [node]
-    const app = createApp({
-        gameNodes: originalGameNodes,
-        analysisRevision: 0,
-        engineBoardSignature() {
-            return "19x19-go"
-        },
-        engineKomiSignature() {
-            return "komi-7.5"
-        },
-        playerToMoveAfterNode() {
-            return 1
-        }
+function frozen(value) {
+    if (value && typeof value === "object") {
+        for (const child of Object.values(value))
+            frozen(child)
+        Object.freeze(value)
+    }
+    return value
+}
+
+function plain(value) {
+    return JSON.parse(JSON.stringify(value))
+}
+
+function previewMap(...stones) {
+    return Object.fromEntries(stones.map(([x, y, player]) => [
+        `${x},${y}`, { x, y, player, key: `${x},${y}`, moveNumber: 0, nodeId: 0 }
+    ]))
+}
+
+test("pure candidate projection filters markers independently of table rows and preserves input", () => {
+    const settings = frozen(candidateAnalysis.presentationSettings(createApp({
+        candidateDisplayCount: 2,
+        candidateMinVisitRatio: 0.5,
+        candidateShowFilteredMarkers: false,
+        candidateTableRowLimit: 3,
+        candidateVisitsLabelVisible: true,
+        candidateScoreLabelVisible: true,
+        candidateScoreShowPercent: true
+    })))
+    const entries = frozen([
+        { candidate: { move: "B2", order: 2, visits: 40, winrate: 0.4, scoreMean: -1.25 },
+          point: { x: 1, y: 1 }, moveKind: "", moveText: "B2" },
+        { candidate: { move: "pass", order: 0, visits: 100, winrate: 0.75 },
+          point: null, moveKind: "pass", moveText: "Pass" },
+        { candidate: { move: "A1", order: 1, visits: 60, winrate: 0.55, pv: ["A1", "B2"] },
+          point: { x: 0, y: 0 }, moveKind: "", moveText: "A1" }
+    ])
+    const before = JSON.stringify(entries)
+    const built = candidateModel.build(entries, settings)
+
+    assert.deepEqual(Array.from(built.items, item => item.move), ["pass", "A1", "B2"])
+    assert.deepEqual(Array.from(built.items, item => item.boardVisible), [false, true, false])
+    assert.deepEqual(Array.from(built.items, item => item.qualified), [true, true, false])
+    assert.equal(built.table.length, 3)
+    assert.equal(built.items[2].scoreText, "-1.3%")
+    assert.equal(built.items[2].labelLines.length, 0)
+    assert.deepEqual(Array.from(built.items[1].labelLines, line => line.text), ["55.0", "60"])
+    assert.equal(built.itemMap["0,0"], built.items[1])
+    assert.equal(JSON.stringify(entries), before)
+})
+
+test("projection retains engine ranks when a coordinate is malformed", () => {
+    const settings = candidateAnalysis.presentationSettings(createApp({ candidateDisplayCount: 1 }))
+    const built = candidateModel.build([
+        { candidate: { move: "bad", order: 0, visits: 100 }, point: null, moveKind: "", moveText: "" },
+        { candidate: { move: "A1", order: 1, visits: 50 }, point: { x: 0, y: 0 }, moveKind: "", moveText: "A1" }
+    ], settings)
+    assert.equal(built.items.length, 1)
+    assert.equal(built.items[0].displayIndex, 2)
+    assert.equal(built.items[0].qualified, false)
+    assert.equal(built.items[0].visitRatio, 0.5)
+    assert.equal(built.table[0].row, 2)
+})
+
+test("Ataxx preview clones and converts neighbors without changing a frozen position", () => {
+    const position = frozen({
+        map: previewMap([0, 0, 1], [2, 1, 2], [6, 6, 2]), player: 1, source: null
     })
-
-    assert.equal(candidateAnalysis.cacheAnalysisCandidatesForNode(
-                     app, node, sourceCandidates, "19x19-go", "komi-7.5"),
-                 true)
-    assert.notEqual(app.gameNodes, originalGameNodes)
-    assert.notEqual(node.analysisCandidates, sourceCandidates)
-    assert.notEqual(node.analysisCandidates[0], sourceCandidates[0])
-    assert.notEqual(node.analysisCandidates[0].pv, sourceCandidates[0].pv)
-
-    sourceCandidates[0].move = "pass"
-    sourceCandidates[0].pv[0] = "pass"
-    sourceCandidates.length = 0
-
-    assert.equal(node.analysisCandidates.length, 1)
-    assert.equal(node.analysisCandidates[0].move, "D4")
-    assert.equal(node.analysisCandidates[0].pv.join(","), "D4,pass")
+    const actions = frozen([{ x: 1, y: 1 }, { x: 5, y: 5 }, { x: 2, y: 2 }])
+    const config = frozen({ dims: { x: 7, y: 7 }, ruleMode: registry.RULE_ATAXX, maxMoves: 0 })
+    const before = JSON.stringify(position)
+    const result = movePreview.sourceVariation(position, config, actions)
+    assert.equal(result.items.length, 2)
+    assert.equal(result.nextIndex, 2)
+    assert.deepEqual(Array.from(result.items, item => item.kind), ["stone", "stone"])
+    assert.deepEqual(Array.from(result.items, item => item.player), [1, 2])
+    assert.equal(result.position.map["0,0"].player, 1)
+    assert.equal(result.position.map["2,1"].player, 1)
+    assert.equal(result.position.map["2,2"], undefined)
+    assert.equal(JSON.stringify(position), before)
 })
+
+test("Ataxx preview merges source and jump target into one numbered arrow", () => {
+    const position = frozen({ map: previewMap([0, 0, 1], [6, 6, 2]), player: 1, source: null })
+    const result = movePreview.sourceVariation(position, {
+        dims: { x: 7, y: 7 }, ruleMode: registry.RULE_ATAXX, maxMoves: 1
+    }, [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 5, y: 5 }])
+    assert.equal(result.nextIndex, 2)
+    assert.equal(result.items.length, 1)
+    assert.deepEqual(plain(result.items[0]), {
+        kind: "arrow", fromX: 0, fromY: 0, x: 2, y: 0, key: "2,0", player: 1, moveNumber: 1, nodeId: -1
+    })
+    assert.equal(result.position.map["0,0"], undefined)
+    assert.equal(result.position.map["2,0"].player, 1)
+    assert.equal(position.map["0,0"].player, 1)
+})
+
+test("selected source needs only a target token and an illegal reply stops the preview", () => {
+    const position = frozen({
+        map: previewMap([1, 2, 1], [2, 1, 2], [4, 0, 2]),
+        player: 1, source: { x: 1, y: 2 }
+    })
+    const result = movePreview.sourceVariation(position, {
+        dims: { x: 5, y: 5 }, ruleMode: registry.RULE_BREAKTHROUGH, maxMoves: 10
+    }, [{ x: 2, y: 1 }, { x: 4, y: 0 }, { x: 4, y: 2 }, { x: 4, y: 1 }])
+    assert.equal(result.items.length, 1)
+    assert.equal(result.items[0].kind, "arrow")
+    assert.equal(result.items[0].fromX, 1)
+    assert.equal(result.position.map["1,2"], undefined)
+    assert.equal(result.position.map["2,1"].player, 1)
+    assert.equal(result.position.map["4,0"].player, 2)
+    assert.equal(result.position.map["4,1"], undefined)
+    assert.equal(result.nextIndex, 2)
+    assert.equal(result.reason, "invalid-target")
+    assert.equal(position.map["2,1"].player, 2)
+})
+
+test("source-only, wrong-owner and malformed variations never invent a move", () => {
+    const position = frozen({ map: previewMap([0, 0, 1], [6, 6, 2]), player: 1, source: null })
+    const config = { dims: { x: 7, y: 7 }, ruleMode: registry.RULE_ATAXX, maxMoves: 2 }
+    const incomplete = movePreview.sourceVariation(position, config, [{ x: 0, y: 0 }])
+    assert.equal(incomplete.items.length, 0)
+    assert.equal(incomplete.reason, "incomplete-move")
+    for (const actions of [[{ x: 6, y: 6 }, { x: 4, y: 6 }], [null, { x: 1, y: 1 }],
+                           [{ x: 0, y: 0 }, { x: 7, y: 7 }], [{ role: "pass" }]]) {
+        const result = movePreview.sourceVariation(position, config, actions)
+        assert.equal(result.items.length, 0)
+        assert.notEqual(result.reason, "")
+        assert.deepEqual(plain(result.position.map), plain(position.map))
+    }
+})
+
+test("Surakarta preview simulates loop capture and blocks reuse of the captured source", () => {
+    const position = frozen({ map: previewMap([1, 2, 1], [2, 3, 2]), player: 1, source: null })
+    const result = movePreview.sourceVariation(position, {
+        dims: { x: 6, y: 6 }, ruleMode: registry.RULE_SURAKARTA, maxMoves: 0
+    }, [{ x: 1, y: 2 }, { x: 2, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }])
+    assert.equal(result.items.length, 1)
+    assert.equal(result.position.map["1,2"], undefined)
+    assert.equal(result.position.map["2,3"].player, 1)
+    assert.equal(result.nextIndex, 2)
+    assert.equal(result.reason, "source-required")
+    assert.equal(position.map["2,3"].player, 2)
+})
+
+test("ordinary previews count passes and skip bad coordinates without consuming a move", () => {
+    const actions = frozen([null, { x: 8, y: 8 }, { role: "pass" }, { x: 0, y: 0 }, { x: 1, y: 1 }])
+    const items = movePreview.placementItems({ player: 1 }, {
+        dims: { x: 5, y: 5 }, ruleMode: registry.RULE_GO, maxMoves: 2
+    }, actions)
+    assert.equal(items.length, 1)
+    assert.deepEqual(plain(items[0]), { x: 0, y: 0, key: "0,0", player: 2, moveNumber: 2, nodeId: -1 })
+    assert.equal(movePreview.moveLimit(NaN), 0)
+    assert.equal(movePreview.moveLimit(-4), 0)
+    assert.equal(movePreview.moveLimit(1.7), 2)
+})
+
+// Candidate cache lifecycle tests live in analysis_cache.test.js and
+// qml_runtime/tst_analysis_session.qml, using immutable GameSession nodes.

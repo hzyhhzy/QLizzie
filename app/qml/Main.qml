@@ -12,7 +12,6 @@ import "CoordinateUtils.js" as CoordinateUtils
 import "EnginePresets.js" as EnginePresets
 import "EnginePlay.js" as EnginePlay
 import "EngineSpeed.js" as EngineSpeed
-import "EngineSync.js" as EngineSync
 import "EngineSupport.js" as EngineSupport
 import "GameRules.js" as GameRules
 import "Ownership.js" as Ownership
@@ -101,35 +100,35 @@ ApplicationWindow {
         { "type": "button", "action": "lastMove", "zh": ">|", "en": ">|", "width": 40 }
     ]
 
-    property var stones: ({})
-    property var stoneItems: []
-    property var gameNodes: []
+    readonly property var stones: gameSession.stones
+    readonly property var stoneItems: gameSession.stoneItems
+    readonly property var gameNodes: gameSession.gameNodes
     property var treeNodes: []
     property var treeEdges: []
     property int treeCanvasWidth: 220
     property int treeCanvasHeight: 260
-    property int currentNodeId: 0
-    property int nextNodeId: 1
-    property int gameTreeGeneration: 0
+    readonly property int currentNodeId: gameSession.currentNodeId
+    readonly property int nextNodeId: gameSession.nextNodeId
+    readonly property int gameTreeGeneration: gameSession.gameTreeGeneration
     property int boardRevision: 0
     property int treeRevision: 0
-    property int legalityRevision: 0
-    property int currentPlayer: 1
-    property int stoneCount: 0
-    property int blackCaptures: 0
-    property int whiteCaptures: 0
-    property string koLocKey: ""
-    property int koLocX: -1
-    property int koLocY: -1
-    property string koLocKey2: ""
-    property int koLocX2: -1
-    property int koLocY2: -1
+    readonly property int legalityRevision: gameSession.legalityRevision
+    readonly property int currentPlayer: gameSession.currentPlayer
+    readonly property int stoneCount: gameSession.stoneCount
+    readonly property int blackCaptures: gameSession.blackCaptures
+    readonly property int whiteCaptures: gameSession.whiteCaptures
+    readonly property string koLocKey: gameSession.koLocKey
+    readonly property int koLocX: gameSession.koLocX
+    readonly property int koLocY: gameSession.koLocY
+    readonly property string koLocKey2: gameSession.koLocKey2
+    readonly property int koLocX2: gameSession.koLocX2
+    readonly property int koLocY2: gameSession.koLocY2
     property string hoverKey: ""
     property int hoverX: -1
     property int hoverY: -1
     property bool selectedPointLocked: false
     property bool selectedPointFromCandidateList: false
-    property var legalPointMap: ({})
+    readonly property var legalPointMap: gameSession.legalPointMap
     property string statusMode: "turn"
     property string statusMessage: ""
     property int statusX: -1
@@ -154,6 +153,7 @@ ApplicationWindow {
     readonly property int gameRuleTorusGo: RuleRegistry.RULE_TORUS_GO
     readonly property int gameRuleTwoLibGo: RuleRegistry.RULE_TWO_LIB_GO
     readonly property int gameRuleDotsAndBoxes: RuleRegistry.RULE_DOTS_AND_BOXES
+    readonly property int gameRuleSurakarta: RuleRegistry.RULE_SURAKARTA
     readonly property int gameRuleMoreOption: -1000000
     property int gameRuleMode: gameRuleGo
     property var ruleVisibilityMap: ({})
@@ -187,6 +187,7 @@ ApplicationWindow {
     property var hexWinPathItems: []
     property int hexWinPathPlayer: 0
     property var breakthroughWinInfo: ({ "player": 0, "reason": "" })
+    readonly property var surakartaWinInfo: gameSession.surakartaWinInfo
 
     property real komi: 6.5
     readonly property real maxKomiMagnitude: 99999
@@ -275,53 +276,54 @@ ApplicationWindow {
     property bool engineLoading: false
     property bool engineNoticeDismissed: false
     property string engineFailureNoticeText: ""
-    property bool genmoveInFlight: false
-    property int genmoveRequestSerial: 0
-    property int activeGenmoveRequestId: 0
-    property int activeGenmoveSyncRequestId: 0
-    property var activeGenmovePosition: null
-    property int genmovePlayer: 0
-    property bool aiAnalysisInFlight: false
-    property int aiAnalysisRequestSerial: 0
-    property int activeAiAnalysisRequestId: 0
-    property int activeAiAnalysisSyncRequestId: 0
-    property var activeAiAnalysisPosition: null
-    property double aiAnalysisStartedAt: 0
+    readonly property bool genmoveInFlight: engineSession.genmoveInFlight
+    readonly property int genmoveRequestSerial: engineSession.genmoveRequestSerial
+    readonly property int activeGenmoveRequestId: engineSession.activeGenmoveRequestId
+    readonly property int activeGenmoveSyncRequestId: engineSession.activeGenmoveSyncRequestId
+    readonly property var activeGenmovePosition: engineSession.activeGenmovePosition
+    readonly property int genmovePlayer: engineSession.genmovePlayer
+    readonly property bool aiAnalysisInFlight: engineSession.aiAnalysisInFlight
+    readonly property int aiAnalysisRequestSerial: engineSession.aiAnalysisRequestSerial
+    readonly property int activeAiAnalysisRequestId: engineSession.activeAiAnalysisRequestId
+    readonly property int activeAiAnalysisSyncRequestId: engineSession.activeAiAnalysisSyncRequestId
+    readonly property var activeAiAnalysisPosition: engineSession.activeAiAnalysisPosition
+    readonly property double aiAnalysisStartedAt: engineSession.aiAnalysisStartedAt
     property bool applyingGeneratedMove: false
-    property var engineCandidates: []
-    property var engineCandidateItems: []
-    property var engineCandidateItemMap: ({})
-    property var engineCandidateTableItems: []
-    property int engineCandidateRevision: 0
-    property bool engineCandidatesFromCache: false
+    readonly property var engineCandidates: analysisSession.engineCandidates
+    readonly property var engineCandidateItems: analysisSession.engineCandidateItems
+    readonly property var engineCandidateItemMap: analysisSession.engineCandidateItemMap
+    readonly property var engineCandidateTableItems: analysisSession.engineCandidateTableItems
+    readonly property int engineCandidateRevision: analysisSession.engineCandidateRevision
+    readonly property bool engineCandidatesFromCache: analysisSession.engineCandidatesFromCache
     property double lastEngineCandidateUiUpdateAt: 0
+    property int pendingEngineCandidateSyncRequestId: 0
     readonly property int largeCandidateUiThreshold: 1000
     readonly property int largeCandidateUiIntervalMs: 1000
     property bool bestCandidateRingVisible: false
     property string bestCandidateRingKey: ""
     property int bestCandidateRingX: -1
     property int bestCandidateRingY: -1
-    property var engineSyncedNodeIds: []
-    property string engineSyncedBoardSignature: ""
-    property string engineSyncedKomiSignature: ""
-    property bool engineNeedsFullSync: true
-    property int engineSyncRequestSerial: 0
-    property var pendingEngineSyncSnapshot: null
-    property int engineAnalysisRequestNodeId: -1
-    property int engineAnalysisRequestGeneration: -1
-    property string engineAnalysisRequestBoardSignature: ""
-    property string engineAnalysisRequestKomiSignature: ""
-    property int engineAnalysisRequestPlayer: 0
-    property string engineAnalysisRequestEngineSignature: ""
-    property int engineAnalysisSyncRequestId: 0
-    property bool engineAnalysisRequestValid: false
+    readonly property var engineSyncedNodeIds: engineSession.engineSyncedNodeIds
+    readonly property string engineSyncedBoardSignature: engineSession.engineSyncedBoardSignature
+    readonly property string engineSyncedKomiSignature: engineSession.engineSyncedKomiSignature
+    readonly property bool engineNeedsFullSync: engineSession.engineNeedsFullSync
+    readonly property int engineSyncRequestSerial: engineSession.engineSyncRequestSerial
+    readonly property var pendingEngineSyncSnapshot: engineSession.pendingEngineSyncSnapshot
+    readonly property int engineAnalysisRequestNodeId: engineSession.engineAnalysisRequestNodeId
+    readonly property int engineAnalysisRequestGeneration: engineSession.engineAnalysisRequestGeneration
+    readonly property string engineAnalysisRequestBoardSignature: engineSession.engineAnalysisRequestBoardSignature
+    readonly property string engineAnalysisRequestKomiSignature: engineSession.engineAnalysisRequestKomiSignature
+    readonly property int engineAnalysisRequestPlayer: engineSession.engineAnalysisRequestPlayer
+    readonly property string engineAnalysisRequestEngineSignature: engineSession.engineAnalysisRequestEngineSignature
+    readonly property int engineAnalysisSyncRequestId: engineSession.engineAnalysisSyncRequestId
+    readonly property bool engineAnalysisRequestValid: engineSession.engineAnalysisRequestValid
     property bool ownershipEnabled: false
-    property var engineOwnership: []
-    property bool engineOwnershipFromCache: false
-    property string engineOwnershipBoardSignature: ""
-    property string engineOwnershipKomiSignature: ""
-    property string engineOwnershipEngineSignature: ""
-    property int engineOwnershipRevision: 0
+    readonly property var engineOwnership: analysisSession.engineOwnership
+    readonly property bool engineOwnershipFromCache: analysisSession.engineOwnershipFromCache
+    readonly property string engineOwnershipBoardSignature: analysisSession.engineOwnershipBoardSignature
+    readonly property string engineOwnershipKomiSignature: analysisSession.engineOwnershipKomiSignature
+    readonly property string engineOwnershipEngineSignature: analysisSession.engineOwnershipEngineSignature
+    readonly property int engineOwnershipRevision: analysisSession.engineOwnershipRevision
     property var engineSearchSpeedSamples: []
     property int engineSearchSpeed: -1
     property string engineSearchSpeedKey: ""
@@ -432,15 +434,8 @@ ApplicationWindow {
     }
 
     onCoordinateDisplayModeChanged: refreshCoordinateDisplayText()
-    onCurrentNodeIdChanged: {
-        resetEngineSearchSpeed()
-        handleAiAnalysisPositionChanged()
-    }
-    onGameTreeGenerationChanged: {
-        resetEngineSearchSpeed()
-        handleAiAnalysisPositionChanged()
-    }
-    onCurrentPlayerChanged: handleAiAnalysisPositionChanged()
+    onCurrentNodeIdChanged: resetEngineSearchSpeed()
+    onGameTreeGenerationChanged: resetEngineSearchSpeed()
     onActiveEngineIdChanged: {
         resetEngineSearchSpeed()
         handleAiAnalysisPositionChanged()
@@ -493,282 +488,41 @@ ApplicationWindow {
         requestAiMoveIfNeeded()
     }
 
-    menuBar: MenuBar {
-        font.pixelSize: root.compactLayout ? 15 : 17
-
-        Menu {
-            title: root.trText("menuFile")
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            Action {
-                text: root.trText("menuOpenSgf")
-                shortcut: "Ctrl+O"
-                onTriggered: root.openLoadSgfDialog()
-            }
-
-            Action {
-                text: root.trText("menuSaveSgf")
-                shortcut: "Ctrl+S"
-                onTriggered: root.openSaveSgfDialog()
-            }
-
-            Action {
-                text: root.trText("menuExit")
-                onTriggered: root.requestQuit()
-            }
-        }
-
-        Menu {
-            title: root.trText("menuEdit")
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            Action {
-                text: root.trText("menuUndo")
-                enabled: root.currentNodeId !== 0
-                onTriggered: root.undoMove()
-            }
-
-            Action {
-                text: root.trText("menuDeleteNode")
-                enabled: root.currentNodeId !== 0
-                onTriggered: root.requestDeleteCurrentNode()
-            }
-
-            Action {
-                text: root.trText("menuClearBoard")
-                onTriggered: root.requestClearBoard()
-            }
-
-            Action {
-                text: root.trText("menuBoardSize")
-                onTriggered: root.openBoardSizeDialog()
-            }
-        }
-
-        Menu {
-            title: root.trText("menuView")
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            Action {
-                text: root.trText("menuResetVisual")
-                onTriggered: root.resetVisualSettings()
-            }
-        }
-
-        Menu {
-            id: settingsMenu
-            title: root.trText("menuSettings")
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            MenuItem {
-                text: root.trText("settingsDialogTitle")
-                font.pixelSize: root.compactLayout ? 14 : 16
-                onTriggered: settingsDialog.openPage(0)
-            }
-
-            Menu {
-                id: ruleSelectionMenu
-                title: root.trText("ruleSelectionMenu")
-                width: root.compactLayout ? 260 : 320
-                font.pixelSize: root.compactLayout ? 14 : 16
-
-                MenuItem {
-                    width: ruleSelectionMenu.width
-                    enabled: false
-                    text: root.currentRuleSelectionText()
-                    font.pixelSize: root.compactLayout ? 13 : 15
-                    leftPadding: 0
-                    rightPadding: 0
-
-                    contentItem: Text {
-                        leftPadding: 18
-                        rightPadding: 18
-                        text: root.currentRuleSelectionText()
-                        color: "#7b8a93"
-                        font.pixelSize: root.compactLayout ? 13 : 15
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-                }
-
-                MenuSeparator { }
-
-                Instantiator {
-                    model: root.commonGameRuleOptions()
-
-                    delegate: MenuItem {
-                        id: commonRuleMenuItem
-
-                        readonly property bool selected: root.gameRuleMode === modelData.value
-
-                        width: ruleSelectionMenu.width
-                        text: modelData.label
-                        checkable: false
-                        enabled: root.ruleModeAllowedForPackage(modelData.value)
-                        font.pixelSize: root.compactLayout ? 14 : 16
-                        leftPadding: 0
-                        rightPadding: 0
-                        onTriggered: root.chooseRuleModeFromMenu(modelData.value)
-
-                        indicator: Item {
-                            x: 10
-                            y: 0
-                            width: 26
-                            height: commonRuleMenuItem.height
-
-                            AppCheckMark {
-                                anchors.centerIn: parent
-                                visible: commonRuleMenuItem.selected
-                                width: root.compactLayout ? 15 : 17
-                                height: width
-                                checked: true
-                                markColor: "#17212a"
-                                lineWidth: root.compactLayout ? 2.1 : 2.4
-                            }
-                        }
-
-                        contentItem: Item {
-                            implicitWidth: ruleSelectionMenu.width
-                            implicitHeight: commonRuleMenuItem.implicitContentHeight
-
-                            Text {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 52
-                                anchors.right: parent.right
-                                anchors.rightMargin: 18
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: commonRuleMenuItem.text
-                                color: commonRuleMenuItem.enabled ? "#17212a" : "#8a969d"
-                                font.pixelSize: root.compactLayout ? 14 : 16
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
-                            }
-                        }
-                    }
-
-                    onObjectAdded: function(index, object) {
-                        ruleSelectionMenu.insertItem(index + 2, object)
-                    }
-
-                    onObjectRemoved: function(index, object) {
-                        ruleSelectionMenu.removeItem(object)
-                    }
-                }
-
-                MenuSeparator { visible: root.commonGameRuleOptions().length > 0 }
-
-                MenuItem {
-                    width: ruleSelectionMenu.width
-                    text: root.trText("moreRules")
-                    font.pixelSize: root.compactLayout ? 14 : 16
-                    onTriggered: root.openRuleSelectionPopup()
-                }
-            }
-
-            MenuItem {
-                text: root.trText("engineListTitle")
-                font.pixelSize: root.compactLayout ? 14 : 16
-                onTriggered: engineListDialog.openManage()
-            }
-
-            Menu {
-                title: root.trText("menuLanguage")
-                width: root.compactLayout ? 180 : 220
-                font.pixelSize: root.compactLayout ? 14 : 16
-
-                MenuItem {
-                    text: root.trText("languageChinese")
-                    width: parent ? parent.width : 220
-                    font.pixelSize: root.compactLayout ? 14 : 16
-                    onTriggered: root.language = "zh"
-                }
-
-                MenuItem {
-                    text: root.trText("languageEnglish")
-                    width: parent ? parent.width : 220
-                    font.pixelSize: root.compactLayout ? 14 : 16
-                    onTriggered: root.language = "en"
-                }
-            }
-        }
-
-        Menu {
-            title: root.trText("menuHelp")
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            Action {
-                text: root.trText("helpKeysTitle")
-                onTriggered: helpKeysDialog.open()
-            }
-
-            Action {
-                text: root.trText("beginnerTutorialTitle")
-                onTriggered: root.openBeginnerTutorial()
-            }
-
-            Action {
-                text: root.trText("aboutTitle")
-                onTriggered: aboutDialog.open()
-            }
-        }
-
-        Menu {
-            id: engineMenu
-            title: root.engineMenuTitle()
-            width: root.compactLayout ? 520 : 600
-            font.pixelSize: root.compactLayout ? 14 : 16
-
-            Action {
-                text: root.trText("engineAddAndConfigure")
-                onTriggered: engineListDialog.openManage()
-            }
-
-            Action {
-                text: root.trText("engineRestartCurrent")
-                enabled: root.activeEnginePreset() !== null
-                onTriggered: root.restartEngine()
-            }
-
-            Action {
-                text: root.trText("engineCloseCurrent")
-                enabled: !root.engineDisabled
-                onTriggered: root.stopEngine()
-            }
-
-            MenuSeparator { }
-
-            Instantiator {
-                model: Math.min(10, root.enginePresets.length)
-
-                delegate: MenuItem {
-                    width: engineMenu.width
-                    text: root.engineMenuPresetText(index)
-                    checkable: true
-                    checked: {
-                        var preset = root.enginePresets[index]
-                        return preset && root.activeEngineId === preset.id
-                    }
-                    onTriggered: {
-                        var preset = root.enginePresets[index]
-                        if (preset)
-                            root.loadEnginePreset(preset.id, false)
-                    }
-                }
-
-                onObjectAdded: function(index, object) {
-                    engineMenu.insertItem(index + 4, object)
-                }
-
-                onObjectRemoved: function(index, object) {
-                    engineMenu.removeItem(object)
-                }
-            }
-
-            Action {
-                text: root.trText("moreEngines")
-                onTriggered: engineListDialog.openPicker()
-            }
-        }
+    menuBar: ApplicationMenuBar {
+        id: applicationMenu
+        compactLayout: root.compactLayout
+        currentNodeId: root.currentNodeId
+        gameRuleMode: root.gameRuleMode
+        currentRuleText: root.currentRuleSelectionText()
+        engineTitle: root.engineMenuTitle()
+        hasActiveEngine: root.activeEnginePreset() !== null
+        engineDisabled: root.engineDisabled
+        activeEngineId: root.activeEngineId
+        enginePresets: root.enginePresets
+        commonOptions: root.commonGameRuleOptions()
+        translate: root.trText
+        ruleAllowed: root.ruleModeAllowedForPackage
+        enginePresetText: root.engineMenuPresetText
+        onOpenRequested: root.openLoadSgfDialog()
+        onSaveRequested: root.openSaveSgfDialog()
+        onQuitRequested: root.requestQuit()
+        onUndoRequested: root.undoMove()
+        onDeleteRequested: root.requestDeleteCurrentNode()
+        onClearRequested: root.requestClearBoard()
+        onBoardSizeRequested: root.openBoardSizeDialog()
+        onResetVisualsRequested: root.resetVisualSettings()
+        onSettingsRequested: settingsDialog.openPage(0)
+        onEngineManagerRequested: engineListDialog.openManage()
+        onRuleSelectionRequested: root.openRuleSelectionPopup()
+        onTutorialRequested: root.openBeginnerTutorial()
+        onHelpRequested: helpKeysDialog.open()
+        onAboutRequested: aboutDialog.open()
+        onEngineRestartRequested: root.restartEngine()
+        onEngineStopRequested: root.stopEngine()
+        onEnginePickerRequested: engineListDialog.openPicker()
+        onLanguageRequested: function(language) { root.language = language }
+        onRuleChosen: function(mode) { root.chooseRuleModeFromMenu(mode) }
+        onEngineChosen: function(engineId) { root.loadEnginePreset(engineId, false) }
     }
 
     FileDialog {
@@ -802,12 +556,6 @@ ApplicationWindow {
         onActivatedAmbiguously: root.openBoardSizeDialog()
     }
 
-    Timer {
-        id: autoAnalyzeTimer
-        interval: 280
-        repeat: false
-        onTriggered: root.requestScheduledEngineUpdate()
-    }
 
     Timer {
         id: engineSearchSpeedTimer
@@ -831,26 +579,8 @@ ApplicationWindow {
         onTriggered: root.finishActiveEngineInitialCommandsIfIdle()
     }
 
-    Timer {
-        id: analysisLimitTimer
-        interval: Math.max(1, root.maxAnalysisSeconds) * 1000
-        repeat: false
-        onTriggered: root.pauseEngineAnalysisByLimit()
-    }
 
-    Timer {
-        id: aiAnalysisMoveTimer
-        interval: Math.max(100, Math.round(Number(root.analysisSecondsPerMove) * 1000))
-        repeat: false
-        onTriggered: root.tryFinishAiAnalysisMove()
-    }
 
-    Timer {
-        id: aiAnalysisWatchdogTimer
-        interval: root.aiAnalysisWatchdogMilliseconds
-        repeat: false
-        onTriggered: root.handleAiAnalysisWatchdogTimeout()
-    }
 
     Timer {
         id: focusBoardInputTimer
@@ -916,711 +646,37 @@ ApplicationWindow {
     RuleChangeSaveDialog { id: ruleChangeSaveDialog; app: root }
     BoardSizeDialog { id: boardSizeDialog; app: root }
 
-    AppPopup {
+    RuleSelectionPopup {
         id: ruleSelectionPopup
-
-        property var collapsedGroups: ({})
-        readonly property int treeDepthStep: root.compactLayout ? 20 : 24
-        readonly property int treeNodeCenter: root.compactLayout ? 22 : 26
-        readonly property int treeTextGap: root.compactLayout ? 22 : 26
-
-        modal: true
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        width: Math.min(root.width - 80, root.compactLayout ? 420 : 520)
-        height: Math.min(root.height - 100, root.compactLayout ? 430 : 520)
-        x: Math.round((root.width - width) / 2)
-        y: Math.round((root.height - height) / 2)
-        padding: 0
-        onOpened: collapsedGroups = root.allRuleGroupsCollapsed()
-
-        function setGroupCollapsed(groupId, collapsed) {
-            var next = {}
-            for (var key in collapsedGroups)
-                next[key] = collapsedGroups[key]
-            if (collapsed)
-                next[groupId] = true
-            else
-                delete next[groupId]
-            collapsedGroups = next
-        }
-
-        function chooseRule(mode) {
-            close()
-            root.chooseRuleModeFromMenu(mode)
-        }
-
-        background: Rectangle {
-            radius: 9
-            color: "#f8fbfd"
-            border.color: "#9fb3bf"
-            border.width: 1
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 0
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 50
-                color: "#e6eff4"
-                radius: 9
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: parent.radius
-                    color: parent.color
-                }
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 18
-                    text: root.trText("ruleSelectionMenu")
-                    color: "#14242e"
-                    font.pixelSize: root.compactLayout ? 17 : 19
-                    font.bold: true
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 36
-                color: "#f2f7fa"
-                border.color: "#d3e0e7"
-                border.width: 1
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 18
-                    anchors.rightMargin: 18
-                    text: root.currentRuleSelectionText()
-                    color: "#7b8a93"
-                    font.pixelSize: root.compactLayout ? 13 : 15
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-
-            Flickable {
-                id: ruleSelectionFlick
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentWidth: width
-                contentHeight: ruleSelectionColumn.implicitHeight + 20
-                boundsBehavior: Flickable.StopAtBounds
-
-                ScrollBar.vertical: AppScrollBar {
-                    policy: ruleSelectionFlick.contentHeight > ruleSelectionFlick.height
-                            ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-                }
-
-                ColumnLayout {
-                    id: ruleSelectionColumn
-                    x: 10
-                    y: 10
-                    width: ruleSelectionFlick.width - 28
-                    spacing: 4
-
-                    Repeater {
-                        model: root.ruleTreeRows(ruleSelectionPopup.collapsedGroups)
-
-                        delegate: Rectangle {
-                            readonly property bool rowVisible: true
-
-                            Layout.fillWidth: true
-                            implicitHeight: rowVisible ? (root.compactLayout ? 34 : 38) : 0
-                            radius: 5
-                            color: modelData.type === "leaf" && modelData.value === root.gameRuleMode ? "#dcecf3"
-                                  : ruleMouse.containsMouse ? "#eef6fa"
-                                  : modelData.type === "group" ? "#f2f7fa" : "#ffffff"
-                            border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
-                            border.width: 1
-                            ToolTip.visible: ruleMouse.containsMouse
-                                             && modelData.type === "leaf"
-                                             && modelData.tip.length > 0
-                            ToolTip.text: modelData.tip
-                            ToolTip.delay: 250
-                            ToolTip.timeout: 8000
-
-                            Item {
-                                anchors.fill: parent
-                                anchors.leftMargin: 10
-                                anchors.rightMargin: 10
-
-                                Repeater {
-                                    model: Math.max(0, modelData.depth)
-
-                                    Rectangle {
-                                        x: ruleSelectionPopup.treeNodeCenter
-                                           + index * ruleSelectionPopup.treeDepthStep
-                                        anchors.top: parent.top
-                                        anchors.bottom: parent.bottom
-                                        width: 1
-                                        color: "#cbd9e1"
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: modelData.depth > 0
-                                    x: ruleSelectionPopup.treeNodeCenter
-                                       + (modelData.depth - 1) * ruleSelectionPopup.treeDepthStep
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: ruleSelectionPopup.treeDepthStep
-                                    height: 1
-                                    color: "#cbd9e1"
-                                }
-
-                                Text {
-                                    id: ruleSelectionTreeMark
-                                    visible: modelData.type === "group"
-                                    x: ruleSelectionPopup.treeNodeCenter
-                                       + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
-                                       - width / 2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.collapsed ? "\u25b6" : "\u25be"
-                                    color: "#38505c"
-                                    font.pixelSize: root.compactLayout ? 17 : 19
-                                    font.bold: true
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                AppCheckMark {
-                                    id: ruleSelectionLeafMark
-                                    visible: modelData.type === "leaf"
-                                             && modelData.value === root.gameRuleMode
-                                    width: root.compactLayout ? 16 : 18
-                                    height: width
-                                    x: ruleSelectionPopup.treeNodeCenter
-                                       + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
-                                       - width / 2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    checked: true
-                                    markColor: "#1678bd"
-                                    lineWidth: root.compactLayout ? 2.3 : 2.6
-                                }
-
-                                Text {
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: ruleSelectionPopup.treeNodeCenter
-                                                        + Math.max(0, modelData.depth) * ruleSelectionPopup.treeDepthStep
-                                                        + ruleSelectionPopup.treeTextGap
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.label
-                                    color: modelData.type === "leaf" && !root.ruleModeAllowedForPackage(modelData.value)
-                                           ? "#8a969d" : "#14242e"
-                                    font.pixelSize: modelData.type === "group"
-                                                    ? (root.compactLayout ? 14 : 16)
-                                                    : (root.compactLayout ? 13 : 15)
-                                    font.bold: modelData.type === "group"
-                                               || (modelData.type === "leaf" && modelData.value === root.gameRuleMode)
-                                    elide: Text.ElideRight
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-
-                            MouseArea {
-                                id: ruleMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                enabled: modelData.type === "group"
-                                         || root.ruleModeAllowedForPackage(modelData.value)
-                                onClicked: {
-                                    if (modelData.type === "group")
-                                        ruleSelectionPopup.setGroupCollapsed(modelData.groupId, !modelData.collapsed)
-                                    else
-                                        ruleSelectionPopup.chooseRule(modelData.value)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 54
-                color: "#eef4f7"
-                border.color: "#d3e0e7"
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 10
-
-                    SavePromptButton {
-                        text: root.trText("setCommonGameRules") + "..."
-                        onClicked: {
-                            ruleSelectionPopup.close()
-                            root.openCommonGameRulesPopup()
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    SavePromptButton {
-                        text: root.trText("cancel")
-                        onClicked: ruleSelectionPopup.close()
-                    }
-                }
-            }
-        }
+        compactLayout: root.compactLayout
+        viewportWidth: root.width
+        viewportHeight: root.height
+        gameRuleMode: root.gameRuleMode
+        currentRuleText: root.currentRuleSelectionText()
+        translate: root.trText
+        rowsForGroups: root.ruleTreeRows
+        initialCollapsedGroups: root.allRuleGroupsCollapsed
+        ruleAllowed: root.ruleModeAllowedForPackage
+        onRuleChosen: function(mode) { root.chooseRuleModeFromMenu(mode) }
+        onCommonRulesRequested: root.openCommonGameRulesPopup()
     }
 
-    AppPopup {
+    CommonRulesPopup {
         id: commonGameRulesPopup
-
-        property var collapsedGroups: ({})
-        readonly property int leftRuleColumnWidth: root.compactLayout ? 260 : 330
-        readonly property int treeDepthStep: root.compactLayout ? 20 : 24
-        readonly property int treeNodeCenter: root.compactLayout ? 28 : 34
-        readonly property int treeCheckOffset: root.compactLayout ? 34 : 38
-        readonly property int treeNameOffset: root.compactLayout ? 66 : 76
-        readonly property int commonCheckSize: root.compactLayout ? 18 : 20
-
-        modal: true
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        width: Math.min(root.width - 80, root.compactLayout ? 640 : 860)
-        height: Math.min(root.height - 100, root.compactLayout ? 500 : 640)
-        x: Math.round((root.width - width) / 2)
-        y: Math.round((root.height - height) / 2)
-        padding: 0
-        onOpened: collapsedGroups = root.allRuleGroupsCollapsed()
-
-        function setGroupCollapsed(groupId, collapsed) {
-            var next = {}
-            for (var key in collapsedGroups)
-                next[key] = collapsedGroups[key]
-            if (collapsed)
-                next[groupId] = true
-            else
-                delete next[groupId]
-            collapsedGroups = next
-        }
-
-        background: Rectangle {
-            radius: 9
-            color: "#f8fbfd"
-            border.color: "#9fb3bf"
-            border.width: 1
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 0
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 50
-                color: "#e6eff4"
-                radius: 9
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: parent.radius
-                    color: parent.color
-                }
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 18
-                    text: root.trText("commonGameRulesTitle")
-                    color: "#14242e"
-                    font.pixelSize: root.compactLayout ? 17 : 19
-                    font.bold: true
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.margins: 12
-                spacing: 10
-
-                Rectangle {
-                    id: allCommonRulePanel
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 6
-                    color: "#ffffff"
-                    border.color: "#c7d4dc"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 6
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 28
-                            spacing: 8
-
-                            Item {
-                                Layout.preferredWidth: commonGameRulesPopup.leftRuleColumnWidth
-                                Layout.preferredHeight: 28
-
-                                Text {
-                                    x: commonGameRulesPopup.treeNodeCenter
-                                       + commonGameRulesPopup.treeCheckOffset - width / 2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: root.trText("commonRule")
-                                    color: "#52636d"
-                                    font.pixelSize: 12
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
-
-                                Text {
-                                    x: commonGameRulesPopup.treeNodeCenter
-                                       + commonGameRulesPopup.treeNameOffset
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: root.trText("ruleName")
-                                    color: "#52636d"
-                                    font.pixelSize: 12
-                                }
-                            }
-
-                            Text {
-                                text: root.trText("ruleDescription")
-                                color: "#52636d"
-                                font.pixelSize: 12
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        Flickable {
-                            id: commonRuleFlick
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            contentWidth: width
-                            contentHeight: commonRuleColumn.implicitHeight
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            ScrollBar.vertical: AppScrollBar {
-                                policy: commonRuleFlick.contentHeight > commonRuleFlick.height
-                                        ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-                            }
-
-                            ColumnLayout {
-                                id: commonRuleColumn
-                                width: commonRuleFlick.width - 18
-                                spacing: 4
-
-                                Repeater {
-                                    model: root.ruleTreeRows(commonGameRulesPopup.collapsedGroups)
-
-                                    delegate: Rectangle {
-                                        Layout.fillWidth: true
-                                        implicitHeight: Math.max(root.compactLayout ? 36 : 40,
-                                                                 commonRuleRow.implicitHeight + 10)
-                                        radius: 5
-                                        color: modelData.type === "group" ? "#f2f7fa"
-                                              : modelData.value === root.gameRuleMode ? "#edf7fb" : "#ffffff"
-                                        border.color: modelData.type === "group" ? "#c6d6df" : "#e1e8ed"
-                                        border.width: 1
-                                        ToolTip.visible: commonRuleRowHover.hovered
-                                                         && modelData.type === "leaf"
-                                                         && modelData.tip.length > 0
-                                        ToolTip.text: modelData.tip
-                                        ToolTip.delay: 250
-                                        ToolTip.timeout: 8000
-
-                                        HoverHandler {
-                                            id: commonRuleRowHover
-                                        }
-
-                                        RowLayout {
-                                            id: commonRuleRow
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            anchors.leftMargin: 10
-                                            anchors.rightMargin: 12
-                                            spacing: 8
-
-                                            Item {
-                                                id: commonRuleLeftCell
-                                                Layout.preferredWidth: commonGameRulesPopup.leftRuleColumnWidth
-                                                Layout.fillHeight: true
-
-                                                Repeater {
-                                                    model: Math.max(0, modelData.depth)
-
-                                                    Rectangle {
-                                                        x: commonGameRulesPopup.treeNodeCenter
-                                                           + commonGameRulesPopup.treeCheckOffset
-                                                           + index * commonGameRulesPopup.treeDepthStep
-                                                        anchors.top: parent.top
-                                                        anchors.bottom: parent.bottom
-                                                        width: 1
-                                                        color: "#cbd9e1"
-                                                    }
-                                                }
-
-                                                Rectangle {
-                                                    visible: modelData.depth > 0
-                                                    x: commonGameRulesPopup.treeNodeCenter
-                                                       + commonGameRulesPopup.treeCheckOffset
-                                                       + (modelData.depth - 1) * commonGameRulesPopup.treeDepthStep
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    width: commonGameRulesPopup.treeDepthStep
-                                                    height: 1
-                                                    color: "#cbd9e1"
-                                                }
-
-                                                Rectangle {
-                                                    id: commonExpandButton
-                                                    visible: modelData.type === "group"
-                                                    x: commonGameRulesPopup.treeNodeCenter
-                                                       + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
-                                                       - width / 2
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    width: root.compactLayout ? 28 : 32
-                                                    height: width
-                                                    radius: 4
-                                                    color: commonExpandMouse.containsMouse ? "#e2edf3" : "transparent"
-
-                                                    Text {
-                                                        anchors.centerIn: parent
-                                                        text: modelData.collapsed ? "\u25b6" : "\u25be"
-                                                        color: "#38505c"
-                                                        font.pixelSize: root.compactLayout ? 16 : 18
-                                                        font.bold: true
-                                                    }
-
-                                                    MouseArea {
-                                                        id: commonExpandMouse
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        onClicked: commonGameRulesPopup.setGroupCollapsed(modelData.groupId, !modelData.collapsed)
-                                                    }
-                                                }
-
-                                                Item {
-                                                    id: commonRuleCheckBox
-                                                    x: commonGameRulesPopup.treeNodeCenter
-                                                       + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
-                                                       + commonGameRulesPopup.treeCheckOffset
-                                                       - width / 2
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    width: commonGameRulesPopup.commonCheckSize
-                                                    height: commonGameRulesPopup.commonCheckSize
-
-                                                    readonly property int state: modelData.type === "group"
-                                                                                 ? root.ruleGroupVisibilityCheckState(modelData.modes)
-                                                                                 : (root.ruleModeVisible(modelData.value) ? Qt.Checked : Qt.Unchecked)
-                                                    readonly property bool checkEnabled: modelData.type === "group"
-                                                                                         ? root.ruleGroupHasMutableVisibility(modelData.modes)
-                                                                                         : true
-
-                                                    Rectangle {
-                                                        anchors.fill: parent
-                                                        radius: 4
-                                                        color: !commonRuleCheckBox.checkEnabled ? "#f0f3f5"
-                                                              : commonRuleCheckBox.state === Qt.Checked
-                                                                || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#0f6fbf"
-                                                              : commonRuleCheckMouse.containsMouse ? "#eef7fa" : "#ffffff"
-                                                        border.color: commonRuleCheckBox.state === Qt.Checked
-                                                                    || commonRuleCheckBox.state === Qt.PartiallyChecked ? "#0f6fbf"
-                                                                    : commonRuleCheckMouse.containsMouse ? "#5c8da6" : "#7f8b92"
-                                                        border.width: 1
-                                                    }
-
-                                                    AppCheckMark {
-                                                        anchors.fill: parent
-                                                        anchors.margins: root.compactLayout ? 3 : 4
-                                                        checked: commonRuleCheckBox.state === Qt.Checked
-                                                        partial: commonRuleCheckBox.state === Qt.PartiallyChecked
-                                                        markColor: "#ffffff"
-                                                        lineWidth: partial ? 2.4 : (root.compactLayout ? 2.0 : 2.3)
-                                                    }
-
-                                                    MouseArea {
-                                                        id: commonRuleCheckMouse
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        enabled: commonRuleCheckBox.checkEnabled
-                                                        onClicked: {
-                                                            var nextChecked = commonRuleCheckBox.state !== Qt.Checked
-                                                            if (modelData.type === "group")
-                                                                root.setRuleModesVisible(modelData.modes, nextChecked)
-                                                            else
-                                                                root.setRuleModeVisible(modelData.value, nextChecked)
-                                                        }
-                                                    }
-                                                }
-
-                                                Text {
-                                                    anchors.left: parent.left
-                                                    anchors.leftMargin: commonGameRulesPopup.treeNodeCenter
-                                                                        + Math.max(0, modelData.depth) * commonGameRulesPopup.treeDepthStep
-                                                                        + commonGameRulesPopup.treeNameOffset
-                                                    anchors.right: parent.right
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    text: modelData.label
-                                                    color: modelData.type === "group" ? "#24313a" : "#17212a"
-                                                    font.pixelSize: modelData.type === "group"
-                                                                    ? (root.compactLayout ? 13 : 14)
-                                                                    : (root.compactLayout ? 12 : 13)
-                                                    font.bold: modelData.type === "group" || modelData.value === root.gameRuleMode
-                                                    elide: Text.ElideRight
-                                                    verticalAlignment: Text.AlignVCenter
-                                                }
-                                            }
-
-                                            Text {
-                                                text: modelData.type === "group" ? "" : modelData.tip
-                                                color: "#61727c"
-                                                font.pixelSize: root.compactLayout ? 12 : 13
-                                                wrapMode: Text.WordWrap
-                                                verticalAlignment: Text.AlignVCenter
-                                                Layout.fillWidth: true
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: currentCommonRulePanel
-                    Layout.preferredWidth: root.compactLayout ? 200 : 250
-                    Layout.fillHeight: true
-                    radius: 6
-                    color: "#ffffff"
-                    border.color: "#c7d4dc"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Text {
-                            text: root.trText("currentCommonGameRules")
-                            color: "#17212a"
-                            font.pixelSize: root.compactLayout ? 14 : 15
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: "#d5e2e8"
-                        }
-
-                        Flickable {
-                            id: currentCommonRuleFlick
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            contentWidth: width
-                            contentHeight: currentCommonRuleColumn.implicitHeight
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            ScrollBar.vertical: AppScrollBar {
-                                policy: currentCommonRuleFlick.contentHeight > currentCommonRuleFlick.height
-                                        ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-                            }
-
-                            ColumnLayout {
-                                id: currentCommonRuleColumn
-                                width: currentCommonRuleFlick.width - 18
-                                spacing: 5
-
-                                Repeater {
-                                    model: root.commonGameRuleOptions()
-
-                                    delegate: Rectangle {
-                                        Layout.fillWidth: true
-                                        implicitHeight: 38
-                                        radius: 5
-                                        color: modelData.value === root.gameRuleMode ? "#edf7fb" : "#f8fbfd"
-                                        border.color: "#d8e3e9"
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 8
-                                            anchors.rightMargin: 6
-                                            spacing: 6
-
-                                            Text {
-                                                text: String(index + 1)
-                                                color: "#61727c"
-                                                font.pixelSize: 12
-                                                horizontalAlignment: Text.AlignHCenter
-                                                verticalAlignment: Text.AlignVCenter
-                                                Layout.preferredWidth: 22
-                                            }
-
-                                            Text {
-                                                text: modelData.label
-                                                color: "#17212a"
-                                                font.pixelSize: root.compactLayout ? 12 : 13
-                                                font.bold: modelData.value === root.gameRuleMode
-                                                elide: Text.ElideRight
-                                                verticalAlignment: Text.AlignVCenter
-                                                Layout.fillWidth: true
-                                            }
-
-                                            SavePromptButton {
-                                                text: "\u2191"
-                                                enabled: index > 0
-                                                implicitWidth: 28
-                                                implicitHeight: 26
-                                                onClicked: root.moveCommonRule(modelData.value, -1)
-                                            }
-
-                                            SavePromptButton {
-                                                text: "\u2193"
-                                                enabled: index < root.commonGameRuleOptions().length - 1
-                                                implicitWidth: 28
-                                                implicitHeight: 26
-                                                onClicked: root.moveCommonRule(modelData.value, 1)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 54
-                color: "#eef4f7"
-                border.color: "#d3e0e7"
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-
-                    Item { Layout.fillWidth: true }
-
-                    SavePromptButton {
-                        text: root.trText("close")
-                        onClicked: commonGameRulesPopup.close()
-                    }
-                }
-            }
-        }
+        compactLayout: root.compactLayout
+        viewportWidth: root.width
+        viewportHeight: root.height
+        gameRuleMode: root.gameRuleMode
+        translate: root.trText
+        rowsForGroups: root.ruleTreeRows
+        initialCollapsedGroups: root.allRuleGroupsCollapsed
+        groupVisibilityState: root.ruleGroupVisibilityCheckState
+        modeVisible: root.ruleModeVisible
+        groupMutable: root.ruleGroupHasMutableVisibility
+        commonOptions: root.commonGameRuleOptions()
+        onModesVisibilityRequested: function(modes, visible) { root.setRuleModesVisible(modes, visible) }
+        onModeVisibilityRequested: function(mode, visible) { root.setRuleModeVisible(mode, visible) }
+        onReorderRequested: function(mode, delta) { root.moveCommonRule(mode, delta) }
     }
 
     EngineCommunicationWindow {
@@ -1643,6 +699,119 @@ ApplicationWindow {
     CandidateListWindow {
         id: candidateListWindow
         app: root
+    }
+
+
+    // Domain state is read-only here. Only session operations can change a game.
+
+    AnalysisSession {
+        id: analysisSession
+        position: root.enginePositionSnapshot()
+        currentNode: root.currentNode()
+        presentationSettings: CandidateAnalysis.presentationSettings(root)
+        boardSizeX: root.boardSizeX
+        boardSizeY: root.boardSizeY
+        ownershipEnabled: root.ownershipEnabled
+        ownershipSupported: root.gameRuleMode === root.gameRuleGo
+        nodeResolver: root.nodeById
+        nodeAnalysisWriter: root.updateNodeAnalysis
+        coordinateParser: root.parseEngineCoordinate
+        coordinateFormatter: root.coordinateText
+        passText: root.trText("passMove")
+        resignText: root.trText("resignMove")
+        onCandidatesChangedForDisplay: root.updateBestCandidateRing(engineCandidateItems)
+        onLiveCandidatesAccepted: {
+            root.engineLoading = false
+            if (engineCandidateItems.length > 0 && root.analysisPresentationVisible()) {
+                root.statusMode = "message"
+                root.statusMessage = root.engineCandidateSummaryText()
+            }
+        }
+    }
+
+    function currentAnalysisRequest() {
+        if (!engineAnalysisRequestValid)
+            return null
+        return { "nodeId": engineAnalysisRequestNodeId, "generation": engineAnalysisRequestGeneration,
+                 "player": engineAnalysisRequestPlayer, "boardSignature": engineAnalysisRequestBoardSignature,
+                 "komiSignature": engineAnalysisRequestKomiSignature,
+                 "engineSignature": engineAnalysisRequestEngineSignature }
+    }
+
+    EngineSession {
+        id: engineSession
+        analysisLimitSeconds: root.maxAnalysisSeconds
+        aiAnalysisSeconds: root.analysisSecondsPerMove
+        aiAnalysisWatchdogMilliseconds: root.aiAnalysisWatchdogMilliseconds
+        onScheduledUpdateRequested: root.requestScheduledEngineUpdate()
+        onAnalysisLimitReached: root.pauseEngineAnalysisByLimit()
+        onAiAnalysisLimitReached: root.tryFinishAiAnalysisMove()
+        onAiAnalysisWatchdogExpired: root.handleAiAnalysisWatchdogTimeout()
+    }
+
+    readonly property GameSession game: gameSession
+    GameSession {
+        id: gameSession
+        boardSizeX: root.boardSizeX
+        boardSizeY: root.boardSizeY
+        ruleMode: root.gameRuleMode
+        stoneColorMode: root.stoneColorMode
+        forbiddenChecker: root.pointIsGomokuForbidden
+        onPositionChanged: function(result) { root.onGamePositionChanged(result) }
+        onTreeChanged: function(result) {
+            if (result.dirty)
+                root.gameDirty = true
+            if (result.kind === "annotations")
+                root.analysisRevision += 1
+            else if (result.kind === "move" || result.kind === "source" || result.kind === "target")
+                root.scheduleTreeLayoutRebuild()
+            else
+                root.rebuildTreeLayout()
+        }
+        onOperationRejected: function(result) {
+            root.statusMode = result.kind === "move" && root.stoneAt(result.x, result.y) !== 0
+                              ? "occupied" : "message"
+            root.statusMessage = result.kind === "move"
+                    ? root.illegalPointMessage(result.x, result.y, result.reason)
+                    : root.trText("invalidGameRecordNode") + " #" + result.nodeId + ": " + result.reason
+        }
+    }
+
+    function onGamePositionChanged(result) {
+        selectedPointLocked = false
+        selectedPointFromCandidateList = false
+        handleAiAnalysisPositionChanged()
+        clearEngineCandidates()
+        refreshWinVisuals(stones)
+        boardRevision += 1
+        showCachedAnalysisForCurrentNode()
+        if (result.kind === "source") {
+            resetEngineSyncState()
+            statusMode = "message"
+            statusMessage = trText("moveSourceSelected") + ": " + coordinateText(result.node.x, result.node.y)
+        } else if (result.kind === "pass") {
+            statusMode = "message"
+            statusMessage = trText(result.node.player === 1 ? "black" : "white") + " " + trText("passMessage")
+        } else if (result.kind === "move" || result.kind === "target") {
+            statusMode = "turn"
+            var captures = result.node.capturedStones.length
+            statusMessage = captures > 0 ? trText("captureMessage") + ": " + captures : ""
+        }
+        var played = result.kind === "move" || result.kind === "target" || result.kind === "pass"
+        refreshGameOutcomeFromCurrentNode(played)
+        scheduleAutoAnalysis()
+        if (played && !applyingGeneratedMove)
+            requestAiMoveIfNeeded()
+        if (result.kind === "navigate")
+            focusBoardInput()
+    }
+
+    function loadGameTree(parsed) {
+        return gameSession.loadTree(parsed, true)
+    }
+
+    function updateNodeAnalysis(nodeId, metadata) {
+        return gameSession.updateNodeAnalysis(nodeId, metadata)
     }
 
     function trText(key) {
@@ -1694,10 +863,7 @@ ApplicationWindow {
                && engineController.running
                && engineController.ready
                && !engineController.failed
-               && engineAnalysisRequestNodeId === currentNodeId
-               && engineAnalysisRequestGeneration === gameTreeGeneration
-               && engineAnalysisRequestBoardSignature === engineBoardSignature()
-               && engineAnalysisRequestKomiSignature === engineKomiSignature()
+               && engineSession.acceptsAnalysis(engineAnalysisSyncRequestId, enginePositionSnapshot())
     }
 
     function resetEngineSearchSpeed() {
@@ -1850,7 +1016,7 @@ ApplicationWindow {
 
     function infoPanelShowsStoneCounts() {
         return gameRuleMode === gameRuleReversi || gameRuleMode === gameRuleAtaxx
-               || gameRuleMode === gameRuleDotsAndBoxes
+               || gameRuleMode === gameRuleDotsAndBoxes || gameRuleMode === gameRuleSurakarta
     }
 
     function infoPanelSideText(player) {
@@ -1911,13 +1077,11 @@ ApplicationWindow {
     }
 
     function currentMoveSourceNode() {
-        var node = currentNode()
-        return node && node.moveRole === "source" ? node : null
+        return gameSession.currentMoveSourceNode()
     }
 
     function currentMoveSourcePoint() {
-        var source = currentMoveSourceNode()
-        return source ? { "x": source.x, "y": source.y } : null
+        return gameSession.currentMoveSourcePoint()
     }
 
     function stoneDataAt(x, y) {
@@ -1938,147 +1102,62 @@ ApplicationWindow {
     }
 
     function nodeById(id) {
-        return gameNodes[id] === undefined ? null : gameNodes[id]
+        return gameSession.nodeById(id)
     }
 
     function currentNode() {
-        return nodeById(currentNodeId)
+        return gameSession.currentNode()
     }
 
-    function rootNode() {
-        return {
-            "id": 0,
-            "parent": -1,
-            "children": [],
-            "x": -1,
-            "y": -1,
-            "key": "",
-            "player": 0,
-            "moveNumber": 0,
-            "isPass": false,
-            "moveRole": "",
-            "gomokuForbidden": false,
-            "blackCaptures": 0,
-            "whiteCaptures": 0,
-            "koLocKey": "",
-            "koLocX": -1,
-            "koLocY": -1,
-            "koLocKey2": "",
-            "koLocX2": -1,
-            "koLocY2": -1,
-            "analysisBlackWinrate": -1,
-            "analysisCandidates": [],
-            "analysisCandidateBoardSignature": "",
-            "analysisCandidateKomiSignature": "",
-            "analysisOwnership": [],
-            "analysisOwnershipBoardSignature": "",
-            "analysisOwnershipKomiSignature": "",
-            "analysisOwnershipEngineSignature": ""
-        }
-    }
+
 
     function nodePath(id) {
-        var path = []
-        var node = nodeById(id)
-        while (node && node.id !== 0) {
-            path.unshift(node)
-            node = nodeById(node.parent)
-        }
-        return path
+        return gameSession.nodePath(id)
     }
 
     function playerToMoveAfterNode(node) {
-        if (stoneColorMode === stoneColorModeBlack)
-            return 1
-        if (stoneColorMode === stoneColorModeWhite)
-            return 2
-
-        if (node && node.moveRole === "source")
-            return node.player
-        if (gameRuleMode === gameRuleDotsAndBoxes && node && node.extraTurn === true)
-            return node.player
-        if (gameRuleMode === gameRuleConnect6) {
-            var moveNumber = node ? node.moveNumber : 0
-            if (moveNumber <= 0)
-                return 1
-            var pair = Math.floor((moveNumber - 1) / 2)
-            return pair % 2 === 0 ? 2 : 1
-        }
-        if (node && node.player === 1)
-            return 2
-        if (node && node.player === 2)
-            return 1
-        return 1
+        return gameSession.playerToMoveAfterNode(node)
     }
 
     function nextPlayerFromMode() {
-        return playerToMoveAfterNode(currentNode())
+        return gameSession.nextPlayerFromMode()
     }
 
     function setStoneColorMode(mode) {
         var nextMode = Math.round(clamp(mode, stoneColorModeAuto, stoneColorModeWhite))
-        if (stoneColorMode === nextMode) {
-            currentPlayer = nextPlayerFromMode()
-            rebuildPointLegality()
-            refreshWinVisuals(stones)
-            boardRevision += 1
-            return
-        }
+        var changed = stoneColorMode !== nextMode
         stoneColorMode = nextMode
-        currentPlayer = nextPlayerFromMode()
-        selectedPointLocked = false
-        selectedPointFromCandidateList = false
-        clearEngineCandidates()
-        rebuildPointLegality()
-        refreshWinVisuals(stones)
-        boardRevision += 1
-        scheduleAutoAnalysis()
-        requestAiMoveIfNeeded()
+        gameSession.refreshPlayer()
+        if (changed) {
+            scheduleAutoAnalysis()
+            requestAiMoveIfNeeded()
+        }
     }
 
     function pointLegalInMap(map, x, y, player, activeKoLocKey) {
-        return GameRules.pointLegalInMap(map, boardDims(), x, y, player, activeKoLocKey,
-                                         gameRuleMode, currentMoveSourcePoint())
+        return gameSession.pointLegalInMap(map, x, y, player, activeKoLocKey)
     }
 
     function currentKoLoc() {
-        return {
-            "key": koLocKey,
-            "x": koLocX,
-            "y": koLocY,
-            "key2": koLocKey2,
-            "x2": koLocX2,
-            "y2": koLocY2
-        }
+        return gameSession.currentKoLoc()
     }
 
     function pointKeyIsKoBanned(pointKey) {
-        return GameRules.koLocMatches(currentKoLoc(), pointKey)
+        return gameSession.pointKeyIsKoBanned(pointKey)
     }
 
     function buildPointLegalityMap(map, player, activeKoLocKey) {
-        return GameRules.buildPointLegalityMap(map, boardDims(), player, activeKoLocKey,
-                                               gameRuleMode, currentMoveSourcePoint())
+        return gameSession.buildPointLegalityMap(map, player, activeKoLocKey)
     }
 
-    function shouldCachePointLegality() {
-        return false
-    }
+
 
     function rebuildPointLegality() {
-        legalPointMap = shouldCachePointLegality()
-                        ? buildPointLegalityMap(stones, currentPlayer, currentKoLoc())
-                        : ({})
-        legalityRevision += 1
+        return gameSession.rebuildPointLegality()
     }
 
     function pointIsLegal(x, y) {
-        legalityRevision
-        if (!pointInBoard(x, y))
-            return false
-        if (!shouldCachePointLegality())
-            return pointLegalInMap(stones, x, y, currentPlayer, currentKoLoc())
-        return legalPointMap[keyFor(x, y)] === true
+        return gameSession.pointIsLegal(x, y)
     }
 
     function selectedPointLegal() {
@@ -2160,380 +1239,41 @@ ApplicationWindow {
         return fallback
     }
 
-    function mapStoneItems(map) {
-        var items = []
-        for (var key in map)
-            items.push(map[key])
-        items.sort(function(left, right) { return left.moveNumber - right.moveNumber })
-        return items
-    }
 
-    function updateNodePositionMetadata(node, blackCap, whiteCap, ko) {
-        ko = ko || GameRules.emptyKoLoc()
-        node.blackCaptures = blackCap
-        node.whiteCaptures = whiteCap
-        node.koLocKey = ko.key
-        node.koLocX = ko.x
-        node.koLocY = ko.y
-        node.koLocKey2 = ko.key2
-        node.koLocX2 = ko.x2
-        node.koLocY2 = ko.y2
-    }
+
+
 
     function rebuildPositionFromNode(id) {
-        clearEngineCandidates()
-        var map = GameRules.initialStoneMap(boardDims(), gameRuleMode)
-        var blackCap = 0
-        var whiteCap = 0
-        var ko = GameRules.emptyKoLoc()
-        var pendingSource = null
-        var path = nodePath(id)
-        for (var i = 0; i < path.length; ++i) {
-            var node = path[i]
-            var action = {
-                "x": node.x,
-                "y": node.y,
-                "key": keyFor(node.x, node.y),
-                "player": node.player,
-                "moveNumber": node.moveNumber,
-                "nodeId": node.id,
-                "isPass": node.isPass === true,
-                "moveRole": node.moveRole || ""
-            }
-            if (!node.isPass)
-                node.gomokuForbidden = pointIsGomokuForbidden(node.x, node.y, node.player, map)
-            var result = GameRules.applyMoveOnMap(map, boardDims(), action, {
-                "ruleMode": gameRuleMode,
-                "activeKoLoc": ko,
-                "pendingSource": pendingSource,
-                "mutate": true
-            })
-            if (!result.ok) {
-                return {
-                    "ok": false,
-                    "reason": result.reason,
-                    "nodeId": node.id,
-                    "moveNumber": node.moveNumber,
-                    "x": node.x,
-                    "y": node.y
-                }
-            }
-            map = result.nextMap
-            ko = result.ko
-            pendingSource = result.nextSource
-            if (result.role === "source" || result.role === "target")
-                node.moveRole = result.role
-            node.extraTurn = result.extraTurn === true
-            node.capturedStones = (result.capturedStones || [])
-                    .concat(result.selfCapturedStones || [])
-            if (node.player === 1) {
-                blackCap += result.captured || 0
-                whiteCap += result.selfCaptured || 0
-            } else if (node.player === 2) {
-                whiteCap += result.captured || 0
-                blackCap += result.selfCaptured || 0
-            }
-            updateNodePositionMetadata(node, blackCap, whiteCap, ko)
-        }
-
-        stones = map
-        stoneItems = mapStoneItems(map)
-        stoneCount = stoneItems.length
-        blackCaptures = blackCap
-        whiteCaptures = whiteCap
-        koLocKey = ko.key
-        koLocX = ko.x
-        koLocY = ko.y
-        koLocKey2 = ko.key2
-        koLocX2 = ko.x2
-        koLocY2 = ko.y2
-        currentPlayer = nextPlayerFromMode()
-        rebuildPointLegality()
-        refreshWinVisuals(map)
-        refreshGameOutcomeFromCurrentNode(false)
-        boardRevision += 1
-        showCachedAnalysisForCurrentNode()
-        return { "ok": true }
+        return gameSession.rebuildPositionFromNode(id)
     }
 
     function resetGameTree() {
         stopAnalysisLimitTimer()
         invalidateEngineSyncState()
-        gameTreeGeneration += 1
-        gameNodes = [rootNode()]
-        currentNodeId = 0
-        nextNodeId = 1
-        stones = GameRules.initialStoneMap(boardDims(), gameRuleMode)
-        stoneItems = []
-        stoneItems = mapStoneItems(stones)
-        stoneCount = stoneItems.length
-        blackCaptures = 0
-        whiteCaptures = 0
-        koLocKey = ""
-        koLocX = -1
-        koLocY = -1
-        koLocKey2 = ""
-        koLocX2 = -1
-        koLocY2 = -1
         gameWinner = 0
         gameOverReason = ""
         aiAnalysisBlackResignCount = 0
         aiAnalysisWhiteResignCount = 0
-        gomokuWinLineItems = []
-        gomokuForbiddenPointItems = []
-        hexWinPathItems = []
-        hexWinPathPlayer = 0
-        breakthroughWinInfo = ({ "player": 0, "reason": "" })
-        currentPlayer = 1
         clearHover(true)
-        clearEngineCandidates()
-        rebuildPointLegality()
-        rebuildTreeLayout()
-        boardRevision += 1
-        scheduleAutoAnalysis()
+        return gameSession.reset()
     }
 
-    function branchChildMatching(parent, key, player, isPass, moveRole) {
-        moveRole = moveRole || ""
-        var children = parent ? (parent.children || []) : []
-        for (var i = 0; i < children.length; ++i) {
-            var child = nodeById(children[i])
-            if (child && child.key === key && child.player === player && child.isPass === isPass
-                    && (child.moveRole || "") === moveRole)
-                return child
-        }
-        return null
-    }
 
-    function addMoveNode(player, x, y, isPass, capturedStones, koLoc, skipPositionRebuild, deferTreeLayoutRebuild, moveRole) {
-        var parent = currentNode()
-        if (!parent)
-            return null
-        var key = isPass ? passKey() : keyFor(x, y)
-        moveRole = moveRole || ""
-        if (isPass || moveRole !== "" || !ruleAllowsOccupiedMoves()) {
-            var existing = branchChildMatching(parent, key, player, isPass, moveRole)
-            if (existing) {
-                gotoNode(existing.id)
-                return existing
-            }
-        }
 
-        var id = nextNodeId++
-        var node = {
-            "id": id,
-            "parent": parent.id,
-            "children": [],
-            "x": isPass ? -1 : x,
-            "y": isPass ? -1 : y,
-            "key": key,
-            "player": player,
-            "moveNumber": parent.moveNumber + 1,
-            "isPass": isPass,
-            "moveRole": moveRole,
-            "gomokuForbidden": false,
-            "extraTurn": false,
-            "capturedStones": capturedStones || [],
-            "blackCaptures": blackCaptures,
-            "whiteCaptures": whiteCaptures,
-            "koLocKey": koLoc ? koLoc.key : "",
-            "koLocX": koLoc ? koLoc.x : -1,
-            "koLocY": koLoc ? koLoc.y : -1,
-            "koLocKey2": koLoc ? koLoc.key2 : "",
-            "koLocX2": koLoc ? koLoc.x2 : -1,
-            "koLocY2": koLoc ? koLoc.y2 : -1,
-            "analysisBlackWinrate": -1,
-            "analysisCandidates": [],
-            "analysisCandidateBoardSignature": "",
-            "analysisCandidateKomiSignature": "",
-            "analysisOwnership": [],
-            "analysisOwnershipBoardSignature": "",
-            "analysisOwnershipKomiSignature": "",
-            "analysisOwnershipEngineSignature": ""
-        }
-        gameNodes[id] = node
-        parent.children = (parent.children || []).slice()
-        parent.children.push(id)
-        gameNodes = gameNodes.slice()
-        currentNodeId = id
-        gameDirty = true
-        if (!skipPositionRebuild)
-            rebuildPositionFromNode(currentNodeId)
-        if (deferTreeLayoutRebuild)
-            scheduleTreeLayoutRebuild()
-        else
-            rebuildTreeLayout()
-        clearEngineCandidates()
-        if (!skipPositionRebuild) {
-            scheduleAutoAnalysis()
-            if (!applyingGeneratedMove)
-                requestAiMoveIfNeeded()
-        }
-        return node
-    }
+
 
     function placeStone(x, y) {
         if (!pointInRuleBoard(x, y))
             return false
-
-        if (ruleUsesMoveSource())
-            return placeMoveRulePoint(x, y)
-
-        var pointKey = keyFor(x, y)
-        var player = currentPlayer
-        var forbiddenMove = pointIsGomokuForbidden(x, y, player, stones)
-        var existingChild = branchChildMatching(currentNode(), pointKey, player, false)
-        if (existingChild) {
-            selectedPointLocked = false
-            selectedPointFromCandidateList = false
-            gotoNode(existingChild.id)
-            return true
-        }
-
-        var item = {
-            "x": x,
-            "y": y,
-            "key": pointKey,
-            "player": player,
-            "moveNumber": currentMoveNumberValue() + 1,
-            "nodeId": -1
-        }
-        var result = GameRules.applyMoveOnMap(stones, boardDims(), item, {
-            "ruleMode": gameRuleMode,
-            "activeKoLoc": currentKoLoc()
-        })
-        if (!result.ok) {
-            statusMode = stoneAt(x, y) !== 0 ? "occupied" : "message"
-            statusMessage = illegalPointMessage(x, y, result.reason)
-            return false
-        }
-        var captured = (result.capturedStones || []).concat(result.selfCapturedStones || [])
-
-        selectedPointLocked = false
-        selectedPointFromCandidateList = false
-        var node = addMoveNode(player, x, y, false, captured, result.ko, true, true)
-        if (!node)
-            return false
-        node.extraTurn = result.extraTurn === true
-        node.gomokuForbidden = forbiddenMove
-        applyIncrementalMovePosition(node, result.nextMap, result.captured,
-                                     result.ko, result.selfCaptured)
-        statusMode = "turn"
-        statusMessage = captured.length > 0 ? trText("captureMessage") + ": " + captured.length : ""
-        checkGameOverAfterMove(node)
-        scheduleAutoAnalysis()
-        if (!applyingGeneratedMove)
-            requestAiMoveIfNeeded()
-        return true
+        return gameSession.placeStone(x, y).ok
     }
 
-    function placeMoveRulePoint(x, y) {
-        var player = currentPlayer
-        var sourceNode = currentMoveSourceNode()
-        var sourcePoint = sourceNode ? { "x": sourceNode.x, "y": sourceNode.y } : null
-        var pointKey = keyFor(x, y)
-        var item = {
-            "x": x,
-            "y": y,
-            "key": pointKey,
-            "player": player,
-            "moveNumber": currentMoveNumberValue() + 1,
-            "nodeId": -1
-        }
-        var result = GameRules.applyMoveOnMap(stones, boardDims(), item, {
-            "ruleMode": gameRuleMode,
-            "pendingSource": sourcePoint
-        })
-        if (!result.ok) {
-            statusMode = "message"
-            statusMessage = illegalPointMessage(x, y, result.reason)
-            return false
-        }
 
-        selectedPointLocked = false
-        selectedPointFromCandidateList = false
 
-        if (result.role === "source") {
-            var source = addMoveNode(player, x, y, false, [], GameRules.emptyKoLoc(), true, true, "source")
-            if (!source)
-                return false
-            currentPlayer = player
-            rebuildPointLegality()
-            boardRevision += 1
-            resetEngineSyncState()
-            scheduleAutoAnalysis()
-            statusMode = "message"
-            statusMessage = trText("moveSourceSelected") + ": " + coordinateText(x, y)
-            return true
-        }
 
-        var node = addMoveNode(player, x, y, false, result.capturedStones || [],
-                               result.ko, true, true, "target")
-        if (!node)
-            return false
-        applyIncrementalMovePosition(node, result.nextMap, result.captured,
-                                     result.ko, result.selfCaptured)
-        statusMode = "turn"
-        statusMessage = ""
-        checkGameOverAfterMove(node)
-        scheduleAutoAnalysis()
-        if (!applyingGeneratedMove)
-            requestAiMoveIfNeeded()
-        return true
-    }
-
-    function applyIncrementalMovePosition(node, nextMap, capturedCount, ko, selfCapturedCount) {
-        if (!node || !nextMap)
-            return
-
-        if (!node.isPass && nextMap[node.key]) {
-            nextMap[node.key].nodeId = node.id
-            nextMap[node.key].moveNumber = node.moveNumber
-        }
-
-        stones = nextMap
-        stoneItems = mapStoneItems(nextMap)
-        stoneCount = stoneItems.length
-        capturedCount = Math.max(0, Math.round(Number(capturedCount || 0)))
-        selfCapturedCount = Math.max(0, Math.round(Number(selfCapturedCount || 0)))
-        if (node.player === 1) {
-            blackCaptures += capturedCount
-            whiteCaptures += selfCapturedCount
-        } else if (node.player === 2) {
-            whiteCaptures += capturedCount
-            blackCaptures += selfCapturedCount
-        }
-        ko = ko || GameRules.emptyKoLoc()
-        koLocKey = ko.key
-        koLocX = ko.x
-        koLocY = ko.y
-        koLocKey2 = ko.key2
-        koLocX2 = ko.x2
-        koLocY2 = ko.y2
-        node.blackCaptures = blackCaptures
-        node.whiteCaptures = whiteCaptures
-        node.koLocKey = koLocKey
-        node.koLocX = koLocX
-        node.koLocY = koLocY
-        node.koLocKey2 = koLocKey2
-        node.koLocX2 = koLocX2
-        node.koLocY2 = koLocY2
-        currentPlayer = nextPlayerFromMode()
-        rebuildPointLegality()
-        refreshWinVisuals(nextMap)
-        boardRevision += 1
-    }
 
     function passMove() {
-        var player = currentPlayer
-        selectedPointLocked = false
-        selectedPointFromCandidateList = false
-        var node = addMoveNode(player, -1, -1, true, [], GameRules.emptyKoLoc())
-        if (!node)
-            return
-        statusMode = "message"
-        statusMessage = (player === 1 ? trText("black") : trText("white")) + " " + trText("passMessage")
-        checkGameOverAfterMove(node)
+        return gameSession.passMove().ok
     }
 
     function checkGameOverAfterMove(node) {
@@ -2569,6 +1309,10 @@ ApplicationWindow {
         } else if (gameRuleMode === gameRuleBreakthrough && breakthroughWinInfo.player !== 0) {
             nextWinner = breakthroughWinInfo.player
             nextReason = trText("gameOverBreakthrough")
+        } else if (gameRuleMode === gameRuleSurakarta && surakartaWinInfo.finished === true) {
+            nextWinner = surakartaWinInfo.player
+            nextReason = surakartaWinInfo.reason === "pass"
+                         ? trText("gameOverSurakartaPass") : trText("gameOverSurakarta")
         } else if (gameRuleMode === gameRuleDotsAndBoxes && dotsAndBoxesBoardFull()) {
             var blackBoxes = dotsAndBoxesClaimedCount(1)
             var whiteScore = dotsAndBoxesClaimedCount(2) + effectiveKomi()
@@ -2593,103 +1337,35 @@ ApplicationWindow {
     }
 
     function undoMove() {
-        var node = currentNode()
-        if (node && node.parent >= 0)
-            gotoNode(node.parent)
+        return gameSession.undoMove().changed
     }
 
     function gotoNode(id) {
-        if (!nodeById(id))
-            return false
-        if (id === currentNodeId)
-            return false
-        var previousNodeId = currentNodeId
-        currentNodeId = id
-        selectedPointLocked = false
-        selectedPointFromCandidateList = false
-        var replay = rebuildPositionFromNode(id)
-        if (!replay.ok) {
-            currentNodeId = previousNodeId
-            rebuildPositionFromNode(previousNodeId)
-            statusMode = "message"
-            statusMessage = trText("invalidGameRecordNode") + " #"
-                            + replay.nodeId + ": " + replay.reason
-            return false
-        }
-        rebuildTreeLayout()
-        scheduleAutoAnalysis()
-        focusBoardInput()
-        return true
+        return gameSession.gotoNode(id).changed === true
     }
 
     function gotoFirstMove() {
-        gotoNode(0)
+        return gameSession.gotoFirstMove().changed
     }
 
     function gotoLastMove() {
-        var id = currentNodeId
-        var node = nodeById(id)
-        while (node && node.children && node.children.length > 0) {
-            id = node.children[0]
-            node = nodeById(id)
-        }
-        if (id === currentNodeId)
-            return true
-        return gotoNode(id)
+        return gameSession.gotoLastMove().ok
     }
 
     function validateParsedGame(parsed) {
-        var mode = parsed.ruleMode === undefined || parsed.ruleMode === null
-                   ? gameRuleMode : Number(parsed.ruleMode)
-        return GameRules.validateGameTree(parsed.nodes, {
-                                              "x": parsed.boardSizeX,
-                                              "y": parsed.boardSizeY
-                                          }, mode)
+        return gameSession.validateParsedGame(parsed)
     }
 
     function gotoRelativeMove(delta) {
-        var targetId = currentNodeId
-        if (delta < 0) {
-            for (var i = 0; i < -delta; ++i) {
-                var node = nodeById(targetId)
-                if (!node || node.parent < 0)
-                    break
-                targetId = node.parent
-            }
-            gotoNode(targetId)
-            return
-        }
-        for (var f = 0; f < delta; ++f) {
-            var n = nodeById(targetId)
-            if (!n || !n.children || n.children.length <= 0)
-                break
-            targetId = n.children[0]
-        }
-        gotoNode(targetId)
+        return gameSession.gotoRelativeMove(delta).changed
     }
 
     function gotoMoveNumber(moveNumber) {
-        if (isNaN(moveNumber))
-            return
-        var path = [nodeById(0)].concat(nodePath(currentNodeId))
-        for (var i = 0; i < path.length; ++i) {
-            if (path[i] && path[i].moveNumber === moveNumber) {
-                gotoNode(path[i].id)
-                return
-            }
-        }
-        for (var id = 0; id < gameNodes.length; ++id) {
-            var node = nodeById(id)
-            if (node && node.moveNumber === moveNumber) {
-                gotoNode(node.id)
-                return
-            }
-        }
+        return gameSession.gotoMoveNumber(moveNumber).changed
     }
 
     function currentMoveNumberValue() {
-        var node = currentNode()
-        return node ? node.moveNumber : 0
+        return gameSession.currentMoveNumberValue()
     }
 
     function currentMoveNumberText() {
@@ -2697,13 +1373,7 @@ ApplicationWindow {
     }
 
     function maxMoveNumberValue() {
-        var maxMove = 0
-        for (var i = 0; i < gameNodes.length; ++i) {
-            var node = nodeById(i)
-            if (node)
-                maxMove = Math.max(maxMove, node.moveNumber)
-        }
-        return maxMove
+        return gameSession.maxMoveNumberValue()
     }
 
     function currentNodeText() {
@@ -2711,39 +1381,16 @@ ApplicationWindow {
         if (!node || node.id === 0)
             return trText("rootMove")
         if (node.moveRole === "source")
-            return node.moveNumber + " " + trText("moveSource") + " " + coordinateText(node.x, node.y)
-        return node.moveNumber + " " + (node.isPass ? trText("passMove") : coordinateText(node.x, node.y))
+            return (currentMoveNumberValue() + 1) + " " + trText("moveSource") + " " + coordinateText(node.x, node.y)
+        return currentMoveNumberValue() + " " + (node.isPass ? trText("passMove") : coordinateText(node.x, node.y))
     }
 
     function deleteCurrentNode() {
-        var node = currentNode()
-        if (!node || node.id === 0)
-            return
-        var parent = nodeById(node.parent)
-        if (parent) {
-            var children = (parent.children || []).slice()
-            var index = children.indexOf(node.id)
-            if (index >= 0)
-                children.splice(index, 1)
-            parent.children = children
-        }
-        deleteSubtree(node.id)
-        currentNodeId = parent ? parent.id : 0
-        gameNodes = gameNodes.slice()
-        gameDirty = true
-        rebuildPositionFromNode(currentNodeId)
-        rebuildTreeLayout()
-        scheduleAutoAnalysis()
+        return gameSession.deleteCurrentNode().changed
     }
 
     function deleteSubtree(id) {
-        var node = nodeById(id)
-        if (!node)
-            return
-        var children = (node.children || []).slice()
-        for (var i = 0; i < children.length; ++i)
-            deleteSubtree(children[i])
-        gameNodes[id] = undefined
+        return gameSession.deleteSubtree(id).changed
     }
 
     function requestDeleteCurrentNode() {
@@ -2766,27 +1413,7 @@ ApplicationWindow {
     }
 
     function setCurrentVariationAsMainBranch() {
-        var path = nodePath(currentNodeId)
-        var changed = false
-        for (var i = 0; i < path.length; ++i) {
-            var child = path[i]
-            var parent = nodeById(child.parent)
-            if (!parent)
-                continue
-            var children = (parent.children || []).slice()
-            var index = children.indexOf(child.id)
-            if (index > 0) {
-                children.splice(index, 1)
-                children.unshift(child.id)
-                parent.children = children
-                changed = true
-            }
-        }
-        if (changed) {
-            gameNodes = gameNodes.slice()
-            rebuildTreeLayout()
-            gameDirty = true
-        }
+        return gameSession.setCurrentVariationAsMainBranch().changed
     }
 
     function toolbarActionEnabled(action) {
@@ -2838,7 +1465,19 @@ ApplicationWindow {
     }
 
     function rebuildTreeLayout() {
-        TreeLayout.rebuild(root)
+        var layout = TreeLayout.build(gameNodes, currentNodeId, {
+            "compactLayout": compactLayout,
+            "minimumWidth": minimumTreeCanvasWidth,
+            "minimumHeight": minimumTreeCanvasHeight,
+            "rootText": trText("rootMove"),
+            "passText": trText("passMove"),
+            "coordinateText": coordinateText
+        })
+        treeNodes = layout.nodes
+        treeEdges = layout.edges
+        treeCanvasWidth = layout.width
+        treeCanvasHeight = layout.height
+        treeRevision += 1
     }
 
     function gomokuRuleLabel(rule) {
@@ -3167,11 +1806,7 @@ ApplicationWindow {
     }
 
     function chooseRuleModeFromMenu(mode) {
-        if (typeof settingsMenu !== "undefined") {
-            if (typeof settingsMenu.dismiss === "function")
-                settingsMenu.dismiss()
-            settingsMenu.close()
-        }
+        applicationMenu.dismissSettings()
         Qt.callLater(function() {
             requestRuleModeChange(mode)
             queueFocusBoardInput()
@@ -3589,6 +2224,8 @@ ApplicationWindow {
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.twoLibGoRulesObject(root)) ]
         if (gameRuleMode === gameRuleGomoku)
             return [ "kata-set-rules " + JSON.stringify(RuleSupport.gomokuRulesObject(root)) ]
+        if (gameRuleMode === gameRuleSurakarta)
+            return [ "kata-set-rules Surakarta" ]
         return []
     }
 
@@ -3663,7 +2300,8 @@ ApplicationWindow {
                        : gameRuleMode === gameRuleGo ? JSON.stringify(RuleSupport.goRulesObject(root))
                        : gameRuleMode === gameRuleTorusGo ? JSON.stringify(RuleSupport.torusGoRulesObject(root))
                        : gameRuleMode === gameRuleTwoLibGo ? JSON.stringify(RuleSupport.twoLibGoRulesObject(root))
-                       : gameRuleMode === gameRuleHex ? "hex" : "go"
+                       : gameRuleMode === gameRuleHex ? "hex"
+                       : gameRuleMode === gameRuleSurakarta ? "surakarta" : "go"
         return [boardSizeX, boardSizeY, gameRuleMode, ruleDetail,
                 legacyHexEngineCoordinateMode() ? "legacyHex" : "normal"].join(":")
     }
@@ -3698,26 +2336,23 @@ ApplicationWindow {
         return komiPart + ":wrn:" + formatAnalysisWideRootNoise(effectiveAnalysisWideRootNoise())
     }
 
-    function stageEngineSyncSnapshot(syncRequestId, pathIds, boardSignature, komiSignature) {
-        pendingEngineSyncSnapshot = {
-            "requestId": syncRequestId,
-            "nodeIds": pathIds.slice(),
-            "boardSignature": boardSignature,
-            "komiSignature": komiSignature
+    function enginePositionSnapshot() {
+        return {
+            nodeId: currentNodeId,
+            generation: gameTreeGeneration,
+            boardSignature: engineBoardSignature(),
+            komiSignature: engineKomiSignature(),
+            player: currentPlayer,
+            engineSignature: engineAnalysisSourceSignature()
         }
     }
 
-    function commitEngineSyncSnapshot(syncRequestId) {
-        var snapshot = pendingEngineSyncSnapshot
-        if (!snapshot || snapshot.requestId !== syncRequestId)
-            return false
+    function stageEngineSyncSnapshot(syncRequestId, pathIds, boardSignature, komiSignature) {
+        engineSession.stageSync(syncRequestId, pathIds, boardSignature, komiSignature)
+    }
 
-        engineSyncedNodeIds = snapshot.nodeIds.slice()
-        engineSyncedBoardSignature = snapshot.boardSignature
-        engineSyncedKomiSignature = snapshot.komiSignature
-        engineNeedsFullSync = false
-        pendingEngineSyncSnapshot = null
-        return true
+    function commitEngineSyncSnapshot(syncRequestId) {
+        return engineSession.commitSync(syncRequestId)
     }
 
     function engineSyncCommands(syncRequestId) {
@@ -3725,39 +2360,27 @@ ApplicationWindow {
         var pathIds = []
         for (var pathIndex = 0; pathIndex < path.length; ++pathIndex)
             pathIds.push(path[pathIndex].id)
-        var boardSignature = engineBoardSignature()
-        var komiSignature = engineKomiSignature()
-        var controllerAllowsIncremental = !!engineController
-                                           && engineController.canUseIncrementalSync()
-        var forceFullSync = engineNeedsFullSync
-                            || pendingEngineSyncSnapshot !== null
-                            || engineSyncedBoardSignature !== boardSignature
-                            || !controllerAllowsIncremental
-        var plan = EngineSync.buildPlan(engineSyncedNodeIds, pathIds, forceFullSync)
+        var plan = engineSession.syncPlan(syncRequestId, pathIds,
+                                          engineBoardSignature(), engineKomiSignature(),
+                                          !!engineController && engineController.canUseIncrementalSync())
+        if (!plan)
+            return []
         var commands = [ "stop" ]
-
         if (plan.full) {
             commands = commands.concat(engineBoardSizeCommands())
             commands = commands.concat(engineAnalysisParameterCommands())
-            var fullRuleCommands = engineRuleCommands()
-            for (var ruleCommandIndex = 0; ruleCommandIndex < fullRuleCommands.length; ++ruleCommandIndex)
-                commands.push(fullRuleCommands[ruleCommandIndex])
+            commands = commands.concat(engineRuleCommands())
             commands.push("clear_board")
             for (var fullIndex = 0; fullIndex < path.length; ++fullIndex)
                 commands.push(enginePlayCommandForNode(path[fullIndex]))
-            stageEngineSyncSnapshot(syncRequestId, pathIds, boardSignature, komiSignature)
             return commands
         }
-
-        if (engineSyncedKomiSignature !== komiSignature)
+        if (plan.parametersChanged)
             commands = commands.concat(engineAnalysisParameterCommands())
-
         for (var undoIndex = 0; undoIndex < plan.undoCount; ++undoIndex)
             commands.push("undo")
         for (var playIndex = plan.playStartIndex; playIndex < path.length; ++playIndex)
             commands.push(enginePlayCommandForNode(path[playIndex]))
-
-        stageEngineSyncSnapshot(syncRequestId, pathIds, boardSignature, komiSignature)
         return commands
     }
 
@@ -3782,98 +2405,36 @@ ApplicationWindow {
     }
 
     function invalidateEngineSyncState() {
-        engineSyncedNodeIds = []
-        engineSyncedBoardSignature = ""
-        engineSyncedKomiSignature = ""
-        engineNeedsFullSync = true
-        pendingEngineSyncSnapshot = null
-        engineAnalysisRequestValid = false
-        engineAnalysisSyncRequestId = 0
+        engineSession.invalidateAll()
+        largeCandidateUiUpdateTimer.stop()
+        pendingEngineCandidateSyncRequestId = 0
     }
 
     function invalidateEngineSyncRequest(syncRequestId) {
-        engineSyncedNodeIds = []
-        engineSyncedBoardSignature = ""
-        engineSyncedKomiSignature = ""
-        engineNeedsFullSync = true
-        var snapshot = pendingEngineSyncSnapshot
-        if (snapshot && snapshot.requestId === syncRequestId)
-            pendingEngineSyncSnapshot = null
-        if (engineAnalysisSyncRequestId === syncRequestId) {
-            engineAnalysisRequestValid = false
-            engineAnalysisSyncRequestId = 0
-        }
+        engineSession.invalidateSyncRequest(syncRequestId)
     }
 
     function resetEngineSyncState() {
-        stopAnalysisLimitTimer()
+        var hadPlayRequest = genmoveInFlight || aiAnalysisInFlight
         invalidateEngineSyncState()
-        handleAiAnalysisPositionChanged()
+        if (hadPlayRequest && engineController)
+            engineController.sendCommand("stop")
+        if (hadPlayRequest && appReady)
+            Qt.callLater(function() { root.requestAiMoveIfNeeded() })
     }
 
     function markGeneratedMoveSynced() {
-        if (engineNeedsFullSync
-                || engineSyncedBoardSignature !== engineBoardSignature()
-                || engineSyncedKomiSignature !== engineKomiSignature()) {
-            invalidateEngineSyncState()
-            return false
-        }
-
         var path = nodePath(currentNodeId)
         var pathIds = []
         for (var pathIndex = 0; pathIndex < path.length; ++pathIndex)
             pathIds.push(path[pathIndex].id)
-        if (pathIds.length !== engineSyncedNodeIds.length + 1) {
-            invalidateEngineSyncState()
-            return false
-        }
-        for (var prefixIndex = 0; prefixIndex < engineSyncedNodeIds.length; ++prefixIndex) {
-            if (pathIds[prefixIndex] !== engineSyncedNodeIds[prefixIndex]) {
-                invalidateEngineSyncState()
-                return false
-            }
-        }
-
-        engineSyncedNodeIds = pathIds
-        return true
+        return engineSession.markGeneratedMoveSynced(pathIds,
+                                                     engineBoardSignature(), engineKomiSignature())
     }
 
     function requestEngineAnalysis(force) {
         if (applicationShutdownPrepared || !analysisModeActive()
-                || enginePaused || engineDisabled || !engineAutoAnalyze
-                || !engineController)
-            return
-        if (!engineController.ready) {
-            engineLoading = true
-            return
-        }
-        if (engineInitialCommandsPendingForId.length > 0) {
-            engineInitialCommandsCompletionTimer.start()
-            return
-        }
-        engineLoading = !engineController.ready
-        engineNoticeDismissed = false
-        engineAnalysisRequestNodeId = currentNodeId
-        engineAnalysisRequestGeneration = gameTreeGeneration
-        engineAnalysisRequestBoardSignature = engineBoardSignature()
-        engineAnalysisRequestKomiSignature = engineKomiSignature()
-        engineAnalysisRequestPlayer = currentPlayer
-        engineAnalysisRequestEngineSignature = engineAnalysisSourceSignature()
-        var syncRequestId = ++engineSyncRequestSerial
-        engineAnalysisSyncRequestId = syncRequestId
-        engineAnalysisRequestValid = true
-        engineController.requestAnalysis(engineSyncCommands(syncRequestId),
-                                         analyzeCommand(),
-                                         syncRequestId)
-        statusMode = "message"
-        statusMessage = trText("engineAnalyzeRequested")
-        resetAnalysisLimitTimer()
-    }
-
-    function requestEngineSynchronization() {
-        if (applicationShutdownPrepared || !analysisModeActive()
-                || !enginePaused || engineDisabled || !engineAutoAnalyze
-                || !engineController)
+                || enginePaused || engineDisabled || !engineAutoAnalyze || !engineController)
             return
         if (!engineController.ready) {
             engineLoading = true
@@ -3884,11 +2445,31 @@ ApplicationWindow {
             return
         }
         engineLoading = false
-        engineAnalysisRequestValid = false
-        engineAnalysisSyncRequestId = 0
-        var syncRequestId = ++engineSyncRequestSerial
-        engineController.requestSynchronization(engineSyncCommands(syncRequestId),
-                                                syncRequestId)
+        engineNoticeDismissed = false
+        var request = engineSession.beginAnalysis(enginePositionSnapshot())
+        engineController.requestAnalysis(engineSyncCommands(request.syncRequestId),
+                                         analyzeCommand(), request.syncRequestId)
+        statusMode = "message"
+        statusMessage = trText("engineAnalyzeRequested")
+        resetAnalysisLimitTimer()
+    }
+
+    function requestEngineSynchronization() {
+        if (applicationShutdownPrepared || !analysisModeActive()
+                || !enginePaused || engineDisabled || !engineAutoAnalyze || !engineController)
+            return
+        if (!engineController.ready) {
+            engineLoading = true
+            return
+        }
+        if (engineInitialCommandsPendingForId.length > 0) {
+            engineInitialCommandsCompletionTimer.start()
+            return
+        }
+        engineLoading = false
+        var request = engineSession.beginSynchronization(enginePositionSnapshot())
+        engineController.requestSynchronization(engineSyncCommands(request.syncRequestId),
+                                                request.syncRequestId)
     }
 
     function requestScheduledEngineUpdate() {
@@ -3902,8 +2483,7 @@ ApplicationWindow {
         if (applicationShutdownPrepared || !appReady || !analysisModeActive()
                 || engineDisabled || !engineAutoAnalyze)
             return
-        autoAnalyzeTimer.interval = enginePaused ? 1 : 280
-        autoAnalyzeTimer.restart()
+        engineSession.scheduleAutoAnalysis(enginePaused)
     }
 
     function startEngine() {
@@ -3925,7 +2505,7 @@ ApplicationWindow {
     function stopEngine() {
         if (!engineController)
             return
-        cancelActiveEnginePlayRequest(true)
+        invalidateEngineSyncState()
         engineDisabled = true
         engineController.stop()
         engineInitialCommandsSentForId = ""
@@ -3968,6 +2548,7 @@ ApplicationWindow {
     function pauseEngineAnalysis() {
         resetEngineSearchSpeed()
         enginePaused = true
+        engineSession.invalidateAnalysis()
         stopAnalysisLimitTimer()
         if (engineController)
             engineController.sendCommand("stop")
@@ -3981,16 +2562,12 @@ ApplicationWindow {
     }
 
     function resetAnalysisLimitTimer() {
-        if (!analysisModeActive() || enginePaused || engineDisabled || !engineAutoAnalyze || maxAnalysisSeconds <= 0) {
-            analysisLimitTimer.stop()
-            return
-        }
-        analysisLimitTimer.interval = Math.max(1, Math.round(Number(maxAnalysisSeconds))) * 1000
-        analysisLimitTimer.restart()
+        engineSession.resetAnalysisLimitTimer(analysisModeActive() && !enginePaused
+                                              && !engineDisabled && engineAutoAnalyze)
     }
 
     function stopAnalysisLimitTimer() {
-        analysisLimitTimer.stop()
+        engineSession.stopAnalysisLimitTimer()
     }
 
     function pauseEngineAnalysisByLimit() {
@@ -4016,8 +2593,7 @@ ApplicationWindow {
                 engineController.sendCommand("stop")
         }
         if (leavingOrdinaryAnalysis) {
-            engineAnalysisRequestValid = false
-            engineAnalysisSyncRequestId = 0
+            engineSession.invalidateAnalysis()
             resetEngineCandidateDisplay()
             resetEngineOwnershipDisplay()
             if (engineController)
@@ -4153,7 +2729,7 @@ ApplicationWindow {
     }
 
     function requestAiMoveIfNeeded() {
-        if (!aiShouldMove() || genmoveInFlight || aiAnalysisInFlight
+        if (applicationShutdownPrepared || !aiShouldMove() || genmoveInFlight || aiAnalysisInFlight
                 || engineDisabled || !engineController)
             return
         if (!engineReadyForPlayMode()) {
@@ -4164,95 +2740,36 @@ ApplicationWindow {
             requestAiAnalysisMove()
             return
         }
-
-        engineAnalysisRequestValid = false
-        engineAnalysisSyncRequestId = 0
-        genmoveInFlight = true
-        genmovePlayer = currentPlayer
-        activeGenmoveRequestId = ++genmoveRequestSerial
-        activeGenmoveSyncRequestId = ++engineSyncRequestSerial
-        activeGenmovePosition = {
-            "requestId": activeGenmoveRequestId,
-            "nodeId": currentNodeId,
-            "generation": gameTreeGeneration,
-            "boardSignature": engineBoardSignature(),
-            "komiSignature": engineKomiSignature(),
-            "player": currentPlayer
-        }
-        engineController.requestMove(engineSyncCommands(activeGenmoveSyncRequestId),
-                                     timeSettingsCommand(),
-                                     genmoveCommand(),
-                                     activeGenmoveRequestId,
-                                     activeGenmoveSyncRequestId)
+        var request = engineSession.beginGenmove(enginePositionSnapshot())
+        engineController.requestMove(engineSyncCommands(request.syncRequestId),
+                                     timeSettingsCommand(), genmoveCommand(),
+                                     request.requestId, request.syncRequestId)
         statusMode = "message"
         statusMessage = trText("engineThinking")
     }
 
     function requestAiAnalysisMove() {
-        if (!aiShouldMove() || aiMoveMode !== aiMoveModeAnalyze
-                || genmoveInFlight || aiAnalysisInFlight
-                || !engineReadyForPlayMode())
+        if (applicationShutdownPrepared || !aiShouldMove() || aiMoveMode !== aiMoveModeAnalyze
+                || genmoveInFlight || aiAnalysisInFlight || !engineReadyForPlayMode())
             return
         if (!analysisMoveLimitConfigured()) {
             statusMode = "message"
             statusMessage = trText("analysisMoveLimitRequired")
             return
         }
-
-        aiAnalysisInFlight = true
-        activeAiAnalysisRequestId = ++aiAnalysisRequestSerial
-        activeAiAnalysisSyncRequestId = ++engineSyncRequestSerial
-        activeAiAnalysisPosition = {
-            "requestId": activeAiAnalysisRequestId,
-            "nodeId": currentNodeId,
-            "generation": gameTreeGeneration,
-            "boardSignature": engineBoardSignature(),
-            "komiSignature": engineKomiSignature(),
-            "player": currentPlayer,
-            "engineSignature": engineAnalysisSourceSignature()
-        }
-        engineAnalysisRequestNodeId = currentNodeId
-        engineAnalysisRequestGeneration = gameTreeGeneration
-        engineAnalysisRequestBoardSignature = engineBoardSignature()
-        engineAnalysisRequestKomiSignature = engineKomiSignature()
-        engineAnalysisRequestPlayer = currentPlayer
-        engineAnalysisRequestEngineSignature = engineAnalysisSourceSignature()
-        engineAnalysisSyncRequestId = activeAiAnalysisSyncRequestId
-        engineAnalysisRequestValid = true
-        aiAnalysisStartedAt = Date.now()
-        restartAiAnalysisTimeLimit()
-        restartAiAnalysisWatchdog()
-        engineController.requestAnalysis(engineSyncCommands(activeAiAnalysisSyncRequestId),
-                                         analyzeCommand(),
-                                         activeAiAnalysisSyncRequestId)
+        var request = engineSession.beginAiAnalysis(enginePositionSnapshot())
+        engineController.requestAnalysis(engineSyncCommands(request.syncRequestId),
+                                         analyzeCommand(), request.syncRequestId)
         statusMode = "message"
         statusMessage = trText("engineThinking")
     }
 
     function restartAiAnalysisTimeLimit() {
-        if (!aiAnalysisInFlight) {
-            aiAnalysisMoveTimer.stop()
-            return
-        }
-        var seconds = Math.max(0, Number(analysisSecondsPerMove))
-        if (!isFinite(seconds))
-            seconds = 5.0
-        aiAnalysisStartedAt = Date.now()
-        if (seconds <= 0) {
-            aiAnalysisMoveTimer.stop()
-            return
-        }
-        aiAnalysisMoveTimer.interval = Math.max(100, Math.round(seconds * 1000))
-        aiAnalysisMoveTimer.restart()
+        engineSession.restartAiAnalysisTimeLimit()
     }
 
     function restartAiAnalysisWatchdog() {
-        if (!aiAnalysisInFlight) {
-            aiAnalysisWatchdogTimer.stop()
-            return
-        }
-        aiAnalysisWatchdogTimer.interval = aiAnalysisWatchdogMilliseconds
-        aiAnalysisWatchdogTimer.restart()
+        engineSession.restartAiAnalysisWatchdog()
     }
 
     function handleAiAnalysisWatchdogTimeout() {
@@ -4264,17 +2781,11 @@ ApplicationWindow {
     }
 
     function activeAiAnalysisPositionMatches() {
-        return EnginePlay.positionMatches(activeAiAnalysisPosition,
-                                          currentNodeId,
-                                          gameTreeGeneration,
-                                          engineBoardSignature(),
-                                          engineKomiSignature(),
-                                          currentPlayer,
-                                          engineAnalysisSourceSignature())
+        return engineSession.activeAiAnalysisPositionMatches(enginePositionSnapshot())
     }
 
     function pauseAfterEngineProtocolFailure(messageKey, detail, sendStop) {
-        cancelActiveEnginePlayRequest(true)
+        invalidateEngineSyncState()
         playMode = playModeAnalysis
         enginePaused = true
         refreshGameOutcomeFromCurrentNode(false)
@@ -4294,25 +2805,25 @@ ApplicationWindow {
     }
 
     function deferAnalysisCommandFailure(analysisRequestId, line) {
-        if (analysisRequestId <= 0
-                || analysisRequestId !== engineAnalysisSyncRequestId)
+        if (!engineSession.acceptsAnalysis(analysisRequestId, enginePositionSnapshot()))
             return
         Qt.callLater(function() {
-            if (root.engineAnalysisSyncRequestId !== analysisRequestId
-                    || !root.engineAnalysisRequestValid)
-                return
-            root.pauseAfterEngineProtocolFailure("analysisMoveFailed", line, false)
+            if (engineSession.acceptsAnalysis(analysisRequestId, root.enginePositionSnapshot()))
+                root.pauseAfterEngineProtocolFailure("analysisMoveFailed", line, false)
         })
     }
 
     function handleAiAnalysisPositionChanged() {
-        if (!aiAnalysisInFlight || applyingGeneratedMove
-                || activeAiAnalysisPositionMatches())
+        if (applyingGeneratedMove)
             return
-        cancelActiveAiAnalysisRequest(true)
-        if (engineController)
+        var hadPlayRequest = genmoveInFlight || aiAnalysisInFlight
+        if (!engineSession.positionChanged(enginePositionSnapshot()))
+            return
+        largeCandidateUiUpdateTimer.stop()
+        pendingEngineCandidateSyncRequestId = 0
+        if (hadPlayRequest && engineController)
             engineController.sendCommand("stop")
-        if (appReady)
+        if (hadPlayRequest && appReady)
             Qt.callLater(function() { root.requestAiMoveIfNeeded() })
     }
 
@@ -4329,8 +2840,7 @@ ApplicationWindow {
     }
 
     function aiAnalysisShouldResign(player, candidate) {
-        var node = currentNode()
-        var moveNumber = node ? Number(node.moveNumber) : 0
+        var moveNumber = currentMoveNumberValue()
         var rawWinrate = candidate && candidate.winrate !== undefined
                        ? Number(candidate.winrate) : NaN
         if (!isFinite(rawWinrate)) {
@@ -4372,7 +2882,10 @@ ApplicationWindow {
         var player = activeAiAnalysisPosition.player
         var shouldResign = aiAnalysisShouldResign(player, best)
 
-        cancelActiveAiAnalysisRequest(false)
+        var completed = engineSession.completeAiAnalysis(activeAiAnalysisRequestId,
+                                                          enginePositionSnapshot())
+        if (!completed.accepted)
+            return false
         if (shouldResign || move.toLowerCase() === "resign") {
             finishEngineResignation(player)
             return true
@@ -4404,32 +2917,41 @@ ApplicationWindow {
     }
 
     function cancelActiveEnginePlayRequest(invalidateSync) {
-        cancelActiveGenmoveRequest()
-        cancelActiveAiAnalysisRequest(invalidateSync)
+        engineSession.cancelPlay(invalidateSync)
     }
 
     function cancelActiveGenmoveRequest() {
-        if (activeGenmoveSyncRequestId > 0)
-            invalidateEngineSyncRequest(activeGenmoveSyncRequestId)
-        genmoveInFlight = false
-        activeGenmoveRequestId = 0
-        activeGenmoveSyncRequestId = 0
-        activeGenmovePosition = null
-        genmovePlayer = 0
+        engineSession.cancelGenmove()
     }
 
     function cancelActiveAiAnalysisRequest(invalidateSync) {
-        aiAnalysisMoveTimer.stop()
-        aiAnalysisWatchdogTimer.stop()
-        if (invalidateSync !== false && activeAiAnalysisSyncRequestId > 0)
-            invalidateEngineSyncRequest(activeAiAnalysisSyncRequestId)
-        engineAnalysisRequestValid = false
-        engineAnalysisSyncRequestId = 0
-        aiAnalysisInFlight = false
-        activeAiAnalysisRequestId = 0
-        activeAiAnalysisSyncRequestId = 0
-        activeAiAnalysisPosition = null
-        aiAnalysisStartedAt = 0
+        engineSession.cancelAiAnalysis(invalidateSync)
+    }
+
+    function handleGeneratedMove(requestId, move, ok, rawLine) {
+        var result = engineSession.completeGenmove(requestId, enginePositionSnapshot(), ok)
+        if (!result.accepted)
+            return
+        if (result.status === "stale") {
+            requestAiMoveIfNeeded()
+            return
+        }
+        if (result.status === "failed") {
+            if (ignoreGtpErrors && String(rawLine).trim().indexOf("?") === 0)
+                return
+            pauseAfterEngineProtocolFailure("engineMoveFailed", rawLine, false)
+            return
+        }
+        if (String(move).trim().toLowerCase() === "resign") {
+            finishEngineResignation(result.request.position.player)
+            return
+        }
+        if (!applyGeneratedMove(move)) {
+            invalidateEngineSyncState()
+            return
+        }
+        markGeneratedMoveSynced()
+        requestAiMoveIfNeeded()
     }
 
     function finishEngineResignation(losingPlayer) {
@@ -4529,11 +3051,11 @@ ApplicationWindow {
     }
 
     function candidateLabelLineCenterY(lines, lineIndex, height) {
-        return CandidateAnalysis.labelLineCenterY(root, lines, lineIndex, height)
+        return CandidateAnalysis.labelLineCenterY(lines, lineIndex, height)
     }
 
     function candidateLabelScaledTotalHeight(lines, markerRadius) {
-        return CandidateAnalysis.labelScaledTotalHeight(root, lines, markerRadius)
+        return CandidateAnalysis.labelScaledTotalHeight(lines, markerRadius)
     }
 
     function drawCandidateLabelLines(ctx, lines, centerX, centerY, markerRadius, overrideColor) {
@@ -4585,44 +3107,43 @@ ApplicationWindow {
     }
 
     function resetEngineCandidateDisplay() {
-        CandidateAnalysis.resetDisplay(root)
+        return analysisSession.resetCandidates()
     }
 
     function setEngineCandidateDisplay(candidates, fromCache, revision) {
-        CandidateAnalysis.setDisplay(root, candidates, fromCache, revision)
+        return analysisSession.setCandidates(candidates, fromCache, revision)
     }
 
     function nodeAnalysisCacheUsable(node) {
-        return CandidateAnalysis.nodeAnalysisCacheUsable(root, node)
+        return analysisSession.nodeCandidateCacheUsable(node)
     }
 
     function recordAnalysisWinrateForNode(node, candidates, playerToMove) {
-        return CandidateAnalysis.recordAnalysisWinrateForNode(root, node, candidates, playerToMove)
+        return analysisSession.recordWinrate(node, candidates, playerToMove)
     }
 
     function cacheAnalysisCandidatesForNode(node, candidates, boardSignature, komiSignature) {
-        return CandidateAnalysis.cacheAnalysisCandidatesForNode(root, node, candidates, boardSignature, komiSignature)
+        return analysisSession.cacheCandidates(node, candidates, boardSignature, komiSignature, playerToMoveAfterNode(node))
     }
 
     function showCachedAnalysisForCurrentNode() {
-        var candidatesShown = CandidateAnalysis.showCachedAnalysisForCurrentNode(root)
-        var ownershipShown = showCachedOwnershipForCurrentNode()
+        var candidatesShown = analysisSession.showCachedCandidates()
+        var ownershipShown = analysisSession.showCachedOwnership()
         return candidatesShown || ownershipShown
     }
 
     function applyEngineCandidateUpdate(candidates, revision) {
-        CandidateAnalysis.applyEngineCandidateUpdate(
-                    root,
-                    candidates,
-                    revision)
+        return analysisSession.applyCandidateUpdate(candidates, revision, currentAnalysisRequest(),
+                engineAnalysisRequestValid && (analysisModeActive() || aiAnalysisInFlight))
     }
 
     function flushEngineCandidateUpdate() {
-        if (!engineController)
+        var syncRequestId = pendingEngineCandidateSyncRequestId
+        pendingEngineCandidateSyncRequestId = 0
+        if (!engineController || !engineSession.acceptsAnalysis(syncRequestId, enginePositionSnapshot()))
             return
         var candidateSnapshot = engineController.candidates
-        applyEngineCandidateUpdate(candidateSnapshot,
-                                   engineController.candidateRevision)
+        applyEngineCandidateUpdate(candidateSnapshot, engineController.candidateRevision)
         applyEngineOwnershipUpdate(engineController.ownership)
         lastEngineCandidateUiUpdateAt = Date.now()
         tryFinishAiAnalysisMove()
@@ -4631,6 +3152,7 @@ ApplicationWindow {
     function scheduleEngineCandidateUpdate() {
         if (applicationShutdownPrepared || !engineController)
             return
+        pendingEngineCandidateSyncRequestId = engineAnalysisSyncRequestId
 
         var candidateCount = engineController.candidateCount
         if (candidateCount <= largeCandidateUiThreshold
@@ -4656,137 +3178,33 @@ ApplicationWindow {
     }
 
     function rebuildEngineCandidateItems() {
-        CandidateAnalysis.rebuildItems(root)
+        return analysisSession.rebuildCandidates()
     }
 
     function resetEngineOwnershipDisplay() {
-        if ((!engineOwnership || engineOwnership.length <= 0)
-                && !engineOwnershipFromCache
-                && engineOwnershipBoardSignature.length <= 0
-                && engineOwnershipKomiSignature.length <= 0
-                && engineOwnershipEngineSignature.length <= 0)
-            return
-        engineOwnership = []
-        engineOwnershipFromCache = false
-        engineOwnershipBoardSignature = ""
-        engineOwnershipKomiSignature = ""
-        engineOwnershipEngineSignature = ""
-        engineOwnershipRevision += 1
+        return analysisSession.resetOwnership()
     }
 
     function setEngineOwnershipDisplay(values, fromCache, boardSignature,
                                        komiSignature, engineSignature) {
-        var cached = fromCache === true
-        var nextBoardSignature = boardSignature || engineBoardSignature()
-        var nextKomiSignature = komiSignature || engineKomiSignature()
-        var nextEngineSignature = engineSignature || engineAnalysisSourceSignature()
-        if (engineOwnership === values
-                && engineOwnershipFromCache === cached
-                && engineOwnershipBoardSignature === nextBoardSignature
-                && engineOwnershipKomiSignature === nextKomiSignature
-                && engineOwnershipEngineSignature === nextEngineSignature)
-            return
-        engineOwnership = values || []
-        engineOwnershipFromCache = cached
-        engineOwnershipBoardSignature = nextBoardSignature
-        engineOwnershipKomiSignature = nextKomiSignature
-        engineOwnershipEngineSignature = nextEngineSignature
-        engineOwnershipRevision += 1
+        return analysisSession.setOwnership(values, fromCache, boardSignature, komiSignature, engineSignature)
     }
 
     function nodeOwnershipCacheUsable(node) {
-        return ownershipEnabled
-                && gameRuleMode === gameRuleGo
-                && !!node
-                && node.analysisOwnership !== undefined
-                && Ownership.usable(node.analysisOwnership, boardSizeX, boardSizeY)
-                && node.analysisOwnershipBoardSignature === engineBoardSignature()
-                && node.analysisOwnershipKomiSignature === engineKomiSignature()
-                && node.analysisOwnershipEngineSignature === engineAnalysisSourceSignature()
+        return analysisSession.nodeOwnershipCacheUsable(node)
     }
 
     function showCachedOwnershipForCurrentNode() {
-        var node = currentNode()
-        if (!nodeOwnershipCacheUsable(node)) {
-            resetEngineOwnershipDisplay()
-            return false
-        }
-        setEngineOwnershipDisplay(node.analysisOwnership,
-                                  true,
-                                  node.analysisOwnershipBoardSignature,
-                                  node.analysisOwnershipKomiSignature,
-                                  node.analysisOwnershipEngineSignature)
-        return true
+        return analysisSession.showCachedOwnership()
     }
 
     function applyEngineOwnershipUpdate(values) {
-        var updateActive = engineAnalysisRequestValid
-                           && (analysisModeActive() || aiAnalysisInFlight)
-        if (!ownershipEnabled || gameRuleMode !== gameRuleGo || !updateActive) {
-            resetEngineOwnershipDisplay()
-            return
-        }
-
-        var normalized = Ownership.normalized(values,
-                                              boardSizeX,
-                                              boardSizeY,
-                                              engineAnalysisRequestPlayer)
-        if (normalized.length <= 0) {
-            if (!showCachedOwnershipForCurrentNode())
-                resetEngineOwnershipDisplay()
-            return
-        }
-
-        var targetId = engineAnalysisRequestNodeId >= 0
-                     ? engineAnalysisRequestNodeId : currentNodeId
-        var targetGeneration = engineAnalysisRequestGeneration >= 0
-                             ? engineAnalysisRequestGeneration : gameTreeGeneration
-        if (targetGeneration !== gameTreeGeneration) {
-            if (!showCachedOwnershipForCurrentNode())
-                resetEngineOwnershipDisplay()
-            return
-        }
-
-        var targetBoardSignature = engineAnalysisRequestBoardSignature.length > 0
-                                 ? engineAnalysisRequestBoardSignature
-                                 : engineBoardSignature()
-        var targetKomiSignature = engineAnalysisRequestKomiSignature.length > 0
-                                ? engineAnalysisRequestKomiSignature
-                                : engineKomiSignature()
-        var targetEngineSignature = engineAnalysisRequestEngineSignature.length > 0
-                                  ? engineAnalysisRequestEngineSignature
-                                  : engineAnalysisSourceSignature()
-        var targetNode = nodeById(targetId)
-        if (targetNode) {
-            targetNode.analysisOwnership = normalized
-            targetNode.analysisOwnershipBoardSignature = targetBoardSignature
-            targetNode.analysisOwnershipKomiSignature = targetKomiSignature
-            targetNode.analysisOwnershipEngineSignature = targetEngineSignature
-        }
-
-        if (targetId !== currentNodeId
-                || targetBoardSignature !== engineBoardSignature()
-                || targetKomiSignature !== engineKomiSignature()
-                || targetEngineSignature !== engineAnalysisSourceSignature()) {
-            if (!showCachedOwnershipForCurrentNode())
-                resetEngineOwnershipDisplay()
-            return
-        }
-        setEngineOwnershipDisplay(normalized,
-                                  false,
-                                  targetBoardSignature,
-                                  targetKomiSignature,
-                                  targetEngineSignature)
+        return analysisSession.applyOwnershipUpdate(values, currentAnalysisRequest(),
+                engineAnalysisRequestValid && (analysisModeActive() || aiAnalysisInFlight))
     }
 
     function ownershipVisibleForCurrentPosition() {
-        return analysisPresentationVisible()
-                && ownershipEnabled
-                && gameRuleMode === gameRuleGo
-                && Ownership.usable(engineOwnership, boardSizeX, boardSizeY)
-                && engineOwnershipBoardSignature === engineBoardSignature()
-                && engineOwnershipKomiSignature === engineKomiSignature()
-                && engineOwnershipEngineSignature === engineAnalysisSourceSignature()
+        return analysisSession.ownershipVisible()
     }
 
     function refreshOwnershipRequest() {
@@ -4855,7 +3273,7 @@ ApplicationWindow {
         engineDisabled = true
         engineLoading = false
         engineNoticeDismissed = keepEngineNotice === true ? false : true
-        cancelActiveEnginePlayRequest(true)
+        invalidateEngineSyncState()
         engineInitialCommandsPendingForId = ""
         engineInitialCommandsCompletionTimer.stop()
         if (!analysisModeActive())
@@ -5323,13 +3741,10 @@ ApplicationWindow {
     }
 
     function stopApplicationTimersForShutdown() {
-        autoAnalyzeTimer.stop()
+        engineSession.shutdown()
         engineSearchSpeedTimer.stop()
         largeCandidateUiUpdateTimer.stop()
         engineInitialCommandsCompletionTimer.stop()
-        analysisLimitTimer.stop()
-        aiAnalysisMoveTimer.stop()
-        aiAnalysisWatchdogTimer.stop()
         focusBoardInputTimer.stop()
         treeLayoutTimer.stop()
         firstLaunchTimer.stop()
@@ -5520,12 +3935,7 @@ ApplicationWindow {
         }
 
         function onEngineSynchronizationCompleted(syncRequestId) {
-            var committed = root.commitEngineSyncSnapshot(syncRequestId)
-            var aiAnalysisSync = syncRequestId === root.activeAiAnalysisSyncRequestId
-            if (committed && aiAnalysisSync) {
-                root.activeAiAnalysisSyncRequestId = 0
-                root.restartAiAnalysisTimeLimit()
-            }
+            engineSession.commitSync(syncRequestId)
         }
 
         function onCommandChanged() {
@@ -5548,7 +3958,7 @@ ApplicationWindow {
         function onReadyChanged() {
             if (!engineController.ready) {
                 root.resetEngineSearchSpeed()
-                root.cancelActiveEnginePlayRequest(true)
+                root.invalidateEngineSyncState()
             }
             if (engineController.ready) {
                 root.engineLoading = false
@@ -5560,7 +3970,7 @@ ApplicationWindow {
 
         function onFailedChanged() {
             if (engineController.failed) {
-                root.cancelActiveEnginePlayRequest(true)
+                root.invalidateEngineSyncState()
                 root.resetEngineSearchSpeed()
                 root.handleEngineLoadFailure(root.engineFailureMessage())
             }
@@ -5568,56 +3978,13 @@ ApplicationWindow {
 
         function onRunningChanged() {
             if (!engineController.running) {
-                root.cancelActiveEnginePlayRequest(true)
+                root.invalidateEngineSyncState()
                 root.resetEngineSearchSpeed()
             }
         }
 
         function onMoveGenerated(requestId, move, ok, rawLine) {
-            if (requestId !== root.activeGenmoveRequestId)
-                return
-            var syncRequestId = root.activeGenmoveSyncRequestId
-            var position = root.activeGenmovePosition
-            var positionStillCurrent = !!position
-                    && position.requestId === requestId
-                    && position.nodeId === root.currentNodeId
-                    && position.generation === root.gameTreeGeneration
-                    && position.boardSignature === root.engineBoardSignature()
-                    && position.komiSignature === root.engineKomiSignature()
-                    && position.player === root.currentPlayer
-            root.genmoveInFlight = false
-            root.activeGenmoveRequestId = 0
-            root.activeGenmoveSyncRequestId = 0
-            root.activeGenmovePosition = null
-            root.genmovePlayer = 0
-            if (!ok) {
-                var ignoredGtpError = root.ignoreGtpErrors
-                                      && String(rawLine).trim().indexOf("?") === 0
-                if (ignoredGtpError)
-                    return
-                root.invalidateEngineSyncRequest(syncRequestId)
-                root.pauseAfterEngineProtocolFailure(
-                            "engineMoveFailed",
-                            rawLine,
-                            false)
-                return
-            }
-            if (!positionStillCurrent) {
-                root.invalidateEngineSyncRequest(syncRequestId)
-                root.requestAiMoveIfNeeded()
-                return
-            }
-            root.commitEngineSyncSnapshot(syncRequestId)
-            if (String(move).trim().toLowerCase() === "resign") {
-                root.finishEngineResignation(position.player)
-                return
-            }
-            if (!root.applyGeneratedMove(move)) {
-                root.invalidateEngineSyncState()
-                return
-            }
-            root.markGeneratedMoveSynced()
-            root.requestAiMoveIfNeeded()
+            root.handleGeneratedMove(requestId, move, ok, rawLine)
         }
     }
 

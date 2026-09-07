@@ -6,8 +6,7 @@ function recordCurrentAnalysisFromCandidates(app) {
     var node = app.currentNode()
     if (!node)
         return
-    if (app.recordAnalysisWinrateForNode(node, app.engineCandidates, app.currentPlayer))
-        app.gameNodes = app.gameNodes.slice()
+    app.recordAnalysisWinrateForNode(node, app.engineCandidates, app.currentPlayer)
 }
 
 function currentAnalysisHasWinrate(app) {
@@ -47,12 +46,18 @@ function activeVariationNodes(app) {
 function winrateHistoryData(app) {
     var points = []
     var maximumMove = 0
+    var sourceMoves = 0
     var path = activeVariationNodes(app)
     for (var i = 0; i < path.length; ++i) {
         var node = path[i]
-        maximumMove = Math.max(maximumMove, Number(node.moveNumber) || 0)
+        if (node.moveRole === "source") {
+            sourceMoves += 1
+            continue
+        }
+        var completedMove = Math.max(0, Number(node.moveNumber || 0) - sourceMoves)
+        maximumMove = Math.max(maximumMove, completedMove)
         if (node.analysisBlackWinrate !== undefined && node.analysisBlackWinrate >= 0)
-            points.push({ "move": node.moveNumber, "winrate": node.analysisBlackWinrate })
+            points.push({ "move": completedMove, "winrate": node.analysisBlackWinrate })
     }
     return {
         "points": points,

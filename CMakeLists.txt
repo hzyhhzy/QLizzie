@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 project(QLizzieWorkspace LANGUAGES CXX)
 
 include(CTest)
+include(cmake/LocalDeploy.cmake)
 
 add_subdirectory(app)
 add_subdirectory(launcher)
@@ -10,7 +11,7 @@ add_subdirectory(launcher)
 if(BUILD_TESTING)
     find_program(QLIZZIE_NODE_EXECUTABLE NAMES node node.exe)
     if(QLIZZIE_NODE_EXECUTABLE)
-        foreach(test_name IN ITEMS GameRules analysis_status candidate_analysis candidate_table engine_list_dialog engine_log_formatter engine_play engine_speed engine_support engine_sync frontend_rendering modal_dialog ownership rule_support sgf_session sgf_utils translations window_geometry)
+        foreach(test_name IN ITEMS GameRules game_tree engine_session analysis_cache analysis_status candidate_analysis candidate_table engine_list_dialog engine_log_formatter engine_play engine_speed engine_support engine_sync frontend_rendering modal_dialog ownership rule_support settings_store sgf_session sgf_utils translations tree_layout window_geometry)
             add_test(
                 NAME qlizzie_js_${test_name}
                 COMMAND ${QLIZZIE_NODE_EXECUTABLE}
@@ -28,24 +29,14 @@ if(BUILD_TESTING)
             NO_DEFAULT_PATH
         )
         if(QLIZZIE_QMLTESTRUNNER_EXECUTABLE)
-            add_test(
-                NAME qlizzie_qml_modal_window
-                COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
-                        -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_modal_window.qml
-                        -platform offscreen
-            )
-            add_test(
-                NAME qlizzie_qml_engine_communication
-                COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
-                        -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_engine_communication.qml
-                        -platform offscreen
-            )
-            add_test(
-                NAME qlizzie_qml_candidate_list
-                COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
-                        -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_candidate_list.qml
-                        -platform offscreen
-            )
+            foreach(test_name IN ITEMS modal_window engine_communication candidate_list game_session engine_session analysis_session application_session)
+                add_test(
+                    NAME qlizzie_qml_${test_name}
+                    COMMAND ${QLIZZIE_QMLTESTRUNNER_EXECUTABLE}
+                            -input ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml_runtime/tst_${test_name}.qml
+                            -platform offscreen
+                )
+            endforeach()
         endif()
     endif()
 endif()

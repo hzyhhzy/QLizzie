@@ -15,6 +15,7 @@ var RULE_BREAKTHROUGH = RuleRegistry.RULE_BREAKTHROUGH
 var RULE_TORUS_GO = RuleRegistry.RULE_TORUS_GO
 var RULE_TWO_LIB_GO = RuleRegistry.RULE_TWO_LIB_GO
 var RULE_DOTS_AND_BOXES = RuleRegistry.RULE_DOTS_AND_BOXES
+var RULE_SURAKARTA = RuleRegistry.RULE_SURAKARTA
 
 var GOMOKU_RULE_FREESTYLE = 0
 var GOMOKU_RULE_STANDARD = 1
@@ -59,6 +60,10 @@ var SQUARE_DIRECTIONS = [
 
 function keyFor(x, y) {
     return x + "," + y
+}
+
+function isSourceMoveRule(ruleMode) {
+    return RuleRegistry.hasCapability(ruleMode, "moveSource")
 }
 
 function pointInBoard(dims, x, y) {
@@ -562,6 +567,168 @@ function breakthroughMoveKind(map, dims, x, y, player, source) {
     return target !== player ? "capture" : ""
 }
 
+function surakartaNextLoopState(boardSize, x, y, dx, dy, traversedLoop) {
+    x += dx
+    y += dy
+    if (x < 0 || y < 0 || x >= boardSize || y >= boardSize)
+        traversedLoop = true
+
+    if (x < 0) {
+        if (y < boardSize / 2) {
+            x = y
+            y = 0
+            dx = 0
+            dy = 1
+        } else {
+            x = boardSize - y - 1
+            y = boardSize - 1
+            dx = 0
+            dy = -1
+        }
+    } else if (y < 0) {
+        if (x < boardSize / 2) {
+            y = x
+            x = 0
+            dx = 1
+            dy = 0
+        } else {
+            y = boardSize - x - 1
+            x = boardSize - 1
+            dx = -1
+            dy = 0
+        }
+    } else if (x >= boardSize) {
+        if (y < boardSize / 2) {
+            x = boardSize - y - 1
+            y = 0
+            dx = 0
+            dy = 1
+        } else {
+            x = y
+            y = boardSize - 1
+            dx = 0
+            dy = -1
+        }
+    } else if (y >= boardSize) {
+        if (x < boardSize / 2) {
+            y = boardSize - x - 1
+            x = 0
+            dx = 1
+            dy = 0
+        } else {
+            y = x
+            x = boardSize - 1
+            dx = -1
+            dy = 0
+        }
+    }
+    return {
+        "x": x, "y": y, "dx": dx, "dy": dy,
+        "traversedLoop": traversedLoop
+    }
+}
+
+function surakartaCaptureTargetInDirection(map, dims, player, source, dx, dy) {
+    if (!source || dims.x !== 6 || dims.y !== 6)
+        return null
+    var boardSize = 6
+    var x = source.x
+    var y = source.y
+    if ((x === 0 || x === boardSize - 1) && (y === 0 || y === boardSize - 1))
+        return null
+
+    var state = { "x": x, "y": y, "dx": dx, "dy": dy, "traversedLoop": false }
+    for (var step = 0; step < 4 * boardSize; ++step) {
+        state = surakartaNextLoopState(boardSize, state.x, state.y,
+                                       state.dx, state.dy, state.traversedLoop)
+        x = state.x
+        y = state.y
+        if ((x === 0 || x === boardSize - 1) && (y === 0 || y === boardSize - 1))
+            return null
+
+        var occupant = stoneMapPlayerAt(map, x, y)
+        if ((x !== source.x || y !== source.y) && occupant !== 0) {
+            if (!state.traversedLoop || occupant === player)
+                return null
+            return { "x": x, "y": y, "key": keyFor(x, y), "player": occupant }
+        }
+    }
+    return null
+}
+
+function surakartaCaptureTargets(map, dims, player, source) {
+    var directions = [
+        { "dx": 1, "dy": 0 }, { "dx": -1, "dy": 0 },
+        { "dx": 0, "dy": 1 }, { "dx": 0, "dy": -1 }
+    ]
+    var targets = []
+    var seen = ({})
+    for (var i = 0; i < directions.length; ++i) {
+        var direction = directions[i]
+        var target = surakartaCaptureTargetInDirection(
+                    map, dims, player, source, direction.dx, direction.dy)
+        if (target && !seen[target.key]) {
+            seen[target.key] = true
+            targets.push(target)
+        }
+    }
+    return targets
+}
+
+function surakartaHasLegalDestination(map, dims, player, source) {
+    if (!source || dims.x !== 6 || dims.y !== 6
+            || stoneMapPlayerAt(map, source.x, source.y) !== player)
+        return false
+    for (var dy = -1; dy <= 1; ++dy) {
+        for (var dx = -1; dx <= 1; ++dx) {
+            if (dx === 0 && dy === 0)
+                continue
+            var x = source.x + dx
+            var y = source.y + dy
+            if (pointInBoard(dims, x, y) && stoneMapPlayerAt(map, x, y) === 0)
+                return true
+        }
+    }
+    return surakartaCaptureTargets(map, dims, player, source).length > 0
+}
+
+function surakartaHasLegalMove(map, dims, player) {
+    for (var key in map) {
+        var stone = map[key]
+        if (stone && stone.player === player
+                && surakartaHasLegalDestination(map, dims, player, stone))
+            return true
+    }
+    return false
+}
+
+function surakartaMoveKind(map, dims, x, y, player, source) {
+    if (dims.x !== 6 || dims.y !== 6 || !pointInBoard(dims, x, y))
+        return ""
+    if (!source || source.x < 0 || source.y < 0) {
+        return stoneMapPlayerAt(map, x, y) === player
+                && surakartaHasLegalDestination(map, dims, player, { "x": x, "y": y })
+               ? "source" : ""
+    }
+    if (stoneMapPlayerAt(map, source.x, source.y) !== player)
+        return ""
+
+    var targetPlayer = stoneMapPlayerAt(map, x, y)
+    var distanceX = Math.abs(x - source.x)
+    var distanceY = Math.abs(y - source.y)
+    if (targetPlayer === 0)
+        return Math.max(distanceX, distanceY) === 1 ? "move" : ""
+    if (targetPlayer === player)
+        return ""
+
+    var captures = surakartaCaptureTargets(map, dims, player, source)
+    for (var i = 0; i < captures.length; ++i) {
+        if (captures[i].x === x && captures[i].y === y)
+            return "capture"
+    }
+    return ""
+}
+
 function pointLegalInMap(map, dims, x, y, player, activeKoLocKey, ruleMode, source) {
     if (!pointInRuleBoard(dims, x, y, ruleMode))
         return false
@@ -574,6 +741,8 @@ function pointLegalInMap(map, dims, x, y, player, activeKoLocKey, ruleMode, sour
         return ataxxMoveKind(map, dims, x, y, player, source) !== ""
     if (ruleMode === RULE_BREAKTHROUGH)
         return breakthroughMoveKind(map, dims, x, y, player, source) !== ""
+    if (ruleMode === RULE_SURAKARTA)
+        return surakartaMoveKind(map, dims, x, y, player, source) !== ""
     if (stoneMapPlayerAt(map, x, y) !== 0)
         return false
     if (ruleMode === RULE_REVERSI)
@@ -889,6 +1058,20 @@ function applyBreakthroughMoveOnMap(map, dims, stoneItem, source) {
     return { "ok": true, "capturedStones": captured }
 }
 
+function applySurakartaMoveOnMap(map, dims, stoneItem, source) {
+    var kind = surakartaMoveKind(map, dims, stoneItem.x, stoneItem.y,
+                                 stoneItem.player, source)
+    if (kind !== "move" && kind !== "capture")
+        return { "ok": false, "capturedStones": [] }
+    var target = stoneMapDataAt(map, stoneItem.x, stoneItem.y)
+    var captured = []
+    if (target && target.player !== stoneItem.player)
+        captured.push(copyStoneItem(target))
+    delete map[keyFor(source.x, source.y)]
+    map[stoneItem.key] = stoneItem
+    return { "ok": true, "capturedStones": captured }
+}
+
 // Unified move reducer contract:
 //   * by default map is never mutated and result.nextMap is a fresh stone map.
 //   * trusted replay may pass context.mutate=true to update map in place.
@@ -1027,7 +1210,9 @@ function illegalPlacementReason(map, dims, target, activeKoLoc, ruleMode) {
 function applySourceSelectionOnMap(result, map, dims, target, player, ruleMode) {
     var kind = ruleMode === RULE_ATAXX
                ? ataxxMoveKind(map, dims, target.x, target.y, player, null)
-               : breakthroughMoveKind(map, dims, target.x, target.y, player, null)
+               : ruleMode === RULE_BREAKTHROUGH
+                 ? breakthroughMoveKind(map, dims, target.x, target.y, player, null)
+                 : surakartaMoveKind(map, dims, target.x, target.y, player, null)
     var point = movePointCopy(target, player)
     if (kind !== "source")
         return setUnifiedMoveFailure(result, "invalid-source", "source", null, point)
@@ -1130,6 +1315,32 @@ function applyBreakthroughMoveUnified(result, working, dims, item, source, reque
     return result
 }
 
+function applySurakartaMoveUnified(result, working, dims, item, source, requestedRole) {
+    var target = movePointCopy(item, item.player)
+    var sourcePoint = movePointCopy(source, item.player)
+    var kind = surakartaMoveKind(working, dims, item.x, item.y, item.player, source)
+
+    if (kind === "source" && requestedRole !== "target")
+        return applySourceSelectionOnMap(result, working, dims, target,
+                                         item.player, RULE_SURAKARTA)
+    if (kind !== "move" && kind !== "capture") {
+        var reason = !pointInBoard(dims, item.x, item.y) ? "out-of-board" : "invalid-target"
+        if (!source)
+            reason = "source-required"
+        return setUnifiedMoveFailure(result, reason, requestedRole || "target",
+                                     sourcePoint, target)
+    }
+
+    var moved = applySurakartaMoveOnMap(working, dims, item, source)
+    if (!moved.ok)
+        return setUnifiedMoveFailure(result, "invalid-target", "target", sourcePoint, target)
+
+    setUnifiedMoveSuccess(result, "target", kind, sourcePoint, target, true)
+    result.capturedStones = moved.capturedStones || []
+    result.captured = result.capturedStones.length
+    return result
+}
+
 function applyDotsAndBoxesMoveUnified(result, working, dims, item) {
     var target = movePointCopy(item, item.player)
     var dots = applyDotsAndBoxesMoveOnMap(working, dims, item)
@@ -1182,7 +1393,7 @@ function applyMoveOnMap(map, dims, action, context) {
 
     var source = moveActionSource(action, context)
     if (role === "source") {
-        if (ruleMode !== RULE_ATAXX && ruleMode !== RULE_BREAKTHROUGH)
+        if (!isSourceMoveRule(ruleMode))
             return setUnifiedMoveFailure(result, "unsupported-source", role, null,
                                          movePointCopy(target, player))
         return applySourceSelectionOnMap(result, working, dims, target, player, ruleMode)
@@ -1198,6 +1409,8 @@ function applyMoveOnMap(map, dims, action, context) {
         return applyAtaxxMoveUnified(result, working, dims, item, source, role)
     if (ruleMode === RULE_BREAKTHROUGH)
         return applyBreakthroughMoveUnified(result, working, dims, item, source, role)
+    if (ruleMode === RULE_SURAKARTA)
+        return applySurakartaMoveUnified(result, working, dims, item, source, role)
     if (ruleMode === RULE_DOTS_AND_BOXES)
         return applyDotsAndBoxesMoveUnified(result, working, dims, item)
     return applyOrdinaryMoveUnified(result, working, dims, item, ruleMode)
@@ -1303,6 +1516,15 @@ function initialStoneMap(dims, ruleMode) {
             put(x, 0, 2)
             put(x, 1, 2)
         }
+    } else if (ruleMode === RULE_SURAKARTA) {
+        if (dims.x !== 6 || dims.y !== 6)
+            return map
+        for (var surakartaX = 0; surakartaX < 6; ++surakartaX) {
+            put(surakartaX, 0, 2)
+            put(surakartaX, 1, 2)
+            put(surakartaX, 4, 1)
+            put(surakartaX, 5, 1)
+        }
     }
     return map
 }
@@ -1338,4 +1560,129 @@ function buildBreakthroughWin(map, dims, ruleMode) {
     if (white <= 0 && black > 0)
         return { "player": 1, "reason": "captured" }
     return { "player": 0, "reason": "" }
+}
+
+function buildSurakartaWin(map, dims, ruleMode, nextPlayer) {
+    if (ruleMode !== RULE_SURAKARTA)
+        return { "finished": false, "player": 0, "reason": "" }
+    var black = countPlayerStones(map, 1)
+    var white = countPlayerStones(map, 2)
+    if (black <= 0 || white <= 0) {
+        return {
+            "finished": true,
+            "player": black > white ? 1 : white > black ? 2 : 0,
+            "reason": "captured"
+        }
+    }
+    if ((nextPlayer === 1 || nextPlayer === 2)
+            && !surakartaHasLegalMove(map, dims, nextPlayer)) {
+        return {
+            "finished": true,
+            "player": black > white ? 1 : white > black ? 2 : 0,
+            "reason": "no-legal-move"
+        }
+    }
+    return { "finished": false, "player": 0, "reason": "" }
+}
+
+function surakartaStoneCountWinner(map) {
+    var black = countPlayerStones(map, 1)
+    var white = countPlayerStones(map, 2)
+    return black > white ? 1 : white > black ? 2 : 0
+}
+
+function surakartaPositionSignature(map, dims, nextPlayer) {
+    var signature = String(nextPlayer) + "|"
+    for (var y = 0; y < dims.y; ++y) {
+        for (var x = 0; x < dims.x; ++x)
+            signature += String(stoneMapPlayerAt(map, x, y))
+    }
+    return signature
+}
+
+function completedMoveNumber(path) {
+    var moveNumber = 0
+    var sourceCount = 0
+    for (var i = 0; path && i < path.length; ++i) {
+        var node = path[i]
+        if (!node)
+            continue
+        moveNumber = Math.max(0, Number(node.moveNumber) || 0)
+        if (node.moveRole === "source")
+            sourceCount += 1
+    }
+    return Math.max(0, moveNumber - sourceCount)
+}
+
+function buildSurakartaHistoryOutcome(path, dims, ruleMode) {
+    if (ruleMode !== RULE_SURAKARTA || dims.x !== 6 || dims.y !== 6)
+        return { "finished": false, "player": 0, "reason": "" }
+
+    var map = initialStoneMap(dims, ruleMode)
+    var pendingSource = null
+    var nextPlayer = 1
+    var completedMoves = 0
+    var repetitionCounts = ({})
+    repetitionCounts[surakartaPositionSignature(map, dims, nextPlayer)] = 1
+
+    for (var i = 0; path && i < path.length; ++i) {
+        var node = path[i]
+        var action = {
+            "x": node.x,
+            "y": node.y,
+            "player": node.player,
+            "moveNumber": node.moveNumber,
+            "nodeId": node.id,
+            "isPass": node.isPass === true,
+            "moveRole": node.moveRole || ""
+        }
+        var result = applyMoveOnMap(map, dims, action, {
+            "ruleMode": ruleMode,
+            "pendingSource": pendingSource,
+            "mutate": true
+        })
+        if (!result.ok)
+            return { "finished": false, "player": 0, "reason": "invalid-history" }
+
+        map = result.nextMap
+        pendingSource = result.nextSource
+        if (result.role === "source")
+            continue
+
+        completedMoves += 1
+        nextPlayer = node.player === 1 ? 2 : 1
+        if (result.role === "pass") {
+            return {
+                "finished": true,
+                "player": nextPlayer,
+                "reason": "pass"
+            }
+        }
+
+        var immediate = buildSurakartaWin(map, dims, ruleMode, nextPlayer)
+        if (immediate.finished)
+            return immediate
+
+        if (result.captured > 0)
+            repetitionCounts = ({})
+        var signature = surakartaPositionSignature(map, dims, nextPlayer)
+        var repetitionCount = Number(repetitionCounts[signature] || 0) + 1
+        repetitionCounts[signature] = repetitionCount
+        if (repetitionCount >= 2) {
+            return {
+                "finished": true,
+                "player": surakartaStoneCountWinner(map),
+                "reason": "repetition"
+            }
+        }
+        if (completedMoves >= 200) {
+            return {
+                "finished": true,
+                "player": surakartaStoneCountWinner(map),
+                "reason": "move-limit"
+            }
+        }
+    }
+
+    return buildSurakartaWin(map, dims, ruleMode, nextPlayer)
 }

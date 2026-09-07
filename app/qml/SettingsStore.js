@@ -1,4 +1,6 @@
 .pragma library
+.import "SettingsSchema.js" as SettingsSchema
+.import "rules/RulePreferences.js" as RulePreferences
 .import "EnginePresets.js" as EnginePresets
 .import "rules/RuleCatalog.js" as RuleCatalog
 .import "rules/RuleRegistry.js" as RuleRegistry
@@ -163,11 +165,7 @@ function settingValue(settings, key, fallback) {
 }
 
 function settingBool(settings, key, fallback) {
-    var value = settingValue(settings, key, fallback)
-    if (typeof value === "boolean")
-        return value
-    var text = String(value).toLowerCase()
-    return text === "true" || text === "1" || text === "yes"
+    return SettingsSchema.booleanValue(settingValue(settings, key, fallback))
 }
 
 function parseJsonObject(text, fallback) {
@@ -195,60 +193,23 @@ function defaultRuleModeVisible(app, mode) {
 }
 
 function defaultRuleVisibilityMap(app) {
-    var next = {}
     var options = app && app.gameRuleOptions ? app.gameRuleOptions() : []
-    for (var i = 0; i < options.length; ++i)
-        next[String(options[i].value)] = defaultRuleModeVisible(app, options[i].value)
-    return next
+    return RulePreferences.normalizeVisibility(options, {}, false)
 }
 
 function defaultCommonRuleOrder(app) {
-    return [RuleRegistry.RULE_GO, RuleRegistry.RULE_GOMOKU, RuleRegistry.RULE_HEX]
+    return RulePreferences.defaultOrder()
 }
 
 function normalizeRuleVisibilityMap(app, source) {
-    var map = source || {}
-    var next = {}
     var options = app && app.gameRuleOptions ? app.gameRuleOptions() : []
-    for (var i = 0; i < options.length; ++i) {
-        var key = String(options[i].value)
-        next[key] = typeof map[key] === "boolean" ? map[key]
-                                                  : defaultRuleModeVisible(app, options[i].value)
-    }
-    if (options.length <= 0) {
-        for (var existingKey in map) {
-            if (typeof map[existingKey] === "boolean")
-                next[existingKey] = map[existingKey]
-        }
-    }
-    return next
+    return RulePreferences.normalizeVisibility(options, source, true)
 }
 
 function normalizeCommonRuleOrder(app, source) {
-    var order = Array.isArray(source) ? source : defaultCommonRuleOrder(app)
-    var map = normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)
     var options = app && app.gameRuleOptions ? app.gameRuleOptions() : []
-    var valid = {}
-    for (var i = 0; i < options.length; ++i)
-        valid[String(options[i].value)] = true
-    var used = {}
-    var next = []
-    for (var j = 0; j < order.length; ++j) {
-        var mode = Number(order[j])
-        var key = String(mode)
-        if (valid[key] && map[key] === true && !used[key]) {
-            next.push(mode)
-            used[key] = true
-        }
-    }
-    for (var k = 0; k < options.length; ++k) {
-        var optionKey = String(options[k].value)
-        if (map[optionKey] === true && !used[optionKey]) {
-            next.push(options[k].value)
-            used[optionKey] = true
-        }
-    }
-    return next
+    var order = Array.isArray(source) ? source : RulePreferences.defaultOrder()
+    return RulePreferences.normalizeOrder(options, order, app.ruleVisibilityMap)
 }
 
 function settingNumberEquals(value, expected) {
@@ -261,208 +222,61 @@ function migratePersistentSettings(app) {
     app.loadedSettingsVersion = app.currentSettingsVersion
 }
 
+// The facade alone touches QML properties or the settings backend. Schema
+// operations consume detached value objects, never a window or controller.
+function persistentSettingsSnapshot(app) {
+    var values = ({})
+    for (var i = 0; i < SettingsSchema.fields.length; ++i) {
+        var property = SettingsSchema.fields[i].property
+        values[property] = app[property]
+    }
+    return SettingsSchema.snapshot(values)
+}
+
+function applyPersistentSetting(app, entry, value) {
+    if (entry.key === "ruleVisibilityJson")
+        value = normalizeRuleVisibilityMap(app, value)
+    else if (entry.key === "commonRuleOrderJson")
+        value = normalizeCommonRuleOrder(app, value)
+    else if (entry.key === "enginePresetsJson")
+        value = EnginePresets.parseList(app, value)
+    else if (entry.key === "komi")
+        value = app.clampKomiValue(value)
+    else if (entry.key === "analysisWideRootNoise")
+        value = app.clampAnalysisWideRootNoise(value)
+    app[entry.property] = value
+}
+
 function loadPersistentSettings(app, settings) {
-    app.loadedSettingsVersion = Number(settingValue(settings, "settingsVersion", app.loadedSettingsVersion))
-    app.language = String(settingValue(settings, "language", app.language))
-    app.firstLaunchCompleted = settingBool(settings, "firstLaunchCompleted", app.firstLaunchCompleted)
-    app.showBeginnerTutorialOnNextLaunch = settingBool(settings,
-                                                       "showBeginnerTutorialOnNextLaunch",
-                                                       app.showBeginnerTutorialOnNextLaunch)
-    app.boardSizeX = Number(settingValue(settings, "boardSizeX", app.boardSizeX))
-    app.boardSizeY = Number(settingValue(settings, "boardSizeY", app.boardSizeY))
-    app.gameRuleMode = Number(settingValue(settings, "gameRuleMode", app.gameRuleMode))
-    app.ruleVisibilityMap = normalizeRuleVisibilityMap(app,
-                parseJsonObject(settingValue(settings, "ruleVisibilityJson", "{}"), app.ruleVisibilityMap))
-    app.commonRuleOrder = normalizeCommonRuleOrder(app,
-                parseJsonArray(settingValue(settings, "commonRuleOrderJson", "[]"), app.commonRuleOrder))
-    app.gomokuRuleMode = Number(settingValue(settings, "gomokuRuleMode", app.gomokuRuleMode))
-    app.gomokuRuleMaxMoves = Number(settingValue(settings, "gomokuRuleMaxMoves", app.gomokuRuleMaxMoves))
-    app.gomokuRuleVcn = String(settingValue(settings, "gomokuRuleVcn", app.gomokuRuleVcn))
-    app.gomokuRuleFirstPassWin = settingBool(settings, "gomokuRuleFirstPassWin", app.gomokuRuleFirstPassWin)
-    app.goScoringRule = Number(settingValue(settings, "goScoringRule", app.goScoringRule))
-    app.goKoRule = Number(settingValue(settings, "goKoRule", app.goKoRule))
-    app.goSuicideAllowed = settingBool(settings, "goSuicideAllowed", app.goSuicideAllowed)
-    app.goTaxRule = Number(settingValue(settings, "goTaxRule", app.goTaxRule))
-    app.goWhiteHandicapBonus = String(settingValue(settings, "goWhiteHandicapBonus", app.goWhiteHandicapBonus))
-    app.goButtonRule = settingBool(settings, "goButtonRule", app.goButtonRule)
-    app.komi = app.clampKomiValue(settingValue(settings, "komi", app.komi))
-    app.moveNumberDisplayMode = Number(settingValue(settings, "moveNumberDisplayMode", app.moveNumberDisplayMode))
-    app.coordinateDisplayMode = Number(settingValue(settings, "coordinateDisplayMode", app.coordinateDisplayMode))
-    app.boardPresentationMode = Number(settingValue(settings, "boardPresentationMode", app.boardPresentationMode))
-    app.gomokuBoardPresentationMode = Number(settingValue(settings, "gomokuBoardPresentationMode", app.gomokuBoardPresentationMode))
-    app.torusGoBoardPresentationMode = Number(settingValue(settings, "torusGoBoardPresentationMode", app.torusGoBoardPresentationMode))
-    app.hexBoardStyle = Number(settingValue(settings, "hexBoardStyle", app.hexBoardStyle))
-    app.hexBoardRotation = Number(settingValue(settings, "hexBoardRotation", app.hexBoardRotation))
-    app.packageMode = Number(settingValue(settings, "packageMode", app.packageMode))
-    app.ignoreGtpErrors = settingBool(settings, "ignoreGtpErrors", app.ignoreGtpErrors)
-    app.engineCommunicationLogLimit = Number(settingValue(
-                settings, "engineCommunicationLogLimit",
-                app.engineCommunicationLogLimit))
-    app.engineCommunicationLogCharacterLimit = Number(settingValue(
-                settings, "engineCommunicationLogCharacterLimit",
-                app.engineCommunicationLogCharacterLimit))
-    app.engineCommunicationLineCharacterLimit = Number(settingValue(
-                settings, "engineCommunicationLineCharacterLimit",
-                app.engineCommunicationLineCharacterLimit))
-    app.enginePresets = EnginePresets.parseList(app, String(settingValue(settings, "enginePresetsJson", "")))
-    app.defaultEngineId = String(settingValue(settings, "defaultEngineId", app.defaultEngineId))
-    app.activeEngineId = String(settingValue(settings, "activeEngineId", app.activeEngineId))
-    app.engineStartupMode = Number(settingValue(settings, "engineStartupMode", app.engineStartupMode))
-    app.persistedEngineCommand = String(settingValue(settings, "engineCommand", app.persistedEngineCommand))
-    app.legacyHexEngineCoordinates = settingBool(settings, "legacyHexEngineCoordinates", app.legacyHexEngineCoordinates)
-    app.analysisIntervalCentiseconds = Number(settingValue(settings, "analysisIntervalCentiseconds", app.analysisIntervalCentiseconds))
-    app.maxAnalysisSeconds = Number(settingValue(settings, "maxAnalysisSeconds", app.maxAnalysisSeconds))
-    app.analysisWideRootNoiseEnabled = settingBool(settings, "analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
-    app.analysisWideRootNoise = app.clampAnalysisWideRootNoise(settingValue(settings, "analysisWideRootNoise", app.analysisWideRootNoise))
-    app.candidateDisplayCount = Number(settingValue(settings, "candidateDisplayCount", app.candidateDisplayCount))
-    app.candidateTableRowLimit = Number(settingValue(
-                settings, "candidateTableRowLimit", app.candidateTableRowLimit))
-    app.candidateMinVisitRatio = Number(settingValue(settings, "candidateMinVisitRatio", app.candidateMinVisitRatio))
-    app.candidateShowFilteredMarkers = settingBool(settings, "candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)
-    app.candidateVariationPreviewVisible = settingBool(settings, "candidateVariationPreviewVisible", app.candidateVariationPreviewVisible)
-    app.candidateVariationPreviewMaxMoves = Number(settingValue(settings, "candidateVariationPreviewMaxMoves", app.candidateVariationPreviewMaxMoves))
-    app.candidateVariationPreviewOpacity = Number(settingValue(settings, "candidateVariationPreviewOpacity", app.candidateVariationPreviewOpacity))
-    app.candidateWinrateLabelVisible = settingBool(settings, "candidateWinrateLabelVisible", app.candidateWinrateLabelVisible)
-    app.candidateVisitsLabelVisible = settingBool(settings, "candidateVisitsLabelVisible", app.candidateVisitsLabelVisible)
-    app.candidateScoreLabelVisible = settingBool(settings, "candidateScoreLabelVisible", app.candidateScoreLabelVisible)
-    app.candidateWinrateFontSize = Number(settingValue(settings, "candidateWinrateFontSize", app.candidateWinrateFontSize))
-    app.candidateVisitsFontSize = Number(settingValue(settings, "candidateVisitsFontSize", app.candidateVisitsFontSize))
-    app.candidateScoreFontSize = Number(settingValue(settings, "candidateScoreFontSize", app.candidateScoreFontSize))
-    app.candidateWinrateBold = settingBool(settings, "candidateWinrateBold", app.candidateWinrateBold)
-    app.candidateVisitsBold = settingBool(settings, "candidateVisitsBold", app.candidateVisitsBold)
-    app.candidateScoreBold = settingBool(settings, "candidateScoreBold", app.candidateScoreBold)
-    app.candidateWinrateOffsetY = Number(settingValue(settings, "candidateWinrateOffsetY", app.candidateWinrateOffsetY))
-    app.candidateVisitsOffsetY = Number(settingValue(settings, "candidateVisitsOffsetY", app.candidateVisitsOffsetY))
-    app.candidateScoreOffsetY = Number(settingValue(settings, "candidateScoreOffsetY", app.candidateScoreOffsetY))
-    app.candidateWinrateDecimals = Number(settingValue(settings, "candidateWinrateDecimals", app.candidateWinrateDecimals))
-    app.candidateScoreDecimals = Number(settingValue(settings, "candidateScoreDecimals", app.candidateScoreDecimals))
-    app.candidateWinrateShowPercent = settingBool(settings, "candidateWinrateShowPercent", app.candidateWinrateShowPercent)
-    app.candidateScoreShowPercent = settingBool(settings, "candidateScoreShowPercent", app.candidateScoreShowPercent)
-    app.candidateScoreTitleMode = Number(settingValue(settings, "candidateScoreTitleMode", app.candidateScoreTitleMode))
-    app.candidateRingVisible = settingBool(settings, "candidateRingVisible", app.candidateRingVisible)
-    app.candidateRingLineWidth = Number(settingValue(settings, "candidateRingLineWidth", app.candidateRingLineWidth))
-    app.candidateRankLabelVisible = settingBool(settings, "candidateRankLabelVisible", app.candidateRankLabelVisible)
-    app.candidateFirstLabelTextColor = String(settingValue(settings, "candidateFirstLabelTextColor", app.candidateFirstLabelTextColor))
-    app.candidateLabelTextColor = String(settingValue(settings, "candidateLabelTextColor", app.candidateLabelTextColor))
-    app.backgroundColor = String(settingValue(settings, "backgroundColor", app.backgroundColor))
-    app.boardWoodColor = String(settingValue(settings, "boardWoodColor", app.boardWoodColor))
-    app.stoneScale = Number(settingValue(settings, "stoneScale", app.stoneScale))
-    app.gridOpacity = Number(settingValue(settings, "gridOpacity", app.gridOpacity))
-    app.gridLineWidth = Number(settingValue(settings, "gridLineWidth", app.gridLineWidth))
-    app.selectedPointScale = Number(settingValue(settings, "selectedPointScale", app.selectedPointScale))
-    app.moveNumberLabelScale = Number(settingValue(settings, "moveNumberLabelScale", app.moveNumberLabelScale))
-    app.secondsPerMove = Number(settingValue(settings, "secondsPerMove", app.secondsPerMove))
-    app.analysisSecondsPerMove = Number(settingValue(
-                settings, "analysisSecondsPerMove",
-                app.analysisSecondsPerMove))
-    app.aiMoveMode = Number(settingValue(settings, "aiMoveMode", app.aiMoveMode))
-    app.hideAnalysisDuringPlay = settingBool(
-                settings, "hideAnalysisDuringPlay",
-                app.hideAnalysisDuringPlay)
-    app.analysisTotalVisitsPerMove = Number(settingValue(
-                settings, "analysisTotalVisitsPerMove",
-                app.analysisTotalVisitsPerMove))
-    app.analysisFirstMoveVisitsPerMove = Number(settingValue(
-                settings, "analysisFirstMoveVisitsPerMove",
-                app.analysisFirstMoveVisitsPerMove))
-    app.resignMinMove = Number(settingValue(settings, "resignMinMove", app.resignMinMove))
-    app.resignConsecutiveMoves = Number(settingValue(settings, "resignConsecutiveMoves", app.resignConsecutiveMoves))
-    app.resignWinrateThreshold = Number(settingValue(settings, "resignWinrateThreshold", app.resignWinrateThreshold))
+    var defaults = persistentSettingsSnapshot(app)
+    var raw = ({})
+    for (var i = 0; i < SettingsSchema.fields.length; ++i) {
+        var entry = SettingsSchema.fields[i]
+        raw[entry.key] = settingValue(settings, entry.key, SettingsSchema.defaultValue(entry, defaults))
+    }
+    var values = SettingsSchema.read(raw, defaults)
+    for (var j = 0; j < SettingsSchema.fields.length; ++j) {
+        var field = SettingsSchema.fields[j]
+        applyPersistentSetting(app, field, values[field.property])
+    }
+    // Version migrations deliberately follow all reads and special adapters.
     migratePersistentSettings(app)
 }
 
 function savePersistentSettings(app, settings, engineController) {
     if (!settings)
         return
-    settings.setValue("settingsVersion", app.currentSettingsVersion)
-    settings.setValue("language", app.language)
-    settings.setValue("firstLaunchCompleted", app.firstLaunchCompleted)
-    settings.setValue("showBeginnerTutorialOnNextLaunch", app.showBeginnerTutorialOnNextLaunch)
-    settings.setValue("boardSizeX", app.boardSizeX)
-    settings.setValue("boardSizeY", app.boardSizeY)
-    settings.setValue("gameRuleMode", app.gameRuleMode)
-    settings.setValue("ruleVisibilityJson", JSON.stringify(normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)))
-    settings.setValue("commonRuleOrderJson", JSON.stringify(normalizeCommonRuleOrder(app, app.commonRuleOrder)))
-    settings.setValue("gomokuRuleMode", app.gomokuRuleMode)
-    settings.setValue("gomokuRuleMaxMoves", app.gomokuRuleMaxMoves)
-    settings.setValue("gomokuRuleVcn", app.gomokuRuleVcn)
-    settings.setValue("gomokuRuleFirstPassWin", app.gomokuRuleFirstPassWin)
-    settings.setValue("goScoringRule", app.goScoringRule)
-    settings.setValue("goKoRule", app.goKoRule)
-    settings.setValue("goSuicideAllowed", app.goSuicideAllowed)
-    settings.setValue("goTaxRule", app.goTaxRule)
-    settings.setValue("goWhiteHandicapBonus", app.goWhiteHandicapBonus)
-    settings.setValue("goButtonRule", app.goButtonRule)
-    settings.setValue("komi", app.komi)
-    settings.setValue("moveNumberDisplayMode", app.moveNumberDisplayMode)
-    settings.setValue("coordinateDisplayMode", app.coordinateDisplayMode)
-    settings.setValue("boardPresentationMode", app.boardPresentationMode)
-    settings.setValue("gomokuBoardPresentationMode", app.gomokuBoardPresentationMode)
-    settings.setValue("torusGoBoardPresentationMode", app.torusGoBoardPresentationMode)
-    settings.setValue("hexBoardStyle", app.hexBoardStyle)
-    settings.setValue("hexBoardRotation", app.hexBoardRotation)
-    settings.setValue("packageMode", app.packageMode)
-    settings.setValue("ignoreGtpErrors", app.ignoreGtpErrors)
-    settings.setValue("engineCommunicationLogLimit", app.engineCommunicationLogLimit)
-    settings.setValue("engineCommunicationLogCharacterLimit",
-                      app.engineCommunicationLogCharacterLimit)
-    settings.setValue("engineCommunicationLineCharacterLimit",
-                      app.engineCommunicationLineCharacterLimit)
-    settings.setValue("enginePresetsJson", EnginePresets.serializeList(app.enginePresets))
-    settings.setValue("defaultEngineId", app.defaultEngineId)
-    settings.setValue("activeEngineId", app.activeEngineId)
-    settings.setValue("engineStartupMode", app.engineStartupMode)
-    settings.setValue("engineCommand", engineController ? engineController.command : app.persistedEngineCommand)
-    settings.setValue("legacyHexEngineCoordinates", app.legacyHexEngineCoordinates)
-    settings.setValue("analysisIntervalCentiseconds", app.analysisIntervalCentiseconds)
-    settings.setValue("maxAnalysisSeconds", app.maxAnalysisSeconds)
-    settings.setValue("analysisWideRootNoiseEnabled", app.analysisWideRootNoiseEnabled)
-    settings.setValue("analysisWideRootNoise", app.analysisWideRootNoise)
-    settings.setValue("candidateDisplayCount", app.candidateDisplayCount)
-    settings.setValue("candidateTableRowLimit", app.candidateTableRowLimit)
-    settings.setValue("candidateMinVisitRatio", app.candidateMinVisitRatio)
-    settings.setValue("candidateShowFilteredMarkers", app.candidateShowFilteredMarkers)
-    settings.setValue("candidateVariationPreviewVisible", app.candidateVariationPreviewVisible)
-    settings.setValue("candidateVariationPreviewMaxMoves", app.candidateVariationPreviewMaxMoves)
-    settings.setValue("candidateVariationPreviewOpacity", app.candidateVariationPreviewOpacity)
-    settings.setValue("candidateWinrateLabelVisible", app.candidateWinrateLabelVisible)
-    settings.setValue("candidateVisitsLabelVisible", app.candidateVisitsLabelVisible)
-    settings.setValue("candidateScoreLabelVisible", app.candidateScoreLabelVisible)
-    settings.setValue("candidateWinrateFontSize", app.candidateWinrateFontSize)
-    settings.setValue("candidateVisitsFontSize", app.candidateVisitsFontSize)
-    settings.setValue("candidateScoreFontSize", app.candidateScoreFontSize)
-    settings.setValue("candidateWinrateBold", app.candidateWinrateBold)
-    settings.setValue("candidateVisitsBold", app.candidateVisitsBold)
-    settings.setValue("candidateScoreBold", app.candidateScoreBold)
-    settings.setValue("candidateWinrateOffsetY", app.candidateWinrateOffsetY)
-    settings.setValue("candidateVisitsOffsetY", app.candidateVisitsOffsetY)
-    settings.setValue("candidateScoreOffsetY", app.candidateScoreOffsetY)
-    settings.setValue("candidateWinrateDecimals", app.candidateWinrateDecimals)
-    settings.setValue("candidateScoreDecimals", app.candidateScoreDecimals)
-    settings.setValue("candidateWinrateShowPercent", app.candidateWinrateShowPercent)
-    settings.setValue("candidateScoreShowPercent", app.candidateScoreShowPercent)
-    settings.setValue("candidateScoreTitleMode", app.candidateScoreTitleMode)
-    settings.setValue("candidateRingVisible", app.candidateRingVisible)
-    settings.setValue("candidateRingLineWidth", app.candidateRingLineWidth)
-    settings.setValue("candidateRankLabelVisible", app.candidateRankLabelVisible)
-    settings.setValue("candidateFirstLabelTextColor", app.candidateFirstLabelTextColor)
-    settings.setValue("candidateLabelTextColor", app.candidateLabelTextColor)
-    settings.setValue("backgroundColor", app.backgroundColor)
-    settings.setValue("boardWoodColor", app.boardWoodColor)
-    settings.setValue("stoneScale", app.stoneScale)
-    settings.setValue("gridOpacity", app.gridOpacity)
-    settings.setValue("gridLineWidth", app.gridLineWidth)
-    settings.setValue("selectedPointScale", app.selectedPointScale)
-    settings.setValue("moveNumberLabelScale", app.moveNumberLabelScale)
-    settings.setValue("secondsPerMove", app.secondsPerMove)
-    settings.setValue("analysisSecondsPerMove", app.analysisSecondsPerMove)
-    settings.setValue("aiMoveMode", app.aiMoveMode)
-    settings.setValue("hideAnalysisDuringPlay", app.hideAnalysisDuringPlay)
-    settings.setValue("analysisTotalVisitsPerMove", app.analysisTotalVisitsPerMove)
-    settings.setValue("analysisFirstMoveVisitsPerMove", app.analysisFirstMoveVisitsPerMove)
-    settings.setValue("resignMinMove", app.resignMinMove)
-    settings.setValue("resignConsecutiveMoves", app.resignConsecutiveMoves)
-    settings.setValue("resignWinrateThreshold", app.resignWinrateThreshold)
+    var values = persistentSettingsSnapshot(app)
+    values.loadedSettingsVersion = app.currentSettingsVersion
+    values.ruleVisibilityMap = normalizeRuleVisibilityMap(app, app.ruleVisibilityMap)
+    values.commonRuleOrder = normalizeCommonRuleOrder(app, app.commonRuleOrder)
+    values.enginePresets = EnginePresets.serializeList(app.enginePresets)
+    values.persistedEngineCommand = engineController ? engineController.command : app.persistedEngineCommand
+    var raw = SettingsSchema.write(values)
+    for (var i = 0; i < SettingsSchema.fields.length; ++i) {
+        var key = SettingsSchema.fields[i].key
+        settings.setValue(key, raw[key])
+    }
 }
 
 function resetBoardVisualSettings(app) {

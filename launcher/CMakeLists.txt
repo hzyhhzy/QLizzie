@@ -28,6 +28,9 @@ if(WIN32)
         CXX_STANDARD_REQUIRED ON
         OUTPUT_NAME QLizzie
     )
+    if(COMMAND qlizzie_enable_local_copy)
+        qlizzie_enable_local_copy(qlizzie_launcher "QLizzie.exe")
+    endif()
 
     add_custom_target(qlizzie_portable
         COMMAND ${CMAKE_COMMAND}

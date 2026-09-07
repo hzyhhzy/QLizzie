@@ -1,4 +1,5 @@
 #include "enginecontroller.h"
+#include "engineanalysis.h"
 #include "engineprotocol.h"
 #include "fileio.h"
 
@@ -29,6 +30,12 @@ private slots:
     void clearsOwnershipWithNewCandidateBatch();
     void clearsOwnershipWithoutCandidates();
     void rejectsMalformedOwnership();
+    void parsesAnalysisMetricsWithoutController();
+    void preservesValidSegmentsInMalformedAnalysis();
+    void preservesParenthesizedMovesAndPvVisits();
+    void parsesEmptyAndInvalidOwnershipWithoutDiscardingCandidates();
+    void ignoresBatchesWithoutCandidateMoves();
+    void buffersPartialAnalysisLinesUntilComplete();
     void ignoresUnhandledAnalysisErrorsWhenConfigured();
     void shutdownIsTerminal();
     void writesTextThroughCommittedSaveFile();
@@ -154,6 +161,134 @@ void CoreTests::rejectsMalformedOwnership()
     QCOMPARE(candidate.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
     QCOMPARE(candidate.value(QStringLiteral("pvText")).toString(),
              QStringLiteral("Q16"));
+}
+
+void CoreTests::parsesAnalysisMetricsWithoutController()
+{
+    const EngineAnalysis::Batch batch = EngineAnalysis::parseInfoLine(QStringLiteral(
+        "info move Q16 visits 80 isSymmetryOf D4 order 1 pv Q16 "
+        "info move D4 visits 120 winrate 0.56 lcb 0.53 policy 0.125 "
+        "scoreLead 1.75 scoreStdev 0.42 order 0 pv D4 C3 pvVisits 120 75 "
+        "rootInfo visits 200 ownership 0.5 -0.5 ownershipStdev 0.1 0.2"));
+
+    QCOMPARE(batch.candidates.size(), 2);
+    const QVariantMap first = batch.candidates.at(0).toMap();
+    const QVariantMap second = batch.candidates.at(1).toMap();
+    QCOMPARE(first.value(QStringLiteral("move")).toString(), QStringLiteral("D4"));
+    QCOMPARE(first.value(QStringLiteral("visits")).toInt(), 120);
+    QCOMPARE(first.value(QStringLiteral("winrate")).toDouble(), 0.56);
+    QCOMPARE(first.value(QStringLiteral("lcb")).toDouble(), 0.53);
+    QCOMPARE(first.value(QStringLiteral("prior")).toDouble(), 0.125);
+    QCOMPARE(first.value(QStringLiteral("scoreMean")).toDouble(), 1.75);
+    QCOMPARE(first.value(QStringLiteral("scoreStdev")).toDouble(), 0.42);
+    QCOMPARE(first.value(QStringLiteral("pvText")).toString(), QStringLiteral("D4 C3"));
+    QCOMPARE(first.value(QStringLiteral("pvVisitsText")).toString(), QStringLiteral("120 75"));
+    QCOMPARE(second.value(QStringLiteral("isSymmetryOf")).toString(), QStringLiteral("D4"));
+    QCOMPARE(batch.ownership, QVariantList({ QVariant(0.5), QVariant(-0.5) }));
+}
+
+void CoreTests::preservesValidSegmentsInMalformedAnalysis()
+{
+    const EngineAnalysis::Batch batch = EngineAnalysis::parseInfoLine(QStringLiteral(
+        "info visits 99 order 0 "
+        "info move D4 visits invalid winrate bad lcb bad prior bad "
+        "scoreMean bad scoreStdev bad order bad unknown ignored "
+        "info move C3 visits 5 order -1 pv C3 "
+        "info move"));
+
+    QCOMPARE(batch.candidates.size(), 2);
+    const QVariantMap first = batch.candidates.at(0).toMap();
+    const QVariantMap second = batch.candidates.at(1).toMap();
+    QCOMPARE(first.value(QStringLiteral("move")).toString(), QStringLiteral("C3"));
+    QCOMPARE(first.value(QStringLiteral("order")).toInt(), -1);
+    QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("D4"));
+    QCOMPARE(second.value(QStringLiteral("order")).toInt(), 1);
+    QCOMPARE(second.size(), 2);
+}
+
+void CoreTests::preservesParenthesizedMovesAndPvVisits()
+{
+    const EngineAnalysis::Batch batch = EngineAnalysis::parseInfoLine(QStringLiteral(
+        "info move (2, 3) visits 7 order 1 pv (2, 3) D4 pvVisits 7 3 "
+        "info move pass order 0 pvVisits 4 2 ownership 0.25"));
+
+    QCOMPARE(batch.candidates.size(), 2);
+    const QVariantMap first = batch.candidates.at(0).toMap();
+    const QVariantMap second = batch.candidates.at(1).toMap();
+    QCOMPARE(first.value(QStringLiteral("move")).toString(), QStringLiteral("pass"));
+    QVERIFY(!first.contains(QStringLiteral("pvText")));
+    QCOMPARE(first.value(QStringLiteral("pvVisitsText")).toString(), QStringLiteral("4 2"));
+    QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("(2, 3)"));
+    QCOMPARE(second.value(QStringLiteral("pvText")).toString(), QStringLiteral("(2, 3) D4"));
+    QCOMPARE(second.value(QStringLiteral("pvVisitsText")).toString(), QStringLiteral("7 3"));
+    QCOMPARE(batch.ownership, QVariantList({ QVariant(0.25) }));
+}
+
+void CoreTests::parsesEmptyAndInvalidOwnershipWithoutDiscardingCandidates()
+{
+    const QStringList trailers = {
+        QString(), QStringLiteral("ownership"),
+        QStringLiteral("ownership 0.5 invalid -0.5"),
+        QStringLiteral("ownership 0.5 NaN -0.5"),
+        QStringLiteral("ownership 0.5 inf -0.5"),
+        QStringLiteral("ownership ownershipStdev 0.1")
+    };
+    for (const QString &trailer : trailers) {
+        const EngineAnalysis::Batch batch = EngineAnalysis::parseInfoLine(
+            QStringLiteral("info move D4 visits 1 pv D4 ") + trailer);
+        QCOMPARE(batch.candidates.size(), 1);
+        QCOMPARE(batch.candidates.first().toMap().value(QStringLiteral("pvText")).toString(),
+                 QStringLiteral("D4"));
+        QVERIFY2(batch.ownership.isEmpty(), qPrintable(trailer));
+    }
+    // Validation is limited to finite numeric tokens, as in the engine stream.
+    // Perspective conversion and board-size checks belong to the UI consumer.
+    const EngineAnalysis::Batch unbounded = EngineAnalysis::parseInfoLine(
+        QStringLiteral("info move D4 ownership 2 -2"));
+    QCOMPARE(unbounded.ownership, QVariantList({ QVariant(2.0), QVariant(-2.0) }));
+}
+
+void CoreTests::ignoresBatchesWithoutCandidateMoves()
+{
+    EngineController controller;
+    controller.parseInfoLine(QStringLiteral("info move D4 visits 1 ownership 0.5"));
+    const QVariantList before = controller.candidates();
+    const int revision = controller.candidateRevision();
+    QSignalSpy changedSpy(&controller, &EngineController::candidatesChanged);
+
+    const QStringList incomplete = {
+        QString(), QStringLiteral("info move"),
+        QStringLiteral("info visits 99"),
+        QStringLiteral("rootInfo visits 2 ownership 0.25")
+    };
+    for (const QString &line : incomplete) {
+        QVERIFY(EngineAnalysis::parseInfoLine(line).candidates.isEmpty());
+        controller.parseInfoLine(line);
+        QCOMPARE(controller.candidates(), before);
+        QCOMPARE(controller.ownership(), QVariantList({ QVariant(0.5) }));
+        QCOMPARE(controller.candidateRevision(), revision);
+    }
+    QCOMPARE(changedSpy.count(), 0);
+}
+
+void CoreTests::buffersPartialAnalysisLinesUntilComplete()
+{
+    EngineController controller;
+    controller.m_ready = true;
+    controller.m_protocolState.beginAnalysis(0);
+    QSignalSpy changedSpy(&controller, &EngineController::candidatesChanged);
+    QByteArray pending("info move D4 visits 1 pv D4 ownership 0.");
+    controller.consumeLines(pending, false);
+    QVERIFY(controller.candidates().isEmpty());
+    QCOMPARE(changedSpy.count(), 0);
+    QVERIFY(!pending.isEmpty());
+
+    pending.append("5 -0.5\n");
+    controller.consumeLines(pending, false);
+    QCOMPARE(controller.candidates().size(), 1);
+    QCOMPARE(controller.ownership(), QVariantList({ QVariant(0.5), QVariant(-0.5) }));
+    QCOMPARE(changedSpy.count(), 1);
+    QVERIFY(pending.isEmpty());
 }
 
 void CoreTests::ignoresUnhandledAnalysisErrorsWhenConfigured()

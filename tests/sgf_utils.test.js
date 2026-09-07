@@ -204,7 +204,8 @@ test("all current rule modes have stable and parseable RU/GM metadata", () => {
         [0, "QLizzie-Breakthrough"],
         [1, "QLizzie-TorusGo"],
         [1, "QLizzie-TwoLibGo"],
-        [40, "QLizzie-DotsAndBoxes"]
+        [40, "QLizzie-DotsAndBoxes"],
+        [41, "QLizzie-Surakarta"]
     ]
 
     expected.forEach(([gameId, ruleName], ruleMode) => {

@@ -36,49 +36,54 @@ function edgeVisibleInViewport(edge, left, top, width, height, padding) {
            && Math.min(edge.y1, edge.y2) - pad <= bottom
 }
 
-function rebuild(app) {
+// Pure projection: input nodes remain owned by GameSession. Labels and sizes
+// are explicit inputs so laying out a tree does not require a window.
+function build(gameNodes, currentNodeId, options) {
     var rowHeight = 38
     var columnWidth = 42
-    var margin = app.compactLayout ? 32 : 36
+    var margin = options.compactLayout ? 32 : 36
     var radius = 12
     var laneById = ({})
     var nextLane = 0
 
-    function assignLane(id) {
-        var node = app.nodeById(id)
-        if (!node)
-            return 0
-        var children = node.children || []
-        if (children.length === 0) {
-            laneById[id] = nextLane
-            nextLane += 1
-            return laneById[id]
+    // Postorder traversal preserves the first child's lane without recursive
+    // calls; long imported games must not exhaust the JavaScript call stack.
+    var pending = [{ "id": 0, "expanded": false }]
+    var visited = ({})
+    while (pending.length > 0) {
+        var frame = pending.pop()
+        var branch = gameNodes[frame.id]
+        if (!branch)
+            continue
+        var children = branch.children || []
+        if (frame.expanded) {
+            if (children.length === 0)
+                laneById[frame.id] = nextLane++
+            else
+                laneById[frame.id] = laneById[children[0]] || 0
+        } else if (!visited[frame.id]) {
+            visited[frame.id] = true
+            pending.push({ "id": frame.id, "expanded": true })
+            for (var c = children.length - 1; c >= 0; --c)
+                pending.push({ "id": children[c], "expanded": false })
         }
-        var firstLane = -1
-        for (var i = 0; i < children.length; ++i) {
-            var childLane = assignLane(children[i])
-            if (firstLane < 0)
-                firstLane = childLane
-        }
-        laneById[id] = firstLane < 0 ? 0 : firstLane
-        return laneById[id]
     }
-
-    assignLane(0)
     if (nextLane === 0)
         nextLane = 1
 
     var currentPathMap = ({})
     currentPathMap[0] = true
-    var path = app.nodePath(app.currentNodeId)
-    for (var p = 0; p < path.length; ++p)
-        currentPathMap[path[p].id] = true
+    var pathNode = gameNodes[currentNodeId]
+    while (pathNode && !currentPathMap[pathNode.id]) {
+        currentPathMap[pathNode.id] = true
+        pathNode = gameNodes[pathNode.parent]
+    }
 
     var nodes = []
     var nodeMap = ({})
     var maxMove = 0
-    for (var id = 0; id < app.gameNodes.length; ++id) {
-        var node = app.nodeById(id)
+    for (var id = 0; id < gameNodes.length; ++id) {
+        var node = gameNodes[id]
         if (!node)
             continue
 
@@ -93,11 +98,11 @@ function rebuild(app) {
             "player": node.player,
             "isPass": node.isPass === true,
             "coordinate": node.id === 0
-                          ? app.trText("rootMove")
+                          ? options.rootText
                           : node.isPass
-                            ? app.trText("passMove")
-                            : app.coordinateText(node.x, node.y),
-            "current": id === app.currentNodeId,
+                            ? options.passText
+                            : options.coordinateText(node.x, node.y),
+            "current": id === currentNodeId,
             "currentPath": currentPathMap[id] === true,
             "label": node.moveNumber === 0 ? "0" : node.isPass ? "P" : String(node.moveNumber)
         }
@@ -121,11 +126,12 @@ function rebuild(app) {
         }
     }
 
-    app.treeNodes = nodes
-    app.treeEdges = edges
-    app.treeCanvasWidth = Math.max(app.minimumTreeCanvasWidth,
-                                   margin * 2 + Math.max(0, nextLane - 1) * columnWidth + radius * 2)
-    app.treeCanvasHeight = Math.max(app.minimumTreeCanvasHeight,
-                                    margin * 2 + maxMove * rowHeight + radius * 2)
-    app.treeRevision += 1
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "width": Math.max(options.minimumWidth,
+                          margin * 2 + Math.max(0, nextLane - 1) * columnWidth + radius * 2),
+        "height": Math.max(options.minimumHeight,
+                           margin * 2 + maxMove * rowHeight + radius * 2)
+    }
 }

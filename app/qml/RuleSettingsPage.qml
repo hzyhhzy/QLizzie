@@ -176,6 +176,8 @@ ColumnLayout {
             return ataxxPreviewConfig()
         if (app.gameRuleMode === app.gameRuleBreakthrough)
             return breakthroughPreviewConfig()
+        if (app.gameRuleMode === app.gameRuleSurakarta)
+            return breakthroughPreviewConfig()
         if (app.gameRuleMode === app.gameRuleDotsAndBoxes) {
             return {
                 "boardSizeX": 7,

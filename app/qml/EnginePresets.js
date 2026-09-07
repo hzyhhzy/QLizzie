@@ -266,7 +266,8 @@ function findById(presets, id) {
 function newPreset(app) {
     var now = Date.now ? Date.now() : Math.floor(Math.random() * 1000000000)
     var ruleMode = defaultRuleMode(app)
-    var defaultSize = ruleMode === app.gameRuleDotsAndBoxes ? 5 : 19
+    var defaultSize = ruleMode === app.gameRuleDotsAndBoxes ? 5
+                      : ruleMode === app.gameRuleSurakarta ? 6 : 19
     var preset = makePreset("engine-" + now,
                             app.trText("newEngine"),
                             "",
@@ -331,6 +332,8 @@ function ruleText(app, preset) {
         return app.trText("gameRuleAtaxx")
     if (preset.ruleMode === app.gameRuleBreakthrough)
         return app.trText("gameRuleBreakthrough")
+    if (preset.ruleMode === app.gameRuleSurakarta)
+        return app.trText("gameRuleSurakarta")
     return app.trText("gameRuleGomoku")
 }
 

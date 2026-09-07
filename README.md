@@ -55,6 +55,8 @@ build/qlizzie/app/Release/qlizzie.exe
 
 ## Engine
 
+For module ownership and regression checks, see [Architecture and tests](docs/architecture.md).
+
 QLizzie communicates with GTP-compatible AI engines. Engine presets can store a name, command line, rule type, default board size, komi, and Hex coordinate compatibility settings.
 
 For KataGo/KataGomo-style analysis, use an engine command that starts GTP mode and points to your config and model files. QLizzie is primarily developed and tested around KataGo-family `kata-analyze` output.

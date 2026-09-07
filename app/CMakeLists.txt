@@ -16,6 +16,8 @@ qt_add_executable(qlizzie
     src/appsettings.h
     src/enginecontroller.cpp
     src/enginecontroller.h
+    src/engineanalysis.cpp
+    src/engineanalysis.h
     src/engineprotocol.cpp
     src/engineprotocol.h
     src/main.cpp
@@ -35,6 +37,8 @@ qt_add_qml_module(qlizzie
     QML_FILES
         qml/AboutDialog.qml
         qml/AnalysisStatus.js
+        qml/AnalysisCache.js
+        qml/AnalysisSession.qml
         qml/AppButton.qml
         qml/AppCheckMark.qml
         qml/AppCheckBox.qml
@@ -48,6 +52,7 @@ qt_add_qml_module(qlizzie
         qml/AppTextArea.qml
         qml/AppTextField.qml
         qml/AppWindowDialog.qml
+        qml/ApplicationMenuBar.qml
         qml/AnalysisToolbar.qml
         qml/BoardSizeDialog.qml
         qml/BoardSizeStepper.qml
@@ -58,10 +63,12 @@ qt_add_qml_module(qlizzie
         qml/BoardScene.qml
         qml/BranchPanel.qml
         qml/CandidateAnalysis.js
+        qml/CandidateModel.js
         qml/CandidateTable.js
         qml/CandidateListWindow.qml
         qml/CandidateMarkerView.qml
         qml/CommandToolbar.qml
+        qml/CommonRulesPopup.qml
         qml/ConfirmDeleteNodeDialog.qml
         qml/CoordinateUtils.js
         qml/EnginePresets.js
@@ -69,6 +76,8 @@ qt_add_qml_module(qlizzie
         qml/EngineLogFormatter.js
         qml/EnginePlay.js
         qml/EngineSync.js
+        qml/EngineSession.qml
+        qml/EngineSessionState.js
         qml/EngineListDialog.qml
         qml/EngineSupport.js
         qml/EngineCommunicationWindow.qml
@@ -82,18 +91,23 @@ qt_add_qml_module(qlizzie
         qml/NoRuleVariantDialog.qml
         qml/GameRuleComboBox.qml
         qml/GameRules.js
+        qml/GameSession.qml
+        qml/GameTree.js
         qml/HelpKeysDialog.qml
         qml/HiddenSettingsDialog.qml
         qml/InitialSetupDialog.qml
         qml/InfoPanel.qml
         qml/Main.qml
+        qml/MovePreview.js
         qml/Ownership.js
         qml/RuleSupport.js
         qml/RuleChangeSaveDialog.qml
         qml/RuleSettingsPage.qml
+        qml/RuleSelectionPopup.qml
         qml/SavePromptButton.qml
         qml/SettingsDialog.qml
         qml/SettingsStore.js
+        qml/SettingsSchema.js
         qml/SgfSession.js
         qml/SgfUtils.js
         qml/Translations.js
@@ -102,6 +116,7 @@ qt_add_qml_module(qlizzie
         qml/WindowGeometry.js
         qml/rules/RuleCatalog.js
         qml/rules/RuleRegistry.js
+        qml/rules/RulePreferences.js
 )
 
 qt_add_resources(qlizzie qlizzie_icons
@@ -131,6 +146,8 @@ if(BUILD_TESTING)
             tests/coretests.cpp
             src/enginecontroller.cpp
             src/enginecontroller.h
+            src/engineanalysis.cpp
+            src/engineanalysis.h
             src/engineprotocol.cpp
             src/engineprotocol.h
             src/fileio.cpp
@@ -157,4 +174,7 @@ if(WIN32)
         PRIVATE
             resources/qlizzie.rc
     )
+    if(COMMAND qlizzie_enable_local_copy)
+        qlizzie_enable_local_copy(qlizzie "bin/qlizzie.exe")
+    endif()
 endif()

@@ -1,6 +1,6 @@
 .pragma library
 .import "SgfUtils.js" as SgfUtils
-.import "CandidateAnalysis.js" as CandidateAnalysis
+.import "AnalysisCache.js" as AnalysisCache
 
 function build(app) {
     return SgfUtils.buildSgf(app.gameNodes, app.gameRuleMode,
@@ -23,26 +23,24 @@ function finalizeAnalysisCaches(app) {
     var nodes = app.gameNodes || []
     var boardSignature = app.engineBoardSignature()
     var komiSignature = app.engineKomiSignature()
-    var signatureChanged = false
     for (var i = 0; i < nodes.length; ++i) {
         var node = nodes[i]
         if (!node || !node.analysisCandidates || node.analysisCandidates.length <= 0)
             continue
+        var annotations = AnalysisCache.winrateAnnotations(node, node.analysisCandidates,
+                                                          app.playerToMoveAfterNode(node))
         if (!node.analysisCandidateBoardSignature || node.analysisCandidateBoardSignature.length <= 0) {
-            node.analysisCandidateBoardSignature = boardSignature
-            signatureChanged = true
+            annotations.analysisCandidateBoardSignature = boardSignature
         }
         if (!node.analysisCandidateKomiSignature || node.analysisCandidateKomiSignature.length <= 0) {
-            node.analysisCandidateKomiSignature = komiSignature
-            signatureChanged = true
+            annotations.analysisCandidateKomiSignature = komiSignature
         }
-        if (node.analysisBlackWinrate === undefined || Number(node.analysisBlackWinrate) < 0)
-            CandidateAnalysis.recordAnalysisWinrateForNode(app, node,
-                                                           node.analysisCandidates,
-                                                           app.playerToMoveAfterNode(node))
+        // Imported winrate annotations remain authoritative when present.
+        if (node.analysisBlackWinrate !== undefined && Number(node.analysisBlackWinrate) >= 0)
+            delete annotations.analysisBlackWinrate
+        if (Object.keys(annotations).length > 0)
+            app.updateNodeAnalysis(node.id, annotations)
     }
-    if (signatureChanged)
-        app.analysisRevision += 1
 }
 
 function applyParsed(app, parsed, url) {
@@ -91,15 +89,12 @@ function applyParsed(app, parsed, url) {
     app.resetEngineSyncState()
     app.boardSizeX = parsed.boardSizeX
     app.boardSizeY = parsed.boardSizeY
-    app.gameTreeGeneration += 1
-    app.gameNodes = parsed.nodes
-    app.nextNodeId = parsed.nextNodeId
-    app.currentNodeId = 0
+    var loaded = app.loadGameTree(parsed)
+    if (!loaded.ok)
+        return
     finalizeAnalysisCaches(app)
+    app.showCachedAnalysisForCurrentNode()
     app.clearHover(true)
-    app.rebuildPositionFromNode(app.currentNodeId)
-    app.rebuildTreeLayout()
-    app.gotoLastMove()
     app.gameDirty = false
     app.statusMode = "message"
     app.statusMessage = app.trText("sgfLoaded") + ": " + url

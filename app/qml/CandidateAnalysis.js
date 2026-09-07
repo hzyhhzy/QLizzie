@@ -1,47 +1,26 @@
 .pragma library
 .import "GameRules.js" as GameRules
+.import "CandidateModel.js" as CandidateModel
+.import "MovePreview.js" as MovePreview
 
 function visitCount(candidate) {
-    if (!candidate)
-        return 0
-    var visits = Number(candidate.visits)
-    return isNaN(visits) ? 0 : visits
+    return CandidateModel.visitCount(candidate)
 }
 
 function winrateValue(app, candidate) {
-    if (!candidate || candidate.winrate === undefined)
-        return 0
-    var value = Number(candidate.winrate)
-    if (isNaN(value))
-        return 0
-    return app.clamp(value * 100, 0, 100)
+    return CandidateModel.winrateValue(candidate)
 }
 
 function scoreValue(app, candidate) {
-    if (!candidate || candidate.scoreMean === undefined)
-        return NaN
-    var value = Number(candidate.scoreMean)
-    return isNaN(value) ? NaN : value
+    return CandidateModel.scoreValue(candidate)
 }
 
 function formatCandidateNumber(app, value, decimals, showPercent) {
-    var number = Number(value)
-    if (isNaN(number))
-        return ""
-    var displayValue = number
-    var text = displayValue.toFixed(Math.round(app.clamp(decimals, 0, 2)))
-    if (showPercent)
-        text += "%"
-    return text
+    return CandidateModel.formatNumber(value, decimals, showPercent)
 }
 
 function winrateText(app, candidate) {
-    if (!candidate || candidate.winrate === undefined)
-        return ""
-    return formatCandidateNumber(app,
-                                 winrateValue(app, candidate),
-                                 app.candidateWinrateDecimals,
-                                 app.candidateWinrateShowPercent)
+    return CandidateModel.winrateText(candidate, presentationSettings(app).winrate)
 }
 
 function scoreDisplayEnabled(app) {
@@ -54,61 +33,11 @@ function scoreTitle(app) {
 }
 
 function scoreText(app, candidate) {
-    if (!candidate || !scoreDisplayEnabled(app))
-        return ""
-    var value = scoreValue(app, candidate)
-    if (isNaN(value))
-        return ""
-    return formatCandidateNumber(app,
-                                 value,
-                                 app.candidateScoreDecimals,
-                                 app.candidateScoreShowPercent)
+    return CandidateModel.scoreText(candidate, presentationSettings(app).score)
 }
 
 function labelLines(app, candidate) {
-    var lines = []
-    var winrateLabel = winrateText(app, candidate)
-    if (app.candidateWinrateLabelVisible && winrateLabel.length > 0) {
-        lines.push({
-            "kind": 0,
-            "text": winrateLabel,
-            "fontSize": app.candidateWinrateFontSize,
-            "color": String(app.candidateLabelTextColor),
-            "bold": app.candidateWinrateBold
-        })
-    }
-    if (app.candidateVisitsLabelVisible) {
-        var visitsLabel = formatVisitCount(visitCount(candidate))
-        if (visitsLabel.length > 0) {
-            lines.push({
-                "kind": 1,
-                "text": visitsLabel,
-                "fontSize": app.candidateVisitsFontSize,
-                "color": String(app.candidateLabelTextColor),
-                "bold": app.candidateVisitsBold
-            })
-        }
-    }
-    var scoreLabel = scoreText(app, candidate)
-    if (scoreLabel.length > 0) {
-        lines.push({
-            "kind": 2,
-            "text": scoreLabel,
-            "fontSize": app.candidateScoreFontSize,
-            "color": String(app.candidateLabelTextColor),
-            "bold": app.candidateScoreBold
-        })
-    }
-    if (lines.length <= 0 && winrateLabel.length > 0) {
-        lines.push({
-            "kind": 0,
-            "text": winrateLabel,
-            "fontSize": app.candidateWinrateFontSize,
-            "color": String(app.candidateLabelTextColor),
-            "bold": app.candidateWinrateBold
-        })
-    }
-    return lines
+    return CandidateModel.labelLines(candidate, presentationSettings(app))
 }
 
 function labelLineOffset(app, kind) {
@@ -301,70 +230,27 @@ function markerRadius(app, width, height) {
 }
 
 function hexComponent(app, value) {
-    var text = Math.round(app.clamp(value, 0, 255)).toString(16)
-    return text.length < 2 ? "0" + text : text
+    return CandidateModel.hexComponent(value)
 }
 
 function hsbColorHex(app, hue, saturation, brightness) {
-    hue = ((Number(hue) % 1) + 1) % 1
-    saturation = app.clamp(Number(saturation), 0, 1)
-    brightness = app.clamp(Number(brightness), 0, 1)
-    var r = brightness
-    var g = brightness
-    var b = brightness
-    if (saturation > 0) {
-        var h = hue * 6
-        var sector = Math.floor(h)
-        var fraction = h - sector
-        var p = brightness * (1 - saturation)
-        var q = brightness * (1 - saturation * fraction)
-        var t = brightness * (1 - saturation * (1 - fraction))
-        switch (sector) {
-        case 0:
-            r = brightness; g = t; b = p
-            break
-        case 1:
-            r = q; g = brightness; b = p
-            break
-        case 2:
-            r = p; g = brightness; b = t
-            break
-        case 3:
-            r = p; g = q; b = brightness
-            break
-        case 4:
-            r = t; g = p; b = brightness
-            break
-        default:
-            r = brightness; g = p; b = q
-            break
-        }
-    }
-    return "#" + hexComponent(app, r * 255) + hexComponent(app, g * 255) + hexComponent(app, b * 255)
+    return CandidateModel.hsbColorHex(hue, saturation, brightness)
 }
 
 function yzyAlphaRatio(app, visitRatio) {
-    var ratio = app.clamp(Number(visitRatio), 0.000001, 1)
-    return Math.max(0, Math.log(ratio) / app.candidateYzyAlphaFactor + 1)
+    return CandidateModel.alphaRatio(visitRatio, presentationSettings(app).marker)
 }
 
 function markerColor(app, displayIndex, visitRatio) {
-    if (displayIndex <= 1)
-        return hsbColorHex(app, 0.5, 1.0, 0.85)
-    var fraction = Math.pow(app.clamp(Number(visitRatio), 0, 1), 1 / app.candidateYzyColorRatio)
-    var hue = (1 / 3) * fraction
-    return hsbColorHex(app, hue, 1.0, 0.85)
+    return CandidateModel.markerColor(displayIndex, visitRatio, presentationSettings(app).marker)
 }
 
 function markerOpacity(app, displayIndex, visitRatio) {
-    var alphaRatio = yzyAlphaRatio(app, visitRatio)
-    var alpha = app.candidateYzyMinAlpha + (app.candidateYzyMaxAlpha - app.candidateYzyMinAlpha) * alphaRatio
-    return app.clamp(alpha / 255, 0, 1)
+    return CandidateModel.markerOpacity(visitRatio, presentationSettings(app).marker)
 }
 
 function markerOutlineOpacity(app, visitRatio) {
-    var alpha = 48 + 48 * yzyAlphaRatio(app, visitRatio)
-    return app.clamp(alpha / 255, 0, 1)
+    return CandidateModel.markerOutlineOpacity(visitRatio, presentationSettings(app).marker)
 }
 
 function previewLabelLines(app, digitText) {
@@ -418,16 +304,7 @@ function previewLabelLines(app, digitText) {
 }
 
 function formatVisitCount(value) {
-    var visits = Number(value)
-    if (isNaN(visits) || visits <= 0)
-        return "0"
-    if (visits >= 1000000000)
-        return (visits / 1000000000).toFixed(visits >= 10000000000 ? 0 : 1) + "G"
-    if (visits >= 1000000)
-        return (visits / 1000000).toFixed(visits >= 10000000 ? 0 : 1) + "M"
-    if (visits >= 1000)
-        return (visits / 1000).toFixed(visits >= 10000 ? 0 : 1) + "K"
-    return String(Math.round(visits))
+    return CandidateModel.formatVisitCount(value)
 }
 
 function cloneCandidate(candidate) {
@@ -574,233 +451,56 @@ function playBestCandidate(app, candidates) {
     return playCandidate(app, candidates[0])
 }
 
-function buildCandidateItems(app, candidates) {
-    var sorted = []
-    var needsSort = false
-    var previousOrder = -Infinity
-    for (var s = 0; s < candidates.length; ++s) {
-        sorted.push(candidates[s])
-        var currentOrder = candidates[s].order === undefined ? 0 : Number(candidates[s].order)
-        if (currentOrder < previousOrder)
-            needsSort = true
-        previousOrder = currentOrder
-    }
-    if (needsSort) {
-        sorted.sort(function(left, right) {
-            var lo = left.order === undefined ? 0 : Number(left.order)
-            var ro = right.order === undefined ? 0 : Number(right.order)
-            return lo - ro
-        })
-    }
-
-    var maxVisits = 0
-    for (var m = 0; m < sorted.length; ++m)
-        maxVisits = Math.max(maxVisits, visitCount(sorted[m]))
-
-    var limit = app.candidateDisplayCount <= 0 ? sorted.length : Math.min(app.candidateDisplayCount, sorted.length)
-    var threshold = maxVisits > 0 ? maxVisits * app.candidateMinVisitRatio : 0
-
-    var items = []
-    var itemMap = ({})
-    var table = []
-    var tableLimit = Math.round(Number(app.candidateTableRowLimit))
-    if (!isFinite(tableLimit) || tableLimit < 1)
-        tableLimit = 20
-    for (var c = 0; c < sorted.length; ++c) {
-        var candidate = sorted[c]
-        var moveKind = specialMoveKind(candidate.move)
-        var point = moveKind === "" ? app.parseEngineCoordinate(candidate.move) : null
-        if (point || moveKind !== "") {
-            var boardPoint = !!point
-            var visits = visitCount(candidate)
-            var visitRatio = maxVisits > 0 ? app.clamp(visits / maxVisits, 0, 1) : 1
-            var qualified = c < limit && (maxVisits <= 0 || visits >= threshold)
-            var tableEligible = table.length < tableLimit
-            var needsDetails = qualified || tableEligible
-            var item = {
-                "x": boardPoint ? point.x : -1,
-                "y": boardPoint ? point.y : -1,
-                "key": boardPoint ? app.keyFor(point.x, point.y) : moveKind,
-                "move": candidate.move,
-                "specialMove": moveKind,
-                "boardPoint": boardPoint,
-                "order": candidate.order,
-                "displayIndex": c + 1,
-                "visits": visits,
-                "visitRatio": visitRatio,
-                "qualified": qualified,
-                "boardVisible": boardPoint && (qualified || app.candidateShowFilteredMarkers),
-                "opacity": boardPoint ? markerOpacity(app, c + 1, visitRatio) : 0,
-                "color": boardPoint ? markerColor(app, c + 1, visitRatio) : "transparent",
-                "outlineOpacity": boardPoint ? markerOutlineOpacity(app, visitRatio) : 0,
-                "winrate": candidate.winrate,
-                "winrateText": needsDetails ? winrateText(app, candidate) : "",
-                "scoreMean": candidate.scoreMean,
-                "scoreText": needsDetails ? scoreText(app, candidate) : "",
-                "pv": candidate.pv,
-                "pvText": candidate.pvText,
-                "labelLines": qualified ? labelLines(app, candidate) : []
-            }
-            if (needsDetails)
-                item.displayMoveText = candidateMoveText(app, item)
-            items.push(item)
-            itemMap[item.key] = item
-            if (tableEligible) {
-                table.push({
-                    "row": c + 1,
-                    "key": item.key,
-                    "coordinate": item.displayMoveText,
-                    "winrateText": item.winrateText,
-                    "scoreText": item.scoreText,
-                    "visitsText": visits > 0 ? formatVisitCount(visits) : ""
-                })
-            }
+function presentationSettings(app) {
+    return {
+        "displayCount": app.candidateDisplayCount,
+        "minVisitRatio": app.candidateMinVisitRatio,
+        "showFilteredMarkers": app.candidateShowFilteredMarkers,
+        "tableRowLimit": app.candidateTableRowLimit,
+        "labelColor": String(app.candidateLabelTextColor),
+        "winrate": {
+            "visible": app.candidateWinrateLabelVisible,
+            "decimals": app.candidateWinrateDecimals,
+            "percent": app.candidateWinrateShowPercent,
+            "fontSize": app.candidateWinrateFontSize,
+            "bold": app.candidateWinrateBold
+        },
+        "visits": {
+            "visible": app.candidateVisitsLabelVisible,
+            "fontSize": app.candidateVisitsFontSize,
+            "bold": app.candidateVisitsBold
+        },
+        "score": {
+            "visible": app.candidateScoreLabelVisible,
+            "decimals": app.candidateScoreDecimals,
+            "percent": app.candidateScoreShowPercent,
+            "fontSize": app.candidateScoreFontSize,
+            "bold": app.candidateScoreBold
+        },
+        "marker": {
+            "alphaFactor": app.candidateYzyAlphaFactor,
+            "colorRatio": app.candidateYzyColorRatio,
+            "minAlpha": app.candidateYzyMinAlpha,
+            "maxAlpha": app.candidateYzyMaxAlpha
         }
     }
-    return {
-        "items": items,
-        "itemMap": itemMap,
-        "table": table
+}
+
+function buildCandidateItems(app, candidates) {
+    var entries = []
+    candidates = candidates || []
+    for (var i = 0; i < candidates.length; ++i) {
+        var candidate = candidates[i] || ({})
+        var moveKind = specialMoveKind(candidate.move)
+        var point = moveKind === "" ? app.parseEngineCoordinate(candidate.move) : null
+        entries.push({
+            "candidate": candidate,
+            "point": point,
+            "moveKind": moveKind,
+            "moveText": point ? app.coordinateText(point.x, point.y) : specialMoveText(app, moveKind)
+        })
     }
-}
-
-function rebuildItems(app) {
-    var built = buildCandidateItems(app, app.engineCandidates || [])
-    app.engineCandidateItems = built.items
-    app.engineCandidateItemMap = built.itemMap
-    app.engineCandidateTableItems = built.table
-    app.updateBestCandidateRing(built.items)
-}
-
-function resetDisplay(app) {
-    app.engineCandidates = []
-    app.engineCandidatesFromCache = false
-    app.engineCandidateItems = []
-    app.engineCandidateItemMap = ({})
-    app.engineCandidateTableItems = []
-    app.bestCandidateRingVisible = false
-    app.bestCandidateRingKey = ""
-    app.engineCandidateRevision += 1
-}
-
-function setDisplay(app, candidates, fromCache, revision) {
-    // Candidate snapshots are immutable after capture, so the node cache and the
-    // current display can safely share one list instead of cloning it again.
-    app.engineCandidates = candidates || []
-    app.engineCandidatesFromCache = fromCache === true
-    if (revision === undefined)
-        app.engineCandidateRevision += 1
-    else
-        app.engineCandidateRevision = revision
-    rebuildItems(app)
-}
-
-function nodeAnalysisCacheUsable(app, node) {
-    return !!node
-           && node.analysisCandidates !== undefined
-           && node.analysisCandidates.length > 0
-           && node.analysisCandidateBoardSignature === app.engineBoardSignature()
-           && node.analysisCandidateKomiSignature === app.engineKomiSignature()
-}
-
-function recordAnalysisWinrateForNode(app, node, candidates, playerToMove) {
-    if (!node || !candidates || candidates.length <= 0)
-        return false
-    var best = candidates[0]
-    if (!best || best.winrate === undefined)
-        return false
-
-    var blackWinrate = playerToMove === 1 ? winrateValue(app, best)
-                                          : 100 - winrateValue(app, best)
-    blackWinrate = app.clamp(blackWinrate, 0, 100)
-    if (node.analysisBlackWinrate !== undefined
-            && Math.abs(Number(node.analysisBlackWinrate) - blackWinrate) < 0.0001)
-        return false
-    node.analysisBlackWinrate = blackWinrate
-    app.analysisRevision += 1
-    return true
-}
-
-function cacheAnalysisCandidatesForNode(app, node, candidates, boardSignature, komiSignature) {
-    if (!node || !candidates || candidates.length <= 0)
-        return false
-
-    // The controller owns and later clears its candidate list. Persist one
-    // detached snapshot on the game node, then let the display reuse it.
-    node.analysisCandidates = cloneCandidateList(candidates)
-    node.analysisCandidateBoardSignature = boardSignature || app.engineBoardSignature()
-    node.analysisCandidateKomiSignature = komiSignature || app.engineKomiSignature()
-    recordAnalysisWinrateForNode(app, node, node.analysisCandidates, app.playerToMoveAfterNode(node))
-    app.gameNodes = app.gameNodes.slice()
-    return true
-}
-
-function showCachedAnalysisForCurrentNode(app) {
-    var node = app.currentNode()
-    if (!nodeAnalysisCacheUsable(app, node))
-        return false
-    setDisplay(app, node.analysisCandidates, true)
-    return app.engineCandidateItems.length > 0
-}
-
-function applyEngineCandidateUpdate(app, candidates, revision) {
-    if (app.engineAnalysisRequestValid === false
-            || (!app.analysisModeActive() && app.aiAnalysisInFlight !== true)) {
-        // Paused board synchronization deliberately invalidates the live
-        // analysis request and clears the controller's transient candidates.
-        // Keep the current node's persisted snapshot visible in that case.
-        if (!showCachedAnalysisForCurrentNode(app))
-            resetDisplay(app)
-        return
-    }
-
-    var incoming = candidates || []
-    if (incoming.length <= 0) {
-        if (!showCachedAnalysisForCurrentNode(app))
-            resetDisplay(app)
-        return
-    }
-
-    app.engineLoading = false
-    var targetId = app.engineAnalysisRequestNodeId >= 0 ? app.engineAnalysisRequestNodeId
-                                                        : app.currentNodeId
-    var targetGeneration = app.engineAnalysisRequestGeneration >= 0 ? app.engineAnalysisRequestGeneration
-                                                                    : app.gameTreeGeneration
-    if (targetGeneration !== app.gameTreeGeneration) {
-        if (!showCachedAnalysisForCurrentNode(app))
-            resetDisplay(app)
-        return
-    }
-
-    var targetNode = app.nodeById(targetId)
-    var targetBoardSignature = app.engineAnalysisRequestBoardSignature.length > 0
-                             ? app.engineAnalysisRequestBoardSignature
-                             : app.engineBoardSignature()
-    var targetKomiSignature = app.engineAnalysisRequestKomiSignature.length > 0
-                            ? app.engineAnalysisRequestKomiSignature
-                            : app.engineKomiSignature()
-
-    var displayCandidates = incoming
-    if (targetNode) {
-        cacheAnalysisCandidatesForNode(app, targetNode, incoming, targetBoardSignature, targetKomiSignature)
-        displayCandidates = targetNode.analysisCandidates
-    } else {
-        displayCandidates = cloneCandidateList(incoming)
-    }
-
-    if (targetId !== app.currentNodeId || targetBoardSignature !== app.engineBoardSignature()
-            || targetKomiSignature !== app.engineKomiSignature()) {
-        if (!showCachedAnalysisForCurrentNode(app))
-            resetDisplay(app)
-        return
-    }
-
-    setDisplay(app, displayCandidates, false, revision)
-    if (app.engineCandidateItems.length > 0
-            && app.analysisPresentationVisible()) {
-        app.statusMode = "message"
-        app.statusMessage = app.engineCandidateSummaryText()
-    }
+    return CandidateModel.build(entries, presentationSettings(app))
 }
 
 function activeCandidateForVariationPreview(app) {
@@ -822,218 +522,47 @@ function activeCandidateVariationPreviewActive(app) {
 }
 
 function moveRuleVariationPreview(app) {
-    return app.gameRuleMode === app.gameRuleAtaxx
-           || app.gameRuleMode === app.gameRuleBreakthrough
+    return GameRules.isSourceMoveRule(app.gameRuleMode)
 }
 
-function parsedPvPoint(app, moveText) {
-    var point = app.parseEngineCoordinate(String(moveText || "").trim())
-    if (!point || !app.pointInRuleBoard(point.x, point.y))
-        return null
-    return point
+// This is the only protocol/UI boundary for variation data. Pure preview
+// functions receive a position snapshot, board config and parsed coordinates.
+function variationActions(app, candidate) {
+    var moves = pvMoves(candidate)
+    var actions = []
+    for (var i = 0; i < moves.length; ++i) {
+        var moveText = String(moves[i]).trim()
+        var kind = specialMoveKind(moveText)
+        actions.push(kind !== "" ? { "role": kind } : app.parseEngineCoordinate(moveText))
+    }
+    return actions
 }
 
-function previewStoneItem(point, player, moveNumber) {
+function variationConfig(app, respectMaxMoves) {
     return {
-        "kind": "stone",
-        "x": point.x,
-        "y": point.y,
-        "key": point.x + "," + point.y,
-        "player": player,
-        "moveNumber": moveNumber,
-        "nodeId": -1
-    }
-}
-
-function previewArrowItem(fromPoint, toPoint, player, moveNumber) {
-    return {
-        "kind": "arrow",
-        "fromX": fromPoint.x,
-        "fromY": fromPoint.y,
-        "x": toPoint.x,
-        "y": toPoint.y,
-        "key": toPoint.x + "," + toPoint.y,
-        "player": player,
-        "moveNumber": moveNumber,
-        "nodeId": -1
-    }
-}
-
-function consumeAtaxxPreviewMove(app, map, moves, index, player, sourcePoint, moveNumber) {
-    if (index >= moves.length)
-        return null
-    var first = parsedPvPoint(app, moves[index])
-    if (!first)
-        return null
-
-    var dims = app.boardDims()
-    var item = {
-        "x": first.x,
-        "y": first.y,
-        "key": app.keyFor(first.x, first.y),
-        "player": player,
-        "moveNumber": moveNumber,
-        "nodeId": -1
-    }
-
-    if (sourcePoint) {
-        var sourceKind = GameRules.ataxxMoveKind(map, dims, first.x, first.y, player, sourcePoint)
-        if (sourceKind !== "clone" && sourceKind !== "jump")
-            return null
-        GameRules.applyAtaxxMoveOnMap(map, dims, item, sourcePoint)
-        return {
-            "item": previewArrowItem(sourcePoint, first, player, moveNumber),
-            "nextIndex": index + 1
-        }
-    }
-
-    var firstKind = GameRules.ataxxMoveKind(map, dims, first.x, first.y, player, null)
-    if (firstKind === "clone") {
-        GameRules.applyAtaxxMoveOnMap(map, dims, item, null)
-        return {
-            "item": previewStoneItem(first, player, moveNumber),
-            "nextIndex": index + 1
-        }
-    }
-
-    if (firstKind !== "source" || index + 1 >= moves.length)
-        return null
-
-    var second = parsedPvPoint(app, moves[index + 1])
-    if (!second)
-        return null
-    var moveKind = GameRules.ataxxMoveKind(map, dims, second.x, second.y, player, first)
-    if (moveKind !== "clone" && moveKind !== "jump")
-        return null
-
-    var targetItem = {
-        "x": second.x,
-        "y": second.y,
-        "key": app.keyFor(second.x, second.y),
-        "player": player,
-        "moveNumber": moveNumber,
-        "nodeId": -1
-    }
-    GameRules.applyAtaxxMoveOnMap(map, dims, targetItem, first)
-    return {
-        "item": previewArrowItem(first, second, player, moveNumber),
-        "nextIndex": index + 2
-    }
-}
-
-function consumeBreakthroughPreviewMove(app, map, moves, index, player, sourcePoint, moveNumber) {
-    if (index >= moves.length)
-        return null
-    var dims = app.boardDims()
-    var source = sourcePoint
-    var targetIndex = index
-    if (!source) {
-        source = parsedPvPoint(app, moves[index])
-        if (!source || GameRules.breakthroughMoveKind(map, dims, source.x, source.y, player, null) !== "source")
-            return null
-        targetIndex = index + 1
-    }
-    if (targetIndex >= moves.length)
-        return null
-    var target = parsedPvPoint(app, moves[targetIndex])
-    if (!target)
-        return null
-    var kind = GameRules.breakthroughMoveKind(map, dims, target.x, target.y, player, source)
-    if (kind !== "move" && kind !== "capture")
-        return null
-    var item = {
-        "x": target.x,
-        "y": target.y,
-        "key": app.keyFor(target.x, target.y),
-        "player": player,
-        "moveNumber": moveNumber,
-        "nodeId": -1
-    }
-    GameRules.applyBreakthroughMoveOnMap(map, dims, item, source)
-    return {
-        "item": previewArrowItem(source, target, player, moveNumber),
-        "nextIndex": targetIndex + 1
+        "dims": app.boardDims(),
+        "ruleMode": app.gameRuleMode,
+        "maxMoves": respectMaxMoves === false ? 0 : app.candidateVariationPreviewMaxMoves
     }
 }
 
 function activeMoveRuleVariationItems(app, candidate, respectMaxMoves) {
-    var moves = pvMoves(candidate)
-    if (moves.length <= 0)
-        return []
-
-    var maxMoves = respectMaxMoves !== false ? Math.round(Number(app.candidateVariationPreviewMaxMoves)) : 0
-    if (isNaN(maxMoves))
-        maxMoves = 0
-    maxMoves = Math.max(0, maxMoves)
-
-    var items = []
-    var map = GameRules.cloneStoneMap(app.stones)
-    var player = app.currentPlayer
-    var sourcePoint = app.currentMoveSourcePoint()
-    var moveNumber = 1
-    var consume = app.gameRuleMode === app.gameRuleAtaxx
-                  ? consumeAtaxxPreviewMove
-                  : consumeBreakthroughPreviewMove
-
-    var current = consume(app, map, moves, 0, player, sourcePoint, moveNumber)
-    if (!current)
-        return []
-    items.push(current.item)
-    if (maxMoves === 1)
-        return items
-
-    var opponent = player === 1 ? 2 : 1
-    var opponentMove = consume(app, map, moves, current.nextIndex, opponent, null, moveNumber + 1)
-    if (opponentMove && (maxMoves === 0 || maxMoves >= 2))
-        items.push(opponentMove.item)
-    return items
+    return MovePreview.sourceVariation({
+        "map": app.stones,
+        "player": app.currentPlayer,
+        "source": app.currentMoveSourcePoint()
+    }, variationConfig(app, respectMaxMoves), variationActions(app, candidate)).items
 }
 
 function activeCandidateVariationItems(app, respectMaxMoves) {
     var candidate = activeCandidateForVariationPreview(app)
-    var moves = pvMoves(candidate)
-    if (moves.length <= 0)
+    if (!candidate)
         return []
     if (moveRuleVariationPreview(app))
         return activeMoveRuleVariationItems(app, candidate, respectMaxMoves)
-
-    var items = []
-    var player = app.currentPlayer
-    var moveNumber = 1
-    var useMaxMoves = respectMaxMoves !== false
-    var maxMoves = useMaxMoves ? Math.round(Number(app.candidateVariationPreviewMaxMoves)) : 0
-    if (isNaN(maxMoves))
-        maxMoves = 0
-    maxMoves = Math.max(0, maxMoves)
-
-    for (var i = 0; i < moves.length; ++i) {
-        if (maxMoves > 0 && moveNumber > maxMoves)
-            break
-        var moveText = String(moves[i])
-        var point = app.parseEngineCoordinate(moveText)
-        if (!point) {
-            if (moveText.trim().toLowerCase() === "pass") {
-                player = player === 1 ? 2 : 1
-                moveNumber += 1
-            }
-            continue
-        }
-        if (!app.pointInBoard(point.x, point.y))
-            continue
-
-        var key = app.keyFor(point.x, point.y)
-        items.push({
-            "x": point.x,
-            "y": point.y,
-            "key": key,
-            "player": player,
-            "moveNumber": moveNumber,
-            "nodeId": -1
-        })
-        player = player === 1 ? 2 : 1
-        moveNumber += 1
-    }
-    return items
+    return MovePreview.placementItems({ "player": app.currentPlayer },
+                                     variationConfig(app, respectMaxMoves),
+                                     variationActions(app, candidate))
 }
 
 function playActiveCandidateVariation(app) {

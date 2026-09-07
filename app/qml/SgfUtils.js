@@ -219,7 +219,8 @@ var SGF_GAME_ID_DEFAULT_RULE_MODE = {
     "4": RuleRegistry.RULE_GOMOKU,
     "10": RuleRegistry.RULE_ATAXX,
     "11": RuleRegistry.RULE_HEX,
-    "40": RuleRegistry.RULE_DOTS_AND_BOXES
+    "40": RuleRegistry.RULE_DOTS_AND_BOXES,
+    "41": RuleRegistry.RULE_SURAKARTA
 }
 
 var SGF_LEGACY_RULE_HINTS = [

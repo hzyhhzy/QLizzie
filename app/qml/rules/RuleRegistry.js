@@ -14,6 +14,7 @@ var RULE_BREAKTHROUGH = 10
 var RULE_TORUS_GO = 11
 var RULE_TWO_LIB_GO = 12
 var RULE_DOTS_AND_BOXES = 13
+var RULE_SURAKARTA = 14
 
 var RULES = [
     rule(RULE_GO, "gameRuleGo", "gameRuleGoTip", 1, "QLizzie-Go",
@@ -42,7 +43,9 @@ var RULES = [
     rule(RULE_TWO_LIB_GO, "gameRuleTwoLibGo", "gameRuleTwoLibGoTip", 1, "QLizzie-TwoLibGo",
          { "goCapture": true }),
     rule(RULE_DOTS_AND_BOXES, "gameRuleDotsAndBoxes", "gameRuleDotsAndBoxesTip", 40,
-         "QLizzie-DotsAndBoxes", { "dotsAndBoxes": true })
+         "QLizzie-DotsAndBoxes", { "dotsAndBoxes": true }),
+    rule(RULE_SURAKARTA, "gameRuleSurakarta", "gameRuleSurakartaTip", 41,
+         "QLizzie-Surakarta", { "moveSource": true })
 ]
 
 var RULE_BY_ID = buildRuleMap(RULES)

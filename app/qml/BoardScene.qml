@@ -21,6 +21,8 @@ Item {
     readonly property real stoneRadiusRatio: app.stoneScale * 0.5
     readonly property bool hexBoard: app.ruleUsesHexGrid()
     readonly property bool torusGoBoard: app.gameRuleMode === app.gameRuleTorusGo
+    readonly property bool surakartaBoard: app.gameRuleMode === app.gameRuleSurakarta
+    readonly property real surakartaLoopRadiusRatio: surakartaBoard ? 2.12 : 0
     readonly property bool squareCellBoard: app.ruleUsesSquareCells()
     readonly property bool hexCellStyle: app.ruleUsesHexCellStyle()
     readonly property bool hexTransposed: app.hexBoardRotation === app.hexRotationTranspose
@@ -37,10 +39,10 @@ Item {
     readonly property var hexDisplayTransform: hexBoard ? BoardRenderer.hexDisplayTransform(rendererState()) : null
     readonly property real horizontalPointRadiusRatio: hexBoard
                                                    ? (hexCellStyle ? 0.5 : Math.max(stoneRadiusRatio, 0.5))
-                                                   : stoneRadiusRatio
+                                                   : Math.max(stoneRadiusRatio, surakartaLoopRadiusRatio)
     readonly property real verticalPointRadiusRatio: hexBoard
                                                  ? (hexCellStyle ? hexCellRadiusRatio : Math.max(stoneRadiusRatio, 0.5))
-                                                 : stoneRadiusRatio
+                                                 : Math.max(stoneRadiusRatio, surakartaLoopRadiusRatio)
     readonly property int hexDisplaySizeX: hexTransposed ? app.boardSizeY : app.boardSizeX
     readonly property int hexDisplaySizeY: hexTransposed ? app.boardSizeX : app.boardSizeY
     readonly property int maxXCoordinateChars: coordinatesVisible

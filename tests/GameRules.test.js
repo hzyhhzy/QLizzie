@@ -13,6 +13,13 @@ function loadGameRules() {
 
 const rules = loadGameRules()
 
+test("move-source capability identifies every supported source/target ruleset", () => {
+    const sourceRules = [rules.RULE_ATAXX, rules.RULE_BREAKTHROUGH, rules.RULE_SURAKARTA]
+    for (let ruleMode = 0; ruleMode <= rules.RULE_SURAKARTA; ++ruleMode)
+        assert.equal(rules.isSourceMoveRule(ruleMode), sourceRules.includes(ruleMode))
+    assert.equal(rules.isSourceMoveRule(-1), false)
+})
+
 function stone(x, y, player, extra = {}) {
     return {
         x,
@@ -247,6 +254,145 @@ test("Breakthrough captures are reported uniformly", () => {
     assert.equal(result.moveKind, "capture")
     assert.equal(result.captured, 1)
     assert.equal(result.capturedStones[0].key, "2,1")
+})
+
+test("Surakarta starts from the fixed 6x6 opening and moves in two phases", () => {
+    const input = rules.initialStoneMap({ x: 6, y: 6 }, rules.RULE_SURAKARTA)
+    assert.equal(Object.keys(input).length, 24)
+    for (let x = 0; x < 6; ++x) {
+        assert.equal(input[`${x},0`].player, 2)
+        assert.equal(input[`${x},1`].player, 2)
+        assert.equal(input[`${x},4`].player, 1)
+        assert.equal(input[`${x},5`].player, 1)
+    }
+
+    const selected = rules.applyMoveOnMap(
+        input,
+        { x: 6, y: 6 },
+        { x: 0, y: 4, player: 1, role: "source" },
+        { ruleMode: rules.RULE_SURAKARTA }
+    )
+    assert.equal(selected.ok, true)
+    assert.equal(selected.role, "source")
+    assert.equal(selected.nextSource.key, "0,4")
+
+    const moved = rules.applyMoveOnMap(
+        selected.nextMap,
+        { x: 6, y: 6 },
+        { x: 0, y: 3, player: 1, role: "target" },
+        { ruleMode: rules.RULE_SURAKARTA, pendingSource: selected.nextSource }
+    )
+    assert.equal(moved.ok, true)
+    assert.equal(moved.moveKind, "move")
+    assert.equal(moved.nextMap["0,4"], undefined)
+    assert.equal(moved.nextMap["0,3"].player, 1)
+})
+
+test("Surakarta captures require an unobstructed path through an outer loop", () => {
+    const dims = { x: 6, y: 6 }
+    const capturable = mapOf(stone(1, 2, 1), stone(2, 3, 2))
+    const source = { x: 1, y: 2, player: 1, role: "source" }
+    const selected = rules.applyMoveOnMap(
+        capturable, dims, source, { ruleMode: rules.RULE_SURAKARTA }
+    )
+    assert.equal(selected.ok, true)
+
+    const captured = rules.applyMoveOnMap(
+        selected.nextMap,
+        dims,
+        { x: 2, y: 3, player: 1, role: "target" },
+        { ruleMode: rules.RULE_SURAKARTA, pendingSource: selected.nextSource }
+    )
+    assert.equal(captured.ok, true)
+    assert.equal(captured.moveKind, "capture")
+    assert.equal(captured.captured, 1)
+    assert.equal(captured.capturedStones[0].key, "2,3")
+    assert.equal(captured.nextMap["1,2"], undefined)
+    assert.equal(captured.nextMap["2,3"].player, 1)
+
+    const blocked = mapOf(
+        stone(1, 2, 1), stone(2, 1, 1), stone(2, 2, 1),
+        stone(1, 1, 1), stone(1, 3, 1), stone(2, 3, 2)
+    )
+    const blockedCapture = rules.applyMoveOnMap(
+        blocked,
+        dims,
+        { player: 1, role: "target", source: { x: 1, y: 2 }, target: { x: 2, y: 3 } },
+        { ruleMode: rules.RULE_SURAKARTA }
+    )
+    assert.equal(blockedCapture.ok, false)
+
+    const straight = mapOf(
+        stone(1, 2, 1), stone(2, 2, 1), stone(1, 1, 1),
+        stone(1, 3, 1), stone(0, 2, 2)
+    )
+    const straightCapture = rules.applyMoveOnMap(
+        straight,
+        dims,
+        { player: 1, role: "target", source: { x: 1, y: 2 }, target: { x: 0, y: 2 } },
+        { ruleMode: rules.RULE_SURAKARTA }
+    )
+    assert.equal(straightCapture.ok, false)
+
+    const corner = mapOf(stone(0, 0, 1), stone(2, 3, 2))
+    assert.equal(rules.surakartaCaptureTargets(
+        corner, dims, 1, { x: 0, y: 0 }
+    ).length, 0)
+})
+
+test("Surakarta ends by stone count when the next player has no legal move", () => {
+    const input = mapOf(
+        stone(0, 0, 1),
+        stone(0, 1, 2), stone(1, 0, 2), stone(1, 1, 2)
+    )
+    const outcome = rules.buildSurakartaWin(
+        input, { x: 6, y: 6 }, rules.RULE_SURAKARTA, 1
+    )
+    assert.equal(outcome.finished, true)
+    assert.equal(outcome.player, 2)
+    assert.equal(outcome.reason, "no-legal-move")
+})
+
+test("Surakarta uses completed turns for its twofold repetition result", () => {
+    const path = [
+        { id: 1, x: 0, y: 4, player: 1, moveRole: "source" },
+        { id: 2, x: 0, y: 3, player: 1, moveRole: "target" },
+        { id: 3, x: 0, y: 1, player: 2, moveRole: "source" },
+        { id: 4, x: 0, y: 2, player: 2, moveRole: "target" },
+        { id: 5, x: 0, y: 3, player: 1, moveRole: "source" },
+        { id: 6, x: 0, y: 4, player: 1, moveRole: "target" },
+        { id: 7, x: 0, y: 2, player: 2, moveRole: "source" },
+        { id: 8, x: 0, y: 1, player: 2, moveRole: "target" }
+    ]
+    const outcome = rules.buildSurakartaHistoryOutcome(
+        path, { x: 6, y: 6 }, rules.RULE_SURAKARTA
+    )
+    assert.equal(outcome.finished, true)
+    assert.equal(outcome.player, 0)
+    assert.equal(outcome.reason, "repetition")
+})
+
+test("passing loses immediately in Surakarta even after selecting a source", () => {
+    const path = [
+        { id: 1, x: 0, y: 4, player: 1, moveRole: "source" },
+        { id: 2, x: -1, y: -1, player: 1, isPass: true, moveRole: "" }
+    ]
+    const outcome = rules.buildSurakartaHistoryOutcome(
+        path, { x: 6, y: 6 }, rules.RULE_SURAKARTA
+    )
+    assert.equal(outcome.finished, true)
+    assert.equal(outcome.player, 2)
+    assert.equal(outcome.reason, "pass")
+})
+
+test("move-source nodes do not double the displayed move number", () => {
+    assert.equal(rules.completedMoveNumber([
+        { moveNumber: 1, moveRole: "source" },
+        { moveNumber: 2, moveRole: "target" },
+        { moveNumber: 3, moveRole: "source" },
+        { moveNumber: 4, moveRole: "target" },
+        { moveNumber: 5, moveRole: "source" }
+    ]), 2)
 })
 
 test("Dots and Boxes reports claimed boxes and preserves derived metadata", () => {

@@ -55,6 +55,8 @@ build/qlizzie/app/Release/qlizzie.exe
 
 ## 引擎
 
+模块职责和回归测试方法见[架构与测试说明](docs/architecture.md)。
+
 QLizzie 通过 GTP 协议和 AI 引擎通信。引擎预设可以保存名称、命令行、规则类型、默认棋盘大小、贴目和 Hex 坐标兼容设置。
 
 如果使用 KataGo/KataGomo 风格分析，请使用能启动 GTP 模式，并指向你的配置文件和模型文件的引擎命令。QLizzie 目前主要围绕 KataGo 系 `kata-analyze` 输出开发和测试。

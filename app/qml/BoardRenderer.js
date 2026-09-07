@@ -28,6 +28,7 @@ function stateFromApp(app, overrides) {
         "gameRuleReversi": app.gameRuleReversi,
         "gameRuleAtaxx": app.gameRuleAtaxx,
         "gameRuleBreakthrough": app.gameRuleBreakthrough,
+        "gameRuleSurakarta": app.gameRuleSurakarta,
         "hexGridBoard": app.ruleUsesHexGrid(),
         "squareCellBoard": app.ruleUsesSquareCells(),
         "hexCellStyleActive": app.ruleUsesHexCellStyle(),
@@ -94,6 +95,10 @@ function squareCellBoard(state) {
     return state.squareCellBoard === true
            || (state.gameRuleMode === state.gameRuleGomoku
                && state.boardPresentationMode === state.boardPresentationCells)
+}
+
+function surakartaBoard(state) {
+    return state.gameRuleMode === state.gameRuleSurakarta
 }
 
 function hexCellStyle(state) {
@@ -297,12 +302,13 @@ function createGeometry(state, width, height, options) {
     var coordinateOuterGapRatio = 0.10
     var hexCellCoordinateExtraRatio = hexCellStyle(state) ? 0.35 : 0
     var stoneRadiusRatio = state.stoneScale * 0.5
+    var surakartaLoopRadiusRatio = surakartaBoard(state) ? 2.12 : 0
     var horizontalPointRadiusRatio = hexBoard(state)
             ? (hexCellStyle(state) ? 0.5 : Math.max(stoneRadiusRatio, 0.5))
-            : stoneRadiusRatio
+            : Math.max(stoneRadiusRatio, surakartaLoopRadiusRatio)
     var verticalPointRadiusRatio = hexBoard(state)
             ? (hexCellStyle(state) ? HEX_CELL_RADIUS_RATIO : Math.max(stoneRadiusRatio, 0.5))
-            : stoneRadiusRatio
+            : Math.max(stoneRadiusRatio, surakartaLoopRadiusRatio)
     var maxXCoordinateChars = visible
             ? Math.max(String(xCoordinateText(state, 0)).length,
                        String(xCoordinateText(state, Math.max(0, state.boardSizeX - 1))).length)
@@ -857,6 +863,35 @@ function drawTorusGrid(ctx, state, geometry) {
     drawTorusBoundary(ctx, state, geometry)
 }
 
+function drawSurakartaLoops(ctx, state, geometry) {
+    if (!surakartaBoard(state) || state.boardSizeX !== 6 || state.boardSizeY !== 6)
+        return
+    var cell = geometry.cellSize
+    var maxX = state.boardSizeX - 1
+    var maxY = state.boardSizeY - 1
+    var corners = [
+        { "point": geometry.point(0, 0), "start": 0, "end": Math.PI / 2, "anticlockwise": true },
+        { "point": geometry.point(maxX, 0), "start": Math.PI, "end": Math.PI / 2, "anticlockwise": false },
+        { "point": geometry.point(maxX, maxY), "start": Math.PI * 1.5, "end": Math.PI, "anticlockwise": false },
+        { "point": geometry.point(0, maxY), "start": Math.PI * 1.5, "end": 0, "anticlockwise": true }
+    ]
+    ctx.save()
+    ctx.strokeStyle = "#2d2114"
+    ctx.globalAlpha = state.gridOpacity
+    ctx.lineWidth = Math.max(1, state.gridLineWidth)
+    ctx.lineCap = "round"
+    for (var radiusIndex = 1; radiusIndex <= 2; ++radiusIndex) {
+        for (var cornerIndex = 0; cornerIndex < corners.length; ++cornerIndex) {
+            var corner = corners[cornerIndex]
+            ctx.beginPath()
+            ctx.arc(corner.point.x, corner.point.y, cell * radiusIndex,
+                    corner.start, corner.end, corner.anticlockwise)
+            ctx.stroke()
+        }
+    }
+    ctx.restore()
+}
+
 function drawGrid(ctx, state, geometry) {
     var cell = geometry.cellSize
     ctx.save()
@@ -967,6 +1002,7 @@ function drawGrid(ctx, state, geometry) {
             ctx.lineTo(geometry.boardRight, py)
             ctx.stroke()
         }
+        drawSurakartaLoops(ctx, state, geometry)
     }
     ctx.restore()
 }
