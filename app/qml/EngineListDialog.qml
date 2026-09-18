@@ -588,11 +588,12 @@ AppWindowDialog {
             Rectangle {
                 visible: !engineListDialog.readOnlyMode
                 Layout.fillWidth: true
-                Layout.preferredHeight: 470
+                Layout.preferredHeight: Math.max(470, editorLayout.implicitHeight + 20)
                 color: "#f6fafc"
                 clip: true
 
                 ColumnLayout {
+                    id: editorLayout
                     anchors.fill: parent
                     anchors.margins: 10
                     spacing: 8
@@ -721,6 +722,13 @@ AppWindowDialog {
                         enabled: engineListDialog.selectedPreset() !== null
                         text: app.trText("legacyHexEngineCoordinatesShort")
                     }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
 
                     Item { Layout.fillWidth: true }
 
@@ -1465,10 +1473,11 @@ AppWindowDialog {
         Layout.preferredWidth: 86
         color: "#52636d"
         verticalAlignment: Text.AlignVCenter
+        wrapMode: Text.WordWrap
     }
 
     component CompactButton: SavePromptButton {
-        Layout.preferredWidth: Math.max(70, implicitWidth + 10)
+        Layout.preferredWidth: Math.max(70, implicitWidth + 10, contentItem.implicitWidth + 20)
         Layout.preferredHeight: 32
     }
 

@@ -114,6 +114,7 @@ AppDialog {
         font.pixelSize: goRuleDialog.app.compactLayout ? 12 : 13
         verticalAlignment: Text.AlignVCenter
         Layout.preferredWidth: 116
+        wrapMode: Text.WordWrap
     }
 
     component PresetButton: AppButton {
