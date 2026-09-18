@@ -50,11 +50,17 @@ Rectangle {
         border.width: 1
 
         Text {
-            anchors.centerIn: parent
+            anchors.fill: parent
+            anchors.margins: 3
             text: parent.text
             color: "#2d3438"
             font.pixelSize: app.compactLayout ? 11 : 12
             font.bold: true
+            fontSizeMode: Text.HorizontalFit
+            minimumPixelSize: 9
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
     }
 

@@ -134,6 +134,14 @@ TestCase {
         compare(application.currentNodeId, 0)
     }
 
+    function test_translation_preserves_empty_unit_and_missing_key_fallback() {
+        application.language = "en"
+        compare(application.trText("deleteNodeDescendantUnit"), "")
+        compare(application.trText("missingTranslationForTest"), "missingTranslationForTest")
+        application.language = "zh"
+        compare(application.trText("deleteNodeDescendantUnit"), "个")
+    }
+
     function test_new_engine_preset_precedes_existing_presets() {
         application.setEnginePresetList([
             { "id": "first", "name": "First", "command": "first-mock-engine" },

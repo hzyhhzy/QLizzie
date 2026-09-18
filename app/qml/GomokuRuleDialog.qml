@@ -194,7 +194,10 @@ AppDialog {
             Layout.fillWidth: true
             spacing: 8
 
-            FieldLabel { text: gomokuRuleDialog.app.trText("gomokuFirstPassWin") }
+            FieldLabel {
+                text: gomokuRuleDialog.app.trText("gomokuFirstPassWin")
+                Layout.minimumWidth: implicitWidth
+            }
             AppCheckBox {
                 compact: true
                 text: ""

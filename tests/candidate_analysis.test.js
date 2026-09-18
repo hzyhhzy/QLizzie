@@ -170,6 +170,29 @@ test("candidate display preserves engine order and only sorts an out-of-order fa
     assert.equal(fallbackSorted.items.map(item => item.move).join(","), "pass,D4")
 })
 
+test("unknown winrates stay distinct from a real zero without changing rank or marker colors", () => {
+    const settings = candidateAnalysis.presentationSettings(createApp())
+    const values = [0, NaN, Infinity, -Infinity, undefined]
+    const entries = values.map((winrate, order) => ({
+        candidate: { move: `A${order + 1}`, order, visits: 100, winrate },
+        point: { x: 0, y: order }, moveKind: "", moveText: `A${order + 1}`
+    }))
+    const built = candidateModel.build(entries.slice().reverse(), settings)
+
+    assert.deepEqual(Array.from(built.items, item => item.order), [0, 1, 2, 3, 4])
+    assert.deepEqual(Array.from(built.table, row => row.winrateText), ["0.0", "--", "--", "--", "--"])
+    assert.equal(candidateModel.winrateValue(entries[0].candidate), 0)
+    for (let index = 0; index < built.items.length; ++index) {
+        const item = built.items[index]
+        assert.match(item.color, /^#[0-9a-f]{6}$/i)
+        assert.ok(Number.isFinite(item.opacity))
+        assert.ok(Number.isFinite(item.outlineOpacity))
+        assert.equal(item.labelLines[0].text, index === 0 ? "0.0" : "--")
+        if (index > 0)
+            assert.ok(Number.isNaN(candidateModel.winrateValue(entries[index].candidate)))
+    }
+})
+
 test("candidate table rows are capped without removing board candidates", () => {
     const app = createApp({
         candidateDisplayCount: 1,

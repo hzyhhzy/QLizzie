@@ -13,8 +13,8 @@ function visitCount(candidate) {
 }
 
 function winrateValue(candidate) {
-    var value = Number(candidate ? candidate.winrate : 0)
-    return isNaN(value) ? 0 : clamp(value * 100, 0, 100)
+    var value = Number(candidate ? candidate.winrate : NaN)
+    return isFinite(value) ? clamp(value * 100, 0, 100) : NaN
 }
 
 function scoreValue(candidate) {
@@ -42,8 +42,10 @@ function formatVisitCount(value) {
 }
 
 function winrateText(candidate, style) {
-    return !candidate || candidate.winrate === undefined ? ""
-           : formatNumber(winrateValue(candidate), style.decimals, style.percent)
+    if (!candidate)
+        return ""
+    var value = winrateValue(candidate)
+    return isFinite(value) ? formatNumber(value, style.decimals, style.percent) : "--"
 }
 
 function scoreText(candidate, style) {

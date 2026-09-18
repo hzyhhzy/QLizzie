@@ -816,7 +816,7 @@ ApplicationWindow {
     function trText(key) {
         language
         var table = translations[language] || translations.zh
-        return table[key] || key
+        return table[key] === undefined ? key : table[key]
     }
 
     function windowTitleText() {

@@ -798,11 +798,16 @@ AppWindowDialog {
                                     }
                                 }
 
-                                RowLayout {
+                                GridLayout {
                                     Layout.fillWidth: true
-                                    spacing: 8
+                                    Layout.minimumWidth: 0
+                                    columns: width >= firstCandidateColor.implicitWidth
+                                                     + secondCandidateColor.implicitWidth + columnSpacing ? 2 : 1
+                                    columnSpacing: 8
+                                    rowSpacing: 8
 
                                     ColorRow {
+                                        id: firstCandidateColor
                                         label: app.trText("candidateFirstLabelTextColor")
                                         field: candidateFirstTextColorField
                                         compact: true
@@ -812,6 +817,7 @@ AppWindowDialog {
                                     }
 
                                     ColorRow {
+                                        id: secondCandidateColor
                                         label: app.trText("candidateSecondLabelTextColor")
                                         field: candidateTextColorField
                                         compact: true
@@ -1437,114 +1443,132 @@ AppWindowDialog {
         }
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 44
+        Layout.preferredHeight: labelFields.implicitHeight + 14
         radius: 6
         color: "#ffffff"
         border.color: "#c7d4db"
         opacity: controlsEnabled ? 1 : 0.52
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 6
-            anchors.rightMargin: 6
-            spacing: 3
+        Flow {
+            id: labelFields
+            x: 6
+            y: 7
+            width: parent.width - 12
+            spacing: 6
 
-            Label {
-                text: "<"
-                color: "#58717e"
-                font.pixelSize: 14
-                font.bold: true
-                Layout.preferredWidth: 10
+            Row {
+                height: 30
+                spacing: 3
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "<"
+                    color: "#58717e"
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                AppCheckBox {
+                    height: 30
+                    width: 24
+                    enabled: labelControl.controlsEnabled
+                    compact: true
+                    checked: labelControl.lineVisible()
+                    onToggled: labelControl.setLineVisible(checked)
+                }
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: labelControl.title
+                    color: "#17212a"
+                    font.pixelSize: 13
+                    font.bold: true
+                }
             }
 
             AppCheckBox {
-                enabled: labelControl.controlsEnabled
-                compact: true
-                checked: labelControl.lineVisible()
-                Layout.preferredWidth: 24
-                onToggled: labelControl.setLineVisible(checked)
-            }
-
-            Label {
-                text: labelControl.title
-                color: "#17212a"
-                font.pixelSize: 13
-                font.bold: true
-                Layout.preferredWidth: 40
-                elide: Text.ElideRight
-            }
-
-            AppCheckBox {
+                height: 30
                 enabled: labelControl.controlsEnabled
                 compact: true
                 text: app.trText("candidateLabelBold")
                 checked: labelControl.lineBold()
-                Layout.preferredWidth: 46
                 onToggled: labelControl.setLineBold(checked)
             }
 
-            Label {
-                text: app.trText("candidateLabelFontSize")
-                color: "#53656f"
-                font.pixelSize: 11
-                Layout.preferredWidth: 22
-                elide: Text.ElideRight
+            Row {
+                height: 30
+                spacing: 3
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: app.trText("candidateLabelFontSize")
+                    color: "#53656f"
+                    font.pixelSize: 11
+                }
+
+                AppSpinBox {
+                    enabled: labelControl.controlsEnabled
+                    compact: true
+                    from: 12
+                    to: 120
+                    editable: true
+                    value: labelControl.lineFontSize()
+                    width: 58
+                    height: 30
+                    onValueModified: labelControl.setLineFontSize(value)
+                }
             }
 
-            AppSpinBox {
-                enabled: labelControl.controlsEnabled
-                compact: true
-                from: 12
-                to: 120
-                editable: true
-                value: labelControl.lineFontSize()
-                Layout.preferredWidth: 58
-                Layout.preferredHeight: 30
-                onValueModified: labelControl.setLineFontSize(value)
+            Row {
+                height: 30
+                spacing: 3
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: app.trText("candidateLabelOffsetY")
+                    color: "#53656f"
+                    font.pixelSize: 11
+                }
+
+                AppSpinBox {
+                    enabled: labelControl.controlsEnabled
+                    compact: true
+                    from: -64
+                    to: 64
+                    editable: true
+                    value: labelControl.lineOffsetY()
+                    width: 58
+                    height: 30
+                    onValueModified: labelControl.setLineOffsetY(value)
+                }
             }
 
-            Label {
-                text: app.trText("candidateLabelOffsetY")
-                color: "#53656f"
-                font.pixelSize: 11
-                Layout.preferredWidth: 22
-                elide: Text.ElideRight
-            }
-
-            AppSpinBox {
-                enabled: labelControl.controlsEnabled
-                compact: true
-                from: -64
-                to: 64
-                editable: true
-                value: labelControl.lineOffsetY()
-                Layout.preferredWidth: 58
-                Layout.preferredHeight: 30
-                onValueModified: labelControl.setLineOffsetY(value)
-            }
-
-            Label {
+            Row {
+                height: 30
+                spacing: 3
                 visible: labelControl.lineKind !== 1
-                text: app.trText("candidateLabelDecimals")
-                color: "#53656f"
-                font.pixelSize: 11
-                Layout.preferredWidth: 24
-                elide: Text.ElideRight
-            }
 
-            AppComboBox {
-                visible: labelControl.lineKind !== 1
-                enabled: labelControl.controlsEnabled
-                compact: true
-                textHorizontalAlignment: Text.AlignHCenter
-                model: [ "0", "1", "2" ]
-                currentIndex: labelControl.lineDecimals()
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 30
-                onActivated: function(index) { labelControl.setLineDecimals(index) }
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: app.trText("candidateLabelDecimals")
+                    color: "#53656f"
+                    font.pixelSize: 11
+                }
+
+                AppComboBox {
+                    enabled: labelControl.controlsEnabled
+                    compact: true
+                    textHorizontalAlignment: Text.AlignHCenter
+                    model: [ "0", "1", "2" ]
+                    currentIndex: labelControl.lineDecimals()
+                    width: 48
+                    height: 30
+                    onActivated: function(index) { labelControl.setLineDecimals(index) }
+                }
             }
 
             AppCheckBox {
+                height: 30
                 visible: labelControl.lineKind === 0
                          || (labelControl.lineKind === 2
                              && app.candidateScoreTitleMode === app.candidateScoreTitleDrawRate)
@@ -1552,11 +1576,8 @@ AppWindowDialog {
                 compact: true
                 text: "%"
                 checked: labelControl.lineShowPercent()
-                Layout.preferredWidth: 38
                 onToggled: labelControl.setLineShowPercent(checked)
             }
-
-            Item { Layout.fillWidth: true }
         }
     }
 
