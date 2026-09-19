@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
@@ -569,7 +570,7 @@ ColumnLayout {
                 SavePromptButton {
                     text: app.trText("setCommonGameRules")
                     implicitWidth: 154
-                    onClicked: app.openCommonGameRulesPopup()
+                    onClicked: app.openCommonGameRulesPopup(ruleSettingsPage.Window.window)
                 }
 
                 Label {

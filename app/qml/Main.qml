@@ -296,8 +296,9 @@ ApplicationWindow {
     readonly property bool engineCandidatesFromCache: analysisSession.engineCandidatesFromCache
     property double lastEngineCandidateUiUpdateAt: 0
     property int pendingEngineCandidateSyncRequestId: 0
-    readonly property int largeCandidateUiThreshold: 1000
-    readonly property int largeCandidateUiIntervalMs: 1000
+    // Coalesce dense analysis without delaying ordinary 19x19 boards or AI moves.
+    readonly property int largeCandidateUiThreshold: 400
+    readonly property int largeCandidateUiIntervalMs: 200
     property bool bestCandidateRingVisible: false
     property string bestCandidateRingKey: ""
     property int bestCandidateRingX: -1
@@ -626,7 +627,7 @@ ApplicationWindow {
         id: engineCommunicationLogModel
     }
 
-    SettingsDialog { id: settingsDialog; app: root; controller: engineController }
+    SettingsDialog { id: settingsDialog; objectName: "settingsDialog"; app: root; controller: engineController }
     HiddenSettingsDialog { id: hiddenSettingsDialog; app: root; controller: engineController }
     EngineParametersDialog { id: engineParametersDialog; app: root; controller: engineController }
     EngineListDialog { id: engineListDialog; app: root; controller: engineController }
@@ -662,9 +663,9 @@ ApplicationWindow {
 
     CommonRulesPopup {
         id: commonGameRulesPopup
+        objectName: "commonGameRulesPopup"
+        app: root
         compactLayout: root.compactLayout
-        viewportWidth: root.width
-        viewportHeight: root.height
         gameRuleMode: root.gameRuleMode
         translate: root.trText
         rowsForGroups: root.ruleTreeRows
@@ -1798,8 +1799,11 @@ ApplicationWindow {
         })
     }
 
-    function openCommonGameRulesPopup() {
+    function openCommonGameRulesPopup(ownerWindow) {
+        var owner = ownerWindow || root
         Qt.callLater(function() {
+            commonGameRulesPopup.owningWindow = owner
+            commonGameRulesPopup.centerTarget = owner
             commonGameRulesPopup.open()
         })
     }
@@ -2229,9 +2233,20 @@ ApplicationWindow {
     }
 
     function engineBoardSizeCommands() {
+        var shape = gameRuleMode === gameRuleHexGoParallelogram ? 4
+                  : gameRuleMode === gameRuleHexGoHexagon ? 6
+                  : gameRuleMode === gameRuleHexGoTriangle ? 3 : 0
+        // HexGo2024 validates boardsize against the current shape. Reset to the
+        // unrestricted shape before resizing (e.g. hexagon -> even triangle or
+        // rectangle), then apply the requested mask before replaying moves.
+        var commands = shape > 0 ? [ "shape 4" ] : []
         if (boardSizeX === boardSizeY)
-            return [ "boardsize " + boardSizeX ]
-        return [ "rectangular_boardsize " + boardSizeX + " " + boardSizeY ]
+            commands.push("boardsize " + boardSizeX)
+        else
+            commands.push("rectangular_boardsize " + boardSizeX + " " + boardSizeY)
+        if (shape > 0 && shape !== 4)
+            commands.push("shape " + shape)
+        return commands
     }
 
     function legacyHexEngineCoordinateMode() {
@@ -3721,6 +3736,7 @@ ApplicationWindow {
         engineCommunicationWindow.closeWindow()
         candidateListWindow.closeWindow()
         beginnerTutorialDialog.closeTutorialWindow()
+        commonGameRulesPopup.closeWindowForShutdown()
         settingsDialog.closeWindowForShutdown()
         hiddenSettingsDialog.closeWindowForShutdown()
         engineListDialog.closeWindowForShutdown()
@@ -4005,7 +4021,7 @@ ApplicationWindow {
 
     AnalysisToolbar { id: analysisToolbar; app: root }
     CommandToolbar { id: commandToolbar; app: root }
-    BoardScene { id: boardScene; app: root }
+    BoardScene { id: boardScene; objectName: "boardScene"; app: root }
     BoardInputLayer { id: inputLayer; app: root; anchors.fill: boardScene }
     InfoPanel { id: infoPanel; app: root }
 

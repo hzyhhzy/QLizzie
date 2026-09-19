@@ -27,6 +27,9 @@ if(WIN32)
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
         OUTPUT_NAME QLizzie
+        # The root launcher must start on a clean machine before the app-local
+        # runtime DLLs in bin can be loaded by the main application.
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
     )
     if(COMMAND qlizzie_enable_local_copy)
         qlizzie_enable_local_copy(qlizzie_launcher "QLizzie.exe")

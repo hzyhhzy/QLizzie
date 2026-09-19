@@ -5,6 +5,17 @@ import "../../app/qml" as Models
 TestCase {
     id: testCase
     name: "AnalysisSession"
+    property int coordinateParseCalls: 0
+    property string boardSignature: "2x2-go"
+    property bool swapCoordinates: false
+
+    function parseCoordinate(text) {
+        coordinateParseCalls += 1
+        if (text !== "A1" && text !== "B2")
+            return null
+        var index = text === "A1" ? 0 : 1
+        return { "x": swapCoordinates ? 1 - index : index, "y": index }
+    }
 
     Models.GameSession {
         id: game
@@ -19,14 +30,12 @@ TestCase {
         ownershipEnabled: true
         ownershipSupported: true
         position: ({ "nodeId": game.currentNodeId, "generation": game.gameTreeGeneration,
-                     "player": game.currentPlayer, "boardSignature": "2x2-go",
+                     "player": game.currentPlayer, "boardSignature": testCase.boardSignature,
                      "komiSignature": "7.5", "engineSignature": "test-engine" })
         currentNode: game.currentNode()
         nodeResolver: function(id) { return game.nodeById(id) }
         nodeAnalysisWriter: function(id, values) { return game.updateNodeAnalysis(id, values) }
-        coordinateParser: function(text) {
-            return text === "A1" ? { "x": 0, "y": 0 } : text === "B2" ? { "x": 1, "y": 1 } : null
-        }
+        coordinateParser: testCase.parseCoordinate
         coordinateFormatter: function(x, y) { return x === 0 ? "A1" : "B2" }
         presentationSettings: ({
             "displayCount": 10, "minVisitRatio": 0, "showFilteredMarkers": true,
@@ -47,6 +56,13 @@ TestCase {
         game.reset()
         analysis.resetCandidates()
         analysis.resetOwnership()
+        analysis.boardSizeX = 2
+        analysis.boardSizeY = 2
+        boardSignature = "2x2-go"
+        swapCoordinates = false
+        analysis.coordinateParser = testCase.parseCoordinate
+        analysis.coordinateFormatter = function(x, y) { return x === 0 ? "A1" : "B2" }
+        coordinateParseCalls = 0
         boardSpy.clear()
         treeSpy.clear()
         displaySpy.clear()
@@ -82,6 +98,39 @@ TestCase {
         compare(analysis.engineCandidateItems.length, 1)
         compare(analysis.engineCandidates[0].visits, 50)
         compare(acceptedSpy.count, 0)
+    }
+
+    function test_repeated_candidates_reuse_coordinates_but_refresh_labels_and_visits() {
+        analysis.setCandidates([{ "move": "A1", "visits": 50 }, { "move": "B2", "visits": 20 }])
+        compare(coordinateParseCalls, 2)
+        analysis.setCandidates([{ "move": "B2", "visits": 200 }, { "move": "A1", "visits": 100 }])
+        compare(coordinateParseCalls, 2)
+        compare(analysis.engineCandidateItems[0].key, "1,1")
+        compare(analysis.engineCandidateItems[0].visits, 200)
+        analysis.coordinateFormatter = function(x, y) { return (x + 1) + ":" + (y + 1) }
+        compare(analysis.engineCandidateTableItems[0].coordinate, "2:2")
+        compare(coordinateParseCalls, 2)
+    }
+
+    function test_coordinate_cache_expires_when_board_or_parser_changes() {
+        var candidates = [{ "move": "A1", "visits": 50 }]
+        analysis.setCandidates(candidates)
+        compare(analysis.engineCandidateItems[0].key, "0,0")
+        analysis.boardSizeX = 3
+        analysis.setCandidates(candidates)
+        compare(coordinateParseCalls, 2)
+        swapCoordinates = true
+        boardSignature = "2x2-legacy-hex"
+        analysis.setCandidates(candidates)
+        compare(coordinateParseCalls, 3)
+        compare(analysis.engineCandidateItems[0].key, "1,0")
+        analysis.coordinateParser = function(text) { return { "x": 0, "y": 1 } }
+        compare(analysis.engineCandidateItems[0].key, "0,1")
+        analysis.coordinateParser = testCase.parseCoordinate
+        var calls = coordinateParseCalls
+        analysis.resetCandidates()
+        analysis.setCandidates(candidates)
+        compare(coordinateParseCalls, calls + 1)
     }
 
     function test_late_previous_game_packet_never_annotates_reused_node() {

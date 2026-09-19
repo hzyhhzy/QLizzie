@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtTest
 import "../../app/qml" as App
 
@@ -79,7 +80,7 @@ TestCase {
         }
         function requestAnalysis(syncCommands, analysisCommand, syncRequestId) {
             requests = requests.concat([{ "kind": "analysis", "syncRequestId": syncRequestId,
-                "command": analysisCommand }])
+                "syncCommands": syncCommands, "command": analysisCommand }])
         }
         function requestSynchronization(syncCommands, syncRequestId) {
             requests = requests.concat([{ "kind": "sync", "syncRequestId": syncRequestId }])
@@ -153,6 +154,88 @@ TestCase {
         verify(newId.length > 0 && newId !== "first" && newId !== "second")
         compare(application.enginePresets[1].id, "first")
         compare(application.enginePresets[2].id, "second")
+    }
+
+    function test_common_rules_popup_belongs_to_the_window_that_opened_it() {
+        application.visible = true
+        var settings = findChild(application, "settingsDialog")
+        var popup = findChild(application, "commonGameRulesPopup")
+        verify(settings !== null && popup !== null)
+        settings.openPage(1)
+        application.openCommonGameRulesPopup(settings)
+        tryCompare(popup, "visible", true)
+        compare(popup.transientParent, settings)
+        compare(popup.modality, Qt.WindowModal)
+        compare(popup.dialogBody.width, popup.width)
+        popup.close()
+        settings.close()
+
+        application.openCommonGameRulesPopup()
+        tryCompare(popup, "visible", true)
+        compare(popup.transientParent, application)
+        popup.close()
+    }
+
+    function requestAnalysisSync() {
+        application.engineDisabled = false
+        engineController.running = true
+        engineController.ready = true
+        application.engineLoading = false
+        application.requestEngineAnalysis(true)
+        var request = engineController.requests[engineController.requests.length - 1]
+        verify(request !== undefined)
+        engineController.engineSynchronizationCompleted(request.syncRequestId)
+        return request.syncCommands
+    }
+
+    function test_hexgo_shape_sync_data() {
+        return [
+            { tag: "parallelogram", mode: 6, shape: 4 },
+            { tag: "hexagon", mode: 7, shape: 6 },
+            { tag: "triangle", mode: 8, shape: 3 }
+        ]
+    }
+
+    function test_hexgo_shape_sync(data) {
+        application.gameRuleMode = data.mode
+        application.resetGameTree()
+        verify(application.placeStone(4, 4))
+        var commands = requestAnalysisSync()
+        compare(commands[0], "stop")
+        compare(commands[1], "shape 4")
+        compare(commands[2], "boardsize 9")
+        var shapeIndex = commands.indexOf("shape " + data.shape)
+        verify(shapeIndex > 0 && shapeIndex < commands.indexOf("clear_board"))
+        verify(commands[commands.length - 1].indexOf("play B ") === 0)
+
+        // shape clears the engine board, so an incremental update must not send it.
+        verify(application.placeStone(4, 5))
+        commands = requestAnalysisSync()
+        compare(commands.length, 2)
+        compare(commands[0], "stop")
+        verify(commands[1].indexOf("play W ") === 0)
+    }
+
+    function test_hexgo_shape_change_resets_mask_before_resizing() {
+        application.gameRuleMode = application.gameRuleHexGoHexagon
+        application.resetGameTree()
+        requestAnalysisSync()
+        application.gameRuleMode = application.gameRuleHexGoTriangle
+        application.boardSizeX = 8
+        application.boardSizeY = 8
+        application.resetGameTree()
+        compare(requestAnalysisSync().slice(0, 4), ["stop", "shape 4", "boardsize 8", "shape 3"])
+
+        application.gameRuleMode = application.gameRuleHexGoParallelogram
+        application.boardSizeY = 6
+        application.resetGameTree()
+        compare(requestAnalysisSync().slice(0, 3), ["stop", "shape 4", "rectangular_boardsize 8 6"])
+    }
+
+    function test_regular_go_does_not_send_hexgo_shape() {
+        var commands = requestAnalysisSync()
+        for (var i = 0; i < commands.length; ++i)
+            verify(commands[i].indexOf("shape ") !== 0)
     }
 
     function test_place_undo_branch_and_delete() {
@@ -270,6 +353,84 @@ TestCase {
         verify(application.engineCandidatesFromCache)
         compare(application.engineOwnership.length, values.length)
         verify(application.engineOwnershipFromCache)
+    }
+
+    function denseHexCandidates(visits) {
+        var candidates = []
+        for (var y = 0; y < application.boardSizeY; ++y) {
+            for (var x = 0; x < application.boardSizeX; ++x) {
+                if (application.pointInRuleBoard(x, y))
+                    candidates.push({ "move": application.engineCoordinateForNode({ "x": x, "y": y }),
+                                      "order": candidates.length, "visits": visits, "winrate": 0.5 })
+            }
+        }
+        return candidates
+    }
+
+    function test_dense_analysis_coalesces_latest_packet_and_discards_old_position() {
+        application.boardSizeX = 35
+        application.boardSizeY = 35
+        application.gameRuleMode = application.gameRuleHexGoHexagon
+        application.legacyHexEngineCoordinates = true
+        application.resetGameTree()
+        requestAnalysisSync()
+        application.lastEngineCandidateUiUpdateAt = 0
+        engineController.candidateRevision = 101
+        engineController.candidates = denseHexCandidates(100)
+        compare(application.engineCandidateRevision, 101)
+        compare(application.engineCandidateItems.length, 919)
+        engineController.candidateRevision = 102
+        engineController.candidates = denseHexCandidates(200)
+        engineController.candidateRevision = 103
+        engineController.candidates = denseHexCandidates(300)
+        compare(application.engineCandidateRevision, 101)
+        tryCompare(application, "engineCandidateRevision", 103, 1000)
+        compare(application.engineCandidateItems.length, 919)
+        compare(application.currentNode().analysisCandidates[0].visits, 300)
+
+        engineController.candidateRevision = 104
+        engineController.candidates = denseHexCandidates(400)
+        application.resetGameTree()
+        wait(application.largeCandidateUiIntervalMs + 50)
+        compare(application.engineCandidateItems.length, 0)
+        compare(application.currentNode().analysisCandidates.length, 0)
+    }
+
+    function test_board_geometry_stays_current_after_rotation_resize_and_rule_changes() {
+        var scene = findChild(application, "boardScene")
+        verify(scene !== null)
+        application.width = 1280
+        application.height = 900
+        application.visible = true
+        wait(20)
+        application.boardSizeX = 35
+        application.boardSizeY = 27
+        application.gameRuleMode = application.gameRuleHexGoParallelogram
+        var rotations = [application.hexRotationCurrent, application.hexRotationTranspose,
+                         application.hexRotationFlipX, application.hexRotationVertical]
+        for (var i = 0; i < rotations.length; ++i) {
+            application.hexBoardRotation = rotations[i]
+            var pixel = scene.boardPointLocal(3, 7)
+            var point = scene.pointFromMouse(pixel.x, pixel.y)
+            compare(point.x, 3)
+            compare(point.y, 7)
+        }
+        var oldPoint = scene.boardPointLocal(3, 7)
+        application.width = 900
+        application.height = 600
+        wait(20)
+        var resizedPoint = scene.boardPointLocal(3, 7)
+        verify(oldPoint.x !== resizedPoint.x || oldPoint.y !== resizedPoint.y)
+        var resized = scene.pointFromMouse(resizedPoint.x, resizedPoint.y)
+        compare(resized.x, 3)
+        compare(resized.y, 7)
+        application.gameRuleMode = application.gameRuleGo
+        application.boardSizeX = 19
+        application.boardSizeY = 19
+        var goPoint = scene.boardPointLocal(3, 7)
+        var go = scene.pointFromMouse(goPoint.x, goPoint.y)
+        compare(go.x, 3)
+        compare(go.y, 7)
     }
 
     function test_imported_analysis_without_signatures_shows_immediately() {

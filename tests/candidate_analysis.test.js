@@ -12,6 +12,7 @@ const gameRulesPath = path.join(__dirname, "..", "app", "qml", "GameRules.js")
 const registry = loadQmlJs(registryPath)
 const gameRules = loadQmlJs(gameRulesPath, { imports: { RuleRegistry: registry } })
 const candidateModel = loadQmlJs(path.join(__dirname, "..", "app", "qml", "CandidateModel.js"))
+const canvasTextCache = loadQmlJs(path.join(__dirname, "..", "app", "qml", "CanvasTextCache.js"))
 const movePreview = loadQmlJs(path.join(__dirname, "..", "app", "qml", "MovePreview.js"), {
     imports: { GameRules: gameRules }
 })
@@ -23,6 +24,56 @@ const candidateAnalysis = loadQmlJs(candidatePath, {
     }
 })
 const analysisStatus = loadQmlJs(analysisStatusPath)
+
+function textCacheFixture(budget) {
+    const images = []
+    const drawn = []
+    const scratch = {
+        measureText() { return { width: 10 } },
+        resetTransform() {}, clearRect() {}, scale() {},
+        fillText(text) { this.text = text },
+        getImageData() {
+            const image = { text: this.text, font: this.font, color: this.fillStyle }
+            images.push(image)
+            return image
+        }
+    }
+    const cache = canvasTextCache.create(scratch, 512, 128, budget)
+    const ctx = { drawImage(image) { drawn.push(image) } }
+    return { images, drawn, draw(text, color = "#000000", size = 7) {
+        return cache.draw(ctx, text, 20, 30, "400 " + size + "px sans-serif", color, size)
+    } }
+}
+
+test("dense label images reuse matching text and refresh changed colors or fonts", () => {
+    const cache = textCacheFixture()
+    assert.equal(cache.draw("50.0"), true)
+    assert.equal(cache.draw("50.0"), true)
+    assert.equal(cache.images.length, 1)
+    assert.equal(cache.drawn[0], cache.drawn[1])
+    cache.draw("50.0", "#ff0000")
+    cache.draw("50.0", "#000000", 8)
+    cache.draw("51.0")
+    assert.equal(cache.images.length, 4)
+    assert.equal(cache.drawn[2].color, "#ff0000")
+    assert.equal(cache.drawn[3].font, "400 8px sans-serif")
+    assert.equal(cache.drawn[4].text, "51.0")
+    assert.equal(cache.draw("50.0", "#000000", 100), false)
+    assert.equal(cache.drawn.length, 5, "Oversized labels must fall back to vector drawing")
+})
+
+test("dense label cache stays within its pixel budget and keeps recently used numbers", () => {
+    // Each fixture label is (10+4) x (7*2+4) pixels at 2x resolution: 4032 bytes.
+    const cache = textCacheFixture(8064)
+    cache.draw("A")
+    cache.draw("B")
+    cache.draw("A")
+    cache.draw("C")
+    cache.draw("A")
+    assert.equal(cache.images.length, 3)
+    cache.draw("B")
+    assert.equal(cache.images.length, 4, "The least recently used label was evicted")
+})
 
 function createApp(overrides = {}) {
     const translations = {

@@ -64,6 +64,7 @@ qt_add_qml_module(qlizzie
         qml/BranchPanel.qml
         qml/CandidateAnalysis.js
         qml/CandidateModel.js
+        qml/CanvasTextCache.js
         qml/CandidateTable.js
         qml/CandidateListWindow.qml
         qml/CandidateMarkerView.qml

@@ -7,9 +7,10 @@
 function copyCandidates(candidates) {
     var copy = []
     for (var i = 0; candidates && i < candidates.length; ++i) {
+        var candidate = candidates[i]
         var item = ({})
-        for (var key in candidates[i]) {
-            var value = candidates[i][key]
+        for (var key in candidate) {
+            var value = candidate[key]
             item[key] = value && typeof value !== "string" && typeof value.slice === "function"
                         ? value.slice() : value
         }

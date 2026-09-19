@@ -25,6 +25,8 @@ QtObject {
 
     property var _candidates: []
     property var _projection: ({ "items": [], "itemMap": ({}), "table": [] })
+    property var _coordinateCache: ({})
+    property string _coordinateCacheSignature: ""
     property int _candidateRevision: 0
     property bool _candidatesFromCache: false
     property var _ownership: []
@@ -51,7 +53,10 @@ QtObject {
     signal liveCandidatesAccepted()
 
     onPresentationSettingsChanged: rebuildCandidates()
-    onCoordinateParserChanged: rebuildCandidates()
+    onCoordinateParserChanged: {
+        _coordinateCache = ({})
+        rebuildCandidates()
+    }
     onCoordinateFormatterChanged: rebuildCandidates()
     onPassTextChanged: rebuildCandidates()
     onResignTextChanged: rebuildCandidates()
@@ -82,16 +87,30 @@ QtObject {
             candidatesChangedForDisplay()
             return
         }
+        var signature = boardSizeX + ":" + boardSizeY + ":" + (position.boardSignature || "")
+        var previousCoordinates = signature === _coordinateCacheSignature ? _coordinateCache : ({})
+        var nextCoordinates = ({})
         var entries = []
-        for (var i = 0; i < _candidates.length; ++i) {
-            var candidate = _candidates[i] || ({})
+        var candidates = _candidates
+        for (var i = 0; i < candidates.length; ++i) {
+            var candidate = candidates[i] || ({})
             var normalized = String(candidate.move || "").trim().toLowerCase()
             var kind = normalized === "pass" || normalized === "resign" ? normalized : ""
-            var point = kind === "" ? coordinateParser(candidate.move) : null
+            var point = null
+            if (kind === "") {
+                var key = "$" + candidate.move
+                point = previousCoordinates[key]
+                if (point === undefined)
+                    point = coordinateParser(candidate.move)
+                nextCoordinates[key] = point
+            }
             entries.push({ "candidate": candidate, "point": point, "moveKind": kind,
                            "moveText": point ? coordinateFormatter(point.x, point.y)
                                        : kind === "pass" ? passText : kind === "resign" ? resignText : "" })
         }
+        // Keep only this batch's coordinates; a changing stream cannot grow the cache indefinitely.
+        _coordinateCache = nextCoordinates
+        _coordinateCacheSignature = signature
         _projection = CandidateModel.build(entries, presentationSettings)
         candidatesChangedForDisplay()
     }

@@ -2,11 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-AppPopup {
+AppWindowDialog {
 
     required property bool compactLayout
-    required property real viewportWidth
-    required property real viewportHeight
     required property int gameRuleMode
     required property var translate
     required property var rowsForGroups
@@ -30,12 +28,12 @@ AppPopup {
     readonly property int commonCheckSize: commonGameRulesPopup.compactLayout ? 18 : 20
 
     modal: true
-    focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    width: Math.min(commonGameRulesPopup.viewportWidth - 80, commonGameRulesPopup.compactLayout ? 640 : 860)
-    height: Math.min(commonGameRulesPopup.viewportHeight - 100, commonGameRulesPopup.compactLayout ? 500 : 640)
-    x: Math.round((commonGameRulesPopup.viewportWidth - width) / 2)
-    y: Math.round((commonGameRulesPopup.viewportHeight - height) / 2)
+    title: translate("commonGameRulesTitle")
+    closePolicy: Popup.CloseOnEscape
+    preferredWidth: boundedPreferredWidth(compactLayout ? 820 : 1000, 40)
+    preferredHeight: boundedPreferredHeight(compactLayout ? 540 : 640, 70)
+    dialogMinimumWidth: Math.min(820, preferredWidth)
+    dialogMinimumHeight: Math.min(460, preferredHeight)
     padding: 0
     onOpened: collapsedGroups = commonGameRulesPopup.initialCollapsedGroups()
 
@@ -50,14 +48,7 @@ AppPopup {
         collapsedGroups = next
     }
 
-    background: Rectangle {
-        radius: 9
-        color: "#f8fbfd"
-        border.color: "#9fb3bf"
-        border.width: 1
-    }
-
-    contentItem: ColumnLayout {
+    dialogBody: ColumnLayout {
         spacing: 0
 
         Rectangle {

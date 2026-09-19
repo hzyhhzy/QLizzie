@@ -1,5 +1,8 @@
 import QtQuick
 import "BoardRenderer.js" as BoardRenderer
+import "CandidateAnalysis.js" as CandidateAnalysis
+import "CandidateModel.js" as CandidateModel
+import "CanvasTextCache.js" as CanvasTextCache
 import "Ownership.js" as Ownership
 
 Item {
@@ -98,6 +101,10 @@ Item {
         app.analysisPresentationVisible() && app.hoverKey !== ""
                                                   && app.pointIsEngineCandidateKey(app.hoverKey)
 
+    // These depend on board/layout settings, not the analysis packet or mouse position.
+    readonly property var boardRenderState: BoardRenderer.stateFromApp(app)
+    readonly property var boardRenderGeometry: BoardRenderer.geometryFromScene(boardScene)
+
     function hexDisplayCoordForBoard(x, y) {
         return hexTransposed ? Qt.point(y, x) : Qt.point(x, y)
     }
@@ -174,11 +181,11 @@ Item {
     }
 
     function rendererState() {
-        return BoardRenderer.stateFromApp(app)
+        return boardRenderState
     }
 
     function rendererGeometry() {
-        return BoardRenderer.geometryFromScene(boardScene)
+        return boardRenderGeometry
     }
 
     Rectangle {
@@ -533,8 +540,18 @@ Item {
         }
     }
 
+    // A small invisible scratch surface supplies cached label images; it never
+    // captures the board or allocates an image the size of the full window.
+    Canvas {
+        id: candidateTextCanvas
+        width: 512
+        height: 128
+        opacity: 0
+    }
+
     Canvas {
         id: candidateCanvas
+        property var textCache: null
         anchors.fill: parent
         visible: app.analysisPresentationVisible()
                  && !boardScene.variationPreviewActive
@@ -555,29 +572,34 @@ Item {
             ctx.clearRect(0, 0, width, height)
             var cell = boardScene.cellSize
             var candidateRadius = Math.max(8, cell * app.stoneScale * 0.5)
+            var candidates = app.engineCandidateItems
+            var drawingSettings = CandidateAnalysis.drawingSettings(app)
+            var markerSettings = CandidateAnalysis.markerSettings(app)
+            var bestRingVisible = app.bestCandidateRingVisible && app.candidateRingVisible
+            var bestRingKey = app.bestCandidateRingKey
+            var ringColor = app.firstCandidateRingColor
+            var firstLabelColor = app.candidateFirstLabelTextColor
 
             if (!boardScene.variationPreviewActive) {
                 var simpleMarkerBuckets = ({})
                 var simpleMarkerBucketKeys = []
                 var detailedCandidates = []
                 var bucketLevels = 32
-                for (var c = app.engineCandidateItems.length - 1; c >= 0; --c) {
-                    var candidate = app.engineCandidateItems[c]
+                for (var c = candidates.length - 1; c >= 0; --c) {
+                    var candidate = candidates[c]
                     if (!candidate.boardVisible)
                         continue
                     var cp = boardScene.boardPointLocal(candidate.x, candidate.y)
                     var showCandidateText = candidate.qualified
                     var candidateLines = showCandidateText ? (candidate.labelLines || []) : []
                     var isFirstCandidate = candidate.displayIndex === 1
-                    var isBestCandidate = app.bestCandidateRingVisible
-                                          && app.candidateRingVisible
-                                          && candidate.key === app.bestCandidateRingKey
+                    var isBestCandidate = bestRingVisible && candidate.key === bestRingKey
                     if (!showCandidateText && candidate.displayIndex > 9
                             && !isBestCandidate) {
                         var visitRatio = Math.max(0, Math.min(1, Number(candidate.visitRatio)))
                         var colorLevel = Math.round(Math.sqrt(visitRatio)
                                                     * (bucketLevels - 1))
-                        var alphaLevel = Math.round(app.candidateYzyAlphaRatio(visitRatio)
+                        var alphaLevel = Math.round(CandidateModel.alphaRatio(visitRatio, markerSettings)
                                                     * (bucketLevels - 1))
                         var bucketKey = colorLevel * bucketLevels + alphaLevel
                         var bucket = simpleMarkerBuckets[bucketKey]
@@ -587,15 +609,12 @@ Item {
                             var colorVisitRatio = colorFraction * colorFraction
                             var alphaVisitRatio = Math.exp(
                                         (alphaFraction - 1)
-                                        * app.candidateYzyAlphaFactor)
+                                        * markerSettings.alphaFactor)
                             bucket = {
                                 "points": [],
-                                "fillColor": app.candidateMarkerColor(2,
-                                                                       colorVisitRatio),
-                                "fillOpacity": app.candidateMarkerOpacity(
-                                                   2, alphaVisitRatio),
-                                "outlineOpacity": app.candidateMarkerOutlineOpacity(
-                                                      alphaVisitRatio)
+                                "fillColor": CandidateModel.markerColor(2, colorVisitRatio, markerSettings),
+                                "fillOpacity": CandidateModel.markerOpacity(alphaVisitRatio, markerSettings),
+                                "outlineOpacity": CandidateModel.markerOutlineOpacity(alphaVisitRatio, markerSettings)
                             }
                             simpleMarkerBuckets[bucketKey] = bucket
                             simpleMarkerBucketKeys.push(bucketKey)
@@ -641,6 +660,13 @@ Item {
                     ctx.restore()
                 }
 
+                if (detailedCandidates.length > 100 && candidateRadius <= 16
+                        && candidateTextCanvas.available) {
+                    if (!textCache)
+                        textCache = CanvasTextCache.create(candidateTextCanvas.getContext("2d"),
+                                                          candidateTextCanvas.width, candidateTextCanvas.height)
+                    drawingSettings.textCache = textCache
+                }
                 for (var detailIndex = 0;
                      detailIndex < detailedCandidates.length;
                      ++detailIndex) {
@@ -652,22 +678,23 @@ Item {
                     isBestCandidate = detail.isBest
                     var candidateLines = showCandidateText ? (candidate.labelLines || []) : []
                     var markerOptions = {
-                        "fillColor": candidate.color || app.candidateMarkerColor(candidate.displayIndex,
-                                                                                  candidate.visitRatio),
+                        "fillColor": candidate.color || CandidateModel.markerColor(candidate.displayIndex,
+                                                                                    candidate.visitRatio, markerSettings),
                         "fillOpacity": candidate.opacity,
                         "drawOutline": !isFirstCandidate,
                         "outlineOpacity": candidate.outlineOpacity,
                         "drawRing": isBestCandidate,
-                        "ringColor": app.firstCandidateRingColor,
-                        "textColor": isFirstCandidate ? app.candidateFirstLabelTextColor : "",
-                        "rankText": app.candidateRankLabelText(candidate.displayIndex)
+                        "ringColor": ringColor,
+                        "textColor": isFirstCandidate ? firstLabelColor : "",
+                        "rankText": CandidateAnalysis.rankLabelText(drawingSettings, candidate.displayIndex)
                     }
                     if (showCandidateText) {
                         markerOptions.fallbackText = String(candidate.displayIndex)
-                        markerOptions.fallbackColor = isFirstCandidate ? app.candidateFirstLabelTextColor : "#104f29"
+                        markerOptions.fallbackColor = isFirstCandidate ? firstLabelColor : "#104f29"
                         markerOptions.fallbackFontSize = Math.max(10, Math.min(16, cell * 0.20))
                     }
-                    app.drawCandidateMarker(ctx, cp.x, cp.y, candidateRadius, candidateLines, markerOptions)
+                    CandidateAnalysis.drawMarker(drawingSettings, ctx, cp.x, cp.y,
+                                                 candidateRadius, candidateLines, markerOptions)
                 }
             }
 

@@ -116,12 +116,16 @@ function drawLabelLines(app, ctx, lines, centerX, centerY, markerRadius, overrid
         var line = lines[lineIndex]
         var lineHeight = labelLineHeight(line) * scale
         var fontSize = Math.max(7, Number(line.fontSize) * scale)
-        ctx.font = (line.bold ? "700 " : "400 ") + Math.round(fontSize) + "px sans-serif"
-        ctx.fillStyle = overrideColor || line.color || String(app.candidateLabelTextColor)
-        ctx.fillText(line.text || "",
-                     centerX,
-                     y + lineHeight * 0.5 - labelLineOffset(app, line.kind) * scale,
-                     Math.max(8, markerRadius * 2 - 4))
+        var font = (line.bold ? "700 " : "400 ") + Math.round(fontSize) + "px sans-serif"
+        var color = overrideColor || line.color || String(app.candidateLabelTextColor)
+        var textY = y + lineHeight * 0.5 - labelLineOffset(app, line.kind) * scale
+        var cached = app.textCache && app.textCache.draw(ctx, line.text || "", centerX, textY,
+                                                        font, color, Math.round(fontSize))
+        if (!cached) {
+            ctx.font = font
+            ctx.fillStyle = color
+            ctx.fillText(line.text || "", centerX, textY, Math.max(8, markerRadius * 2 - 4))
+        }
         y += lineHeight + labelGap(markerRadius)
     }
 }
@@ -175,37 +179,34 @@ function drawMarker(app, ctx, centerX, centerY, markerRadius, lines, options) {
     var outlineOpacity = options.outlineOpacity === undefined ? 1 : Number(options.outlineOpacity)
     var ringOpacity = options.ringOpacity === undefined ? 1 : Number(options.ringOpacity)
 
-    ctx.save()
-    if (drawBackground) {
-        ctx.globalAlpha = ctx.globalAlpha * fillOpacity
-        ctx.fillStyle = String(options.fillColor || "#00c8ff")
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, markerRadius, 0, Math.PI * 2)
-        ctx.fill()
+    if (drawBackground || drawOutline || drawRing) {
+        ctx.save()
+        var baseAlpha = ctx.globalAlpha
+        if (drawBackground) {
+            ctx.globalAlpha = baseAlpha * fillOpacity
+            ctx.fillStyle = String(options.fillColor || "#00c8ff")
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, markerRadius, 0, Math.PI * 2)
+            ctx.fill()
+        }
+        if (drawOutline) {
+            ctx.globalAlpha = baseAlpha * outlineOpacity
+            ctx.strokeStyle = String(options.outlineColor || "#000000")
+            ctx.lineWidth = Math.max(1, markerRadius / 26.5)
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, markerRadius, 0, Math.PI * 2)
+            ctx.stroke()
+        }
+        if (drawRing) {
+            ctx.globalAlpha = baseAlpha * ringOpacity
+            ctx.strokeStyle = String(options.ringColor || "#f01818")
+            ctx.lineWidth = ringLineWidthForRadius(app, markerRadius)
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, ringRadius(markerRadius), 0, Math.PI * 2)
+            ctx.stroke()
+        }
+        ctx.restore()
     }
-    ctx.restore()
-
-    ctx.save()
-    if (drawOutline) {
-        ctx.globalAlpha = ctx.globalAlpha * outlineOpacity
-        ctx.strokeStyle = String(options.outlineColor || "#000000")
-        ctx.lineWidth = Math.max(1, markerRadius / 26.5)
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, markerRadius, 0, Math.PI * 2)
-        ctx.stroke()
-    }
-    ctx.restore()
-
-    ctx.save()
-    if (drawRing) {
-        ctx.globalAlpha = ctx.globalAlpha * ringOpacity
-        ctx.strokeStyle = String(options.ringColor || "#f01818")
-        ctx.lineWidth = ringLineWidthForRadius(app, markerRadius)
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, ringRadius(markerRadius), 0, Math.PI * 2)
-        ctx.stroke()
-    }
-    ctx.restore()
 
     if (lines && lines.length > 0) {
         drawLabelLines(app, ctx, lines, centerX, centerY, markerRadius, options.textColor)
@@ -238,19 +239,37 @@ function hsbColorHex(app, hue, saturation, brightness) {
 }
 
 function yzyAlphaRatio(app, visitRatio) {
-    return CandidateModel.alphaRatio(visitRatio, presentationSettings(app).marker)
+    return CandidateModel.alphaRatio(visitRatio, markerSettings(app))
 }
 
 function markerColor(app, displayIndex, visitRatio) {
-    return CandidateModel.markerColor(displayIndex, visitRatio, presentationSettings(app).marker)
+    return CandidateModel.markerColor(displayIndex, visitRatio, markerSettings(app))
 }
 
 function markerOpacity(app, displayIndex, visitRatio) {
-    return CandidateModel.markerOpacity(visitRatio, presentationSettings(app).marker)
+    return CandidateModel.markerOpacity(visitRatio, markerSettings(app))
 }
 
 function markerOutlineOpacity(app, visitRatio) {
-    return CandidateModel.markerOutlineOpacity(visitRatio, presentationSettings(app).marker)
+    return CandidateModel.markerOutlineOpacity(visitRatio, markerSettings(app))
+}
+
+function markerSettings(app) {
+    return { "alphaFactor": app.candidateYzyAlphaFactor, "colorRatio": app.candidateYzyColorRatio,
+             "minAlpha": app.candidateYzyMinAlpha, "maxAlpha": app.candidateYzyMaxAlpha }
+}
+
+// A paint pass reads the QML properties once, then draws every marker from these values.
+function drawingSettings(app) {
+    return { "candidateRingVisible": app.candidateRingVisible,
+             "candidateRingLineWidth": app.candidateRingLineWidth,
+             "candidateRankLabelVisible": app.candidateRankLabelVisible,
+             "candidateLabelTextColor": String(app.candidateLabelTextColor),
+             "candidateWinrateOffsetY": app.candidateWinrateOffsetY,
+             "candidateVisitsOffsetY": app.candidateVisitsOffsetY,
+             "candidateScoreOffsetY": app.candidateScoreOffsetY,
+             "coordinateFontFamily": app.coordinateFontFamily,
+             "stoneScale": app.stoneScale }
 }
 
 function previewLabelLines(app, digitText) {
@@ -477,12 +496,7 @@ function presentationSettings(app) {
             "fontSize": app.candidateScoreFontSize,
             "bold": app.candidateScoreBold
         },
-        "marker": {
-            "alphaFactor": app.candidateYzyAlphaFactor,
-            "colorRatio": app.candidateYzyColorRatio,
-            "minAlpha": app.candidateYzyMinAlpha,
-            "maxAlpha": app.candidateYzyMaxAlpha
-        }
+        "marker": markerSettings(app)
     }
 }
 
