@@ -1,4 +1,5 @@
 import QtQuick
+import QLizzie.Rendering 1.0
 import "BoardRenderer.js" as BoardRenderer
 import "CandidateAnalysis.js" as CandidateAnalysis
 import "CandidateModel.js" as CandidateModel
@@ -104,6 +105,7 @@ Item {
     // These depend on board/layout settings, not the analysis packet or mouse position.
     readonly property var boardRenderState: BoardRenderer.stateFromApp(app)
     readonly property var boardRenderGeometry: BoardRenderer.geometryFromScene(boardScene)
+    readonly property bool denseCandidateRendering: app.engineCandidateItems.length > 400
 
     function hexDisplayCoordForBoard(x, y) {
         return hexTransposed ? Qt.point(y, x) : Qt.point(x, y)
@@ -549,17 +551,76 @@ Item {
         opacity: 0
     }
 
+    CandidateLayer {
+        id: denseCandidateLayer
+        objectName: "denseCandidateLayer"
+        anchors.fill: parent
+        visible: boardScene.denseCandidateRendering && app.analysisPresentationVisible()
+                 && !boardScene.variationPreviewActive
+        readonly property string positionKey: [app.gameTreeGeneration, app.currentNodeId,
+            app.boardRevision, app.gameRuleMode, app.boardSizeX, app.boardSizeY,
+            app.hexBoardRotation, app.hexBoardStyle, app.boardPresentationMode,
+            app.coordinateDisplayMode, app.stoneScale, width, height].join(":")
+
+        function requestFrame() {
+            if (visible)
+                Qt.callLater(submitFrame)
+            else
+                clear()
+        }
+
+        function submitFrame() {
+            if (!visible) {
+                clear()
+                return
+            }
+            var candidates = app.engineCandidateItems
+            var markers = []
+            var ringVisible = app.bestCandidateRingVisible && app.candidateRingVisible
+            var ringKey = app.bestCandidateRingKey
+            var rankVisible = app.candidateRankLabelVisible
+            // Only plain drawing values cross into C++; no QML object is read by the worker.
+            for (var i = candidates.length - 1; i >= 0; --i) {
+                var c = candidates[i]
+                if (!c.boardVisible)
+                    continue
+                var point = boardScene.boardPointLocal(c.x, c.y)
+                markers.push({ "x": point.x, "y": point.y, "color": c.color,
+                    "opacity": c.opacity, "outlineOpacity": c.outlineOpacity,
+                    "displayIndex": c.displayIndex, "qualified": c.qualified,
+                    "ring": ringVisible && c.key === ringKey,
+                    "rank": rankVisible && c.displayIndex <= 9 ? c.displayIndex : 0,
+                    "lines": c.qualified ? c.labelLines : [] })
+            }
+            submit(markers, {
+                "radius": Math.max(8, boardScene.cellSize * app.stoneScale * 0.5),
+                "stoneScale": app.stoneScale, "ringWidth": app.candidateRingLineWidth,
+                "ringColor": String(app.firstCandidateRingColor),
+                "firstLabelColor": String(app.candidateFirstLabelTextColor),
+                "coordinateFont": app.coordinateFontFamily,
+                "offsets": [app.candidateWinrateOffsetY, app.candidateVisitsOffsetY,
+                            app.candidateScoreOffsetY]
+            }, positionKey)
+        }
+
+        onPositionKeyChanged: { clear(); requestFrame() }
+        onVisibleChanged: requestFrame()
+        onRepaintNeeded: requestFrame()
+    }
+
     Canvas {
         id: candidateCanvas
         property var textCache: null
         anchors.fill: parent
         visible: app.analysisPresentationVisible()
                  && !boardScene.variationPreviewActive
+                 && !boardScene.denseCandidateRendering
                  && app.engineCandidateItems.length > 0
                  || app.koLocKey !== ""
                  || app.koLocKey2 !== ""
 
         function requestVisiblePaint() {
+            denseCandidateLayer.requestFrame()
             if (visible)
                 requestPaint()
         }
@@ -580,7 +641,7 @@ Item {
             var ringColor = app.firstCandidateRingColor
             var firstLabelColor = app.candidateFirstLabelTextColor
 
-            if (!boardScene.variationPreviewActive) {
+            if (!boardScene.variationPreviewActive && !boardScene.denseCandidateRendering) {
                 var simpleMarkerBuckets = ({})
                 var simpleMarkerBucketKeys = []
                 var detailedCandidates = []

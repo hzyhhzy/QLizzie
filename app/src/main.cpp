@@ -13,6 +13,7 @@
 
 #include "appsettings.h"
 #include "enginecontroller.h"
+#include "candidatelayer.h"
 #include "fileio.h"
 #include "gomokuforbidden.h"
 
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
     EngineController engineController;
     GomokuForbidden gomokuForbidden;
     QQmlApplicationEngine engine;
+    qmlRegisterType<CandidateLayer>("QLizzie.Rendering", 1, 0, "CandidateLayer");
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("fileIo"), &fileIo);
     engine.rootContext()->setContextProperty(QStringLiteral("engineController"), &engineController);

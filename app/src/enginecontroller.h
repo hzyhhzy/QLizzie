@@ -65,6 +65,7 @@ public:
                                  int requestId,
                                  int syncRequestId);
     Q_INVOKABLE bool canUseIncrementalSync() const;
+    Q_INVOKABLE QVariantList candidateSnapshot() const;
     Q_INVOKABLE void clearCandidates();
 
 signals:

@@ -18,6 +18,8 @@ qt_add_executable(qlizzie
     src/enginecontroller.h
     src/engineanalysis.cpp
     src/engineanalysis.h
+    src/candidatelayer.cpp
+    src/candidatelayer.h
     src/engineprotocol.cpp
     src/engineprotocol.h
     src/main.cpp
@@ -141,6 +143,17 @@ target_link_libraries(qlizzie
 )
 
 if(BUILD_TESTING)
+    find_package(Qt6 QUIET COMPONENTS QuickTest)
+    if(TARGET Qt6::QuickTest)
+        qt_add_executable(qlizzie_qml_tests
+            tests/qmltests.cpp
+            src/candidatelayer.cpp
+            src/candidatelayer.h
+        )
+        target_include_directories(qlizzie_qml_tests PRIVATE src)
+        set_target_properties(qlizzie_qml_tests PROPERTIES WIN32_EXECUTABLE FALSE)
+        target_link_libraries(qlizzie_qml_tests PRIVATE Qt6::QuickTest Qt6::Quick)
+    endif()
     find_package(Qt6 QUIET COMPONENTS Test)
     if(TARGET Qt6::Test)
         qt_add_executable(qlizzie_core_tests

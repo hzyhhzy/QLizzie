@@ -3148,7 +3148,8 @@ ApplicationWindow {
         pendingEngineCandidateSyncRequestId = 0
         if (!engineController || !engineSession.acceptsAnalysis(syncRequestId, enginePositionSnapshot()))
             return
-        var candidateSnapshot = engineController.candidates
+        var candidateSnapshot = typeof engineController.candidateSnapshot === "function"
+                              ? engineController.candidateSnapshot() : engineController.candidates
         applyEngineCandidateUpdate(candidateSnapshot, engineController.candidateRevision)
         applyEngineOwnershipUpdate(engineController.ownership)
         lastEngineCandidateUiUpdateAt = Date.now()

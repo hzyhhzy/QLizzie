@@ -63,6 +63,13 @@ line into a batch of candidates and ownership using Qt value types. It has no
 QObject or QProcess dependency. EngineController publishes nonempty candidate
 batches; newline buffering, GTP failures and log limits remain in the controller.
 
+For more than 400 candidates, `BoardScene` sends drawing values to the C++
+`CandidateLayer`. It paints a QImage on a dedicated worker and uploads the
+completed image through the scene graph. One pending frame replaces older pending
+work; position and geometry changes invalidate unfinished frames. The worker never
+reads QML objects. Smaller batches retain the Canvas renderer. This keeps dense
+text painting off the GUI thread, including when a large window uses larger fonts.
+
 ## Settings and UI boundaries
 
 `SettingsSchema.js` defines the ordered mapping, types and missing-value policy
@@ -91,10 +98,10 @@ cmake --build build/qlizzie --config Release
 ctest --test-dir build/qlizzie -C Release --output-on-failure
 ```
 
-CMake registers 21 JavaScript suites, 7 QML runtime suites and the C++ core suite
+CMake registers 21 JavaScript suites, 8 QML runtime suites and the C++ core suite
 when their respective tools are installed. Check `ctest -N` if a suite is
-missing. The QML runner must come from the selected Qt 6 installation; a Qt 5
-runner elsewhere on PATH cannot load this application.
+missing. The built `qlizzie_qml_tests` runner links the selected Qt Quick Test and
+registers the same native candidate layer as the application.
 
 Individual JavaScript files can also run directly, for example
 `node tests/game_tree.test.js`. `tests/qmlJsLoader.js` resolves actual QML JS imports

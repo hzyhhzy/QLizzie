@@ -35,6 +35,7 @@ private slots:
     void preservesParenthesizedMovesAndPvVisits();
     void parsesEmptyAndInvalidOwnershipWithoutDiscardingCandidates();
     void ignoresBatchesWithoutCandidateMoves();
+    void candidateSnapshotSurvivesNewBatches();
     void buffersPartialAnalysisLinesUntilComplete();
     void ignoresUnhandledAnalysisErrorsWhenConfigured();
     void shutdownIsTerminal();
@@ -68,6 +69,19 @@ void CoreTests::preservesCandidateSymmetryMetadata()
     QVERIFY(!first.contains(QStringLiteral("isSymmetryOf")));
     QCOMPARE(second.value(QStringLiteral("move")).toString(), QStringLiteral("Q16"));
     QCOMPARE(second.value(QStringLiteral("isSymmetryOf")).toString(), QStringLiteral("D4"));
+}
+
+void CoreTests::candidateSnapshotSurvivesNewBatches()
+{
+    EngineController controller;
+    controller.parseInfoLine(QStringLiteral("info move D4 visits 120 order 0 pv D4"));
+    const QVariantList snapshot = controller.candidateSnapshot();
+    controller.parseInfoLine(QStringLiteral("info move Q16 visits 240 order 0 pv Q16"));
+    controller.clearCandidates();
+    QCOMPARE(snapshot.size(), 1);
+    QCOMPARE(snapshot.first().toMap().value(QStringLiteral("move")).toString(), QStringLiteral("D4"));
+    QCOMPARE(snapshot.first().toMap().value(QStringLiteral("visits")).toInt(), 120);
+    QVERIFY(controller.candidateSnapshot().isEmpty());
 }
 
 void CoreTests::preservesCandidateTableMetrics()

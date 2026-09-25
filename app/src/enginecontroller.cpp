@@ -312,6 +312,13 @@ QVariantList EngineController::candidates() const
     return m_candidates;
 }
 
+QVariantList EngineController::candidateSnapshot() const
+{
+    // Invokable return values are detached QML sequences. Reading nested maps
+    // through the candidates property otherwise re-reads the owning property.
+    return m_candidates;
+}
+
 QVariantList EngineController::ownership() const
 {
     return m_ownership;
